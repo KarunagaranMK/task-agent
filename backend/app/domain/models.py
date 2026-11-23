@@ -207,3 +207,14 @@ class SchedulerLease(SQLModel, table=True):
     owner_id: str = ""
     lease_until: datetime = Field(default_factory=lambda: datetime(1970, 1, 1))
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class StreamTicket(SQLModel, table=True):
+    __tablename__ = "stream_tickets"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", index=True)
+    token_hash: str = Field(unique=True, index=True)
+    last_event_id: int = 0
+    expires_at: datetime
+    used_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)

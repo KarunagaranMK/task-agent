@@ -5,7 +5,7 @@ from app.domain.models import Hire, Task, AuditEvent, User
 from app.services.orchestrator import create_hire_with_plan, get_current_day
 from app.auth import require_roles
 from app.services.cpm import CPMTask, compute_what_if, get_remaining_days
-from app.services.planner import get_plan_for_role
+from app.services.planner import try_llm_plan
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
@@ -28,6 +28,10 @@ class PlanPreviewRequest(BaseModel):
 class WhatIfRequest(BaseModel):
     task_key: str
     delay_days: int = Field(ge=0, le=10)
+
+
+class RiskExplanation(BaseModel):
+    explanation: str = Field(min_length=8, max_length=700)
 
 
 class TaskOut(BaseModel):
@@ -60,7 +64,8 @@ class HireOut(BaseModel):
 
 @router.post("/plan-preview")
 def plan_preview(data: PlanPreviewRequest, _user=Depends(require_roles("ADMIN", "HR"))):
-    plan = get_plan_for_role(data.role, hire_id=0)
+    from app.config import settings
+    plan = try_llm_plan(data.role, hire_id=0, api_key=settings.GEMINI_API_KEY)
     return {"role": data.role, "tasks": [task.model_dump() for task in plan.tasks]}
 
 
@@ -204,8 +209,13 @@ def explain_risk(hire_id: int, session: Session = Depends(get_session), user=Dep
                 f"Stalled/flagged tasks: {[t.title for t in stalled]}. "
                 f"Days until start: {hire.start_day}."
             )
-            response = client.models.generate_content(model=settings.GEMINI_MODEL, contents=prompt)
-            return {"explanation": response.text, "source": "llm"}
+            response = client.models.generate_content(
+                model=settings.GEMINI_MODEL,
+                contents=prompt + " Return JSON with one `explanation` string. Do not make decisions or add unsupported facts.",
+                config={"response_mime_type": "application/json", "response_schema": RiskExplanation},
+            )
+            parsed = RiskExplanation.model_validate_json(response.text or "")
+            return {"explanation": parsed.explanation, "source": "llm"}
         except Exception:
             pass
 

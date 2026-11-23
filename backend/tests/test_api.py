@@ -32,6 +32,15 @@ def test_what_if_returns_recomputed_path(client):
     assert response.json()["critical_path"]
 
 
+def test_risk_explanation_uses_template_without_llm_key(client, monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", None)
+    hire = client.post("/hires", json={"name": "Template User", "role": "default", "department": "Ops", "start_day": 8}).json()
+    response = client.get(f"/hires/{hire['id']}/explain")
+    assert response.status_code == 200
+    assert response.json()["source"] == "template"
+
+
 def test_list_hires_empty(client):
     r = client.get("/hires")
     assert r.status_code == 200

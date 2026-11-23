@@ -69,6 +69,10 @@ class PlanSpec(BaseModel):
         return self
 
 
+class TaskSuggestions(BaseModel):
+    extra_tasks: List[TaskSpec] = Field(default_factory=list, max_length=2)
+
+
 ROLE_TEMPLATES: Dict[str, List[Dict[str, Any]]] = {
     "default": [
         {"key": "it:laptop", "title": "Provision Laptop", "team": "IT",
@@ -162,16 +166,15 @@ def try_llm_plan(role: str, hire_id: int, api_key: Optional[str] = None) -> Plan
             '"needs_approval": false}]}'
         )
         response = client.models.generate_content(model=settings.GEMINI_MODEL, contents=prompt)
-        data = json.loads(response.text.strip().strip("```json").strip("```"))
-        for extra in data.get("extra_tasks", [])[:2]:
-            try:
-                spec = TaskSpec(**extra)
-                # Only add if key doesn't already exist
-                existing_keys = {t.key for t in base_plan.tasks}
-                if spec.key not in existing_keys:
-                    base_plan.tasks.append(spec)
-            except Exception:
-                pass
+        raw = (response.text or "").strip()
+        if raw.startswith("```"):
+            raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        suggestions = TaskSuggestions.model_validate(json.loads(raw))
+        for spec in suggestions.extra_tasks:
+            # Only add suggestions that do not duplicate known template tasks.
+            existing_keys = {t.key for t in base_plan.tasks}
+            if spec.key not in existing_keys:
+                base_plan.tasks.append(spec)
         return PlanSpec(tasks=base_plan.tasks)
     except Exception:
         return base_plan

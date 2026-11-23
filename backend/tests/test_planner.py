@@ -1,7 +1,8 @@
 import pytest
 from pydantic import ValidationError
 
-from app.services.planner import PlanSpec, TaskSpec, get_plan_for_role
+from app.services.planner import PlanSpec, TaskSpec, get_plan_for_role, try_llm_plan
+from app.services.llm import draft_escalation_message
 
 
 def _spec(key: str, depends_on: list[str] | None = None, duration_days: int = 1) -> TaskSpec:
@@ -35,3 +36,11 @@ def test_plan_rejects_invalid_duration_and_team():
         _spec("A", duration_days=0)
     with pytest.raises(ValidationError, match="Invalid team"):
         TaskSpec(key="A", title="A", team="Payroll", duration_days=1)
+
+
+def test_llm_features_have_template_fallback_without_key(monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", None)
+    assert try_llm_plan("Data Analyst", 9).tasks == get_plan_for_role("Data Analyst", 9).tasks
+    message = draft_escalation_message("Priya", "Laptop", -1)
+    assert "Priya" in message and "Laptop" in message

@@ -165,5 +165,36 @@ This file records verified state against the phases in the product brief. A gate
 
 ## Next phase — P5 Realtime and AI
 
-1. Add role-filtered SSE tickets/streams, email outbox views, notification events, and safe LLM features with deterministic fallbacks.
-2. Verify SSE ticket authorization and no-key fallback before committing P5.
+## P5 — Realtime, notifications, and optional AI
+
+### Done
+
+- Added 60-second, single-use SSE tickets. Ticket creation requires a valid access JWT; only the hashed ticket is stored; the event stream consumes it once and returns a role/ownership-filtered notification stream.
+- Added role-aware notification read-all and corrected notification filtering for MANAGER, IT/FACILITIES, NEW_HIRE, HR, and ADMIN.
+- Added optional Pydantic-validated Gemini task suggestions, risk explanations, and escalation drafts. Hire creation and plan preview use the validated optional suggestions; no key or invalid/error response falls back to templates and deterministic copy.
+- Kept all scheduling, approval, permissions, retries, dispatch, and stall/reschedule decisions deterministic.
+- Added SSE ticket authorization, event delivery, single-use replay rejection, role filtering, notification read-all, and no-key fallback tests.
+- P5 gate run: `python run.py --test` passed **111 backend tests** and the TypeScript/Vite production build.
+
+### Mocked
+
+- Email remains the local `MailOutbox`; SMTP and Slack/Teams webhooks are not configured.
+- EventSource wiring and browser reconnect/polling fallback will be added with the P6 frontend foundation.
+- Gemini calls were not made in test runs; the no-key/template path is covered. Live-key quota and model behavior have not been exercised.
+
+### Known gaps
+
+- There is no durable event replay/history API beyond the notification table or SSE event retention policy.
+- The browser does not yet open the SSE stream, show reconnect state, or fall back to polling.
+- The email outbox is inspectable via the backend demo endpoint; the polished `/app/dev/mail` page is planned for P8.
+
+### Gate and commit
+
+- **P5 gate: passed.** SSE tickets are authenticated, short-lived and single use; no-key LLM paths pass.
+- **Tests:** 111 backend tests passed; TypeScript/Vite production build passed.
+- Conventional P5 commit follows this progress update.
+
+## Next phase — P6 Frontend foundation
+
+1. Add generated API types, route-level code splitting, SSE client/reconnect and responsive auth/theme/shell polish.
+2. Run build and inspect visual login/shell behavior before committing P6.

@@ -12,6 +12,7 @@ from app.domain.models import (
     Notification, Ticket, SimState, ApprovalState, TaskFlag, SchedulerLease,
 )
 from app.services.cpm import CPMTask, compute_cpm, get_remaining_days, is_stalled
+from app.services.llm import draft_escalation_message
 import logging
 from app.mcp_clients.tools import (
     cancel_ticket as mcp_cancel_ticket,
@@ -300,10 +301,7 @@ def handle_stalls(
         if task.flag not in (TaskFlag.escalated, TaskFlag.rescheduled):
             task.flag = TaskFlag.escalated
             session.add(task)
-            msg = (
-                f"ESCALATION: '{task.title}' for {hire.name} is stalled on the critical path. "
-                f"Slack={ct.slack:.1f}d. Immediate action required."
-            )
+            msg = draft_escalation_message(hire.name, task.title, ct.slack)
             audit(session, hire.id, msg, "critical", "progress_monitor")
             notify(session, "Manager", msg, hire.id, task.id)
             notify(session, "IT",
@@ -505,7 +503,7 @@ def create_hire_with_plan(
     manager_id: Optional[int] = None,
 ) -> Hire:
     """Create a hire and generate their task plan from role template (+ optional LLM)."""
-    from app.services.planner import get_plan_for_role
+    from app.services.planner import try_llm_plan
     from app.config import settings
 
     hire = Hire(name=name, role=role, department=department, start_day=start_day, manager_id=manager_id)
@@ -515,7 +513,7 @@ def create_hire_with_plan(
 
     mcp_upsert_new_hire(hire.id, hire.name, hire.role, hire.department, hire.start_day)
 
-    plan = get_plan_for_role(role, hire.id)
+    plan = try_llm_plan(role, hire.id, settings.GEMINI_API_KEY)
 
     for ts in plan.tasks:
         task = Task(

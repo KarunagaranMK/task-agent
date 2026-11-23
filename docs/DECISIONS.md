@@ -96,6 +96,18 @@
 - **Why:** Creating a second ticket with the same `hire:task` idempotency key would return the original ticket, while using a new key could duplicate work. Updating the existing request preserves exactly-once behavior.
 - **Alternative considered:** Cancel and recreate the ticket. That introduces a cancellation/recreation gap and ambiguous state if either tool response is lost.
 
+## 2026-11-23 — Use single-use SSE tickets and keep streams role-filtered
+
+- **Decision:** Authenticate `POST /events/ticket` with the in-memory access JWT, persist only a hash of the 60-second token, consume it once when opening `GET /events/stream`, and filter each event against the user's role and ownership.
+- **Why:** Browser EventSource cannot attach the bearer header, and a long-lived access token in a URL would be exposed through history and logs.
+- **Alternative considered:** Put the access JWT in the stream query string or allow reusable stream tokens. Both increase the impact of accidental URL disclosure.
+
+## 2026-11-23 — Use Gemini only for schema-validated copy suggestions
+
+- **Decision:** Validate additional task suggestions, risk explanations, and escalation drafts with Pydantic; all fall back to local role templates or deterministic messages when there is no key, invalid JSON, or an API error.
+- **Why:** LLM text can help explain or communicate but must not choose dependencies, dispatch, escalation eligibility, or access policy.
+- **Alternative considered:** Accept arbitrary raw model text and let the model make workflow decisions. That conflicts with the deterministic orchestration boundary.
+
 ## Known decisions still pending
 
 - The deterministic in-process MCP adapters remain until persistent stdio client tests are implemented.

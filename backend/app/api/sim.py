@@ -80,13 +80,32 @@ def get_metrics(session: Session = Depends(get_session), _user=Depends(require_r
     }
 
 
+def _notifications_for_user(session: Session, user) -> list[Notification]:
+    query = select(Notification)
+    if user.role == "MANAGER":
+        query = query.where(Notification.for_role == "Manager")
+    elif user.role == "IT_STAFF":
+        team_name = "Facilities" if (user.team or "").lower() == "facilities" else "IT"
+        query = query.where(Notification.for_role == team_name)
+    elif user.role == "NEW_HIRE":
+        query = query.where(Notification.for_role == "New Hire")
+    notifications = session.exec(query.order_by(Notification.created_at.desc())).all()
+    if user.role == "MANAGER":
+        notifications = [
+            n for n in notifications
+            if n.hire_id is None or (session.get(Hire, n.hire_id) is not None and session.get(Hire, n.hire_id).manager_id == user.id)
+        ]
+    elif user.role == "NEW_HIRE":
+        notifications = [
+            n for n in notifications if n.hire_id is not None
+            and session.exec(select(Hire.id).where(Hire.id == n.hire_id, Hire.new_hire_user_id == user.id)).first()
+        ]
+    return notifications
+
+
 @router.get("/notifications")
 def get_notifications(role: Optional[str] = None, session: Session = Depends(get_session), user=Depends(get_current_user)):
-    role = user.role
-    query = select(Notification)
-    if role:
-        query = query.where(Notification.for_role == role)
-    notifications = session.exec(query.order_by(Notification.created_at.desc())).all()
+    notifications = _notifications_for_user(session, user)
     return [
         {
             "id": n.id,
@@ -107,12 +126,28 @@ def mark_read(nid: int, session: Session = Depends(get_session), user=Depends(ge
     own_role = user.team if user.role == "IT_STAFF" else user.role
     if n is None:
         raise HTTPException(404, "Notification not found")
-    if n.for_role.lower() not in {own_role.lower(), user.role.lower()}:
+    permitted = n.for_role.lower() in {own_role.lower(), user.role.lower(), "new hire" if user.role == "NEW_HIRE" else ""}
+    if user.role == "MANAGER" and n.hire_id is not None:
+        hire = session.get(Hire, n.hire_id)
+        permitted = permitted and hire is not None and hire.manager_id == user.id
+    if user.role == "NEW_HIRE" and n.hire_id is not None:
+        permitted = permitted and session.exec(select(Hire.id).where(Hire.id == n.hire_id, Hire.new_hire_user_id == user.id)).first() is not None
+    if user.role not in {"ADMIN", "HR"} and not permitted:
         raise HTTPException(403, "Notification belongs to another role")
     n.read = True
     session.add(n)
     session.commit()
     return {"id": nid, "read": True}
+
+
+@router.post("/notifications/read-all")
+def mark_all_read(session: Session = Depends(get_session), user=Depends(get_current_user)):
+    notifications = _notifications_for_user(session, user)
+    for item in notifications:
+        item.read = True
+        session.add(item)
+    session.commit()
+    return {"updated": len(notifications)}
 
 
 @router.post("/reset")

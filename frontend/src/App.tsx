@@ -1,21 +1,23 @@
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity, ArrowUpRight, Bell, Check, ChevronDown, Command, Compass, LogOut,
   Gauge, HelpCircle, LayoutDashboard, Menu, Moon, PanelLeftClose, Search,
   ShieldCheck, Sparkles, Sun, Workflow, X,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import HRPage from './pages/HRPage'
-import HireDetail from './pages/HireDetail'
-import ManagerPage from './pages/ManagerPage'
-import ITPage from './pages/ITPage'
-import InsightsPage from './pages/InsightsPage'
-import DemoPanel from './components/DemoPanel'
 import { clearAccessToken, getHires, getMe, logout, refreshAccessToken, type AuthUser, type Hire } from './api/client'
 import LoginPage from './pages/LoginPage'
-import AccountRecovery from './pages/AccountRecovery'
+import { useLiveEvents } from './hooks/useLiveEvents'
+
+const HRPage = lazy(() => import('./pages/HRPage'))
+const HireDetail = lazy(() => import('./pages/HireDetail'))
+const ManagerPage = lazy(() => import('./pages/ManagerPage'))
+const ITPage = lazy(() => import('./pages/ITPage'))
+const InsightsPage = lazy(() => import('./pages/InsightsPage'))
+const DemoPanel = lazy(() => import('./components/DemoPanel'))
+const AccountRecovery = lazy(() => import('./pages/AccountRecovery'))
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: true } } })
 
@@ -42,7 +44,10 @@ const routes: Array<{ label: string; to: string; description: string; roles: str
 function AppFrame() {
   const { role } = useRole()
   const { user, signOut } = useAuth()
-  const [theme, setTheme] = useState(() => localStorage.getItem('onboardiq-theme') || 'light')
+  const { connectionState, lastMessage } = useLiveEvents(queryClient, true)
+  const [theme, setTheme] = useState(() => localStorage.getItem('onboardiq-theme') || 'system')
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches)
+  const shortcutPrefixAt = useRef(0)
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -55,8 +60,15 @@ function AppFrame() {
 
   useEffect(() => {
     localStorage.setItem('onboardiq-theme', theme)
-    document.documentElement.dataset.theme = theme
   }, [theme])
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const update = () => setSystemDark(media.matches)
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+  const resolvedTheme = theme === 'system' ? (systemDark ? 'dark' : 'light') : theme
+  useEffect(() => { document.documentElement.dataset.theme = resolvedTheme }, [resolvedTheme])
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
@@ -67,6 +79,13 @@ function AppFrame() {
         setPaletteOpen(false); setMobileOpen(false); setDemoOpen(false)
       } else if (event.key === '/' && !['INPUT', 'TEXTAREA'].includes((event.target as HTMLElement)?.tagName)) {
         event.preventDefault(); setPaletteOpen(true); setQuery('')
+      } else if (!['INPUT', 'TEXTAREA'].includes((event.target as HTMLElement)?.tagName)) {
+        const now = Date.now()
+        if (shortcutPrefixAt.current && now - shortcutPrefixAt.current < 1000) {
+          shortcutPrefixAt.current = 0
+          const destination = ({ h: '/', a: '/manager', t: '/it' } as Record<string, string>)[event.key.toLowerCase()]
+          if (destination && visibleRoutes.some(item => item.to === destination)) navigate(destination)
+        } else if (event.key.toLowerCase() === 'g') shortcutPrefixAt.current = now
       }
     }
     window.addEventListener('keydown', onKey)
@@ -81,7 +100,7 @@ function AppFrame() {
   const sidebarClass = `app-sidebar ${collapsed ? 'is-collapsed' : ''} ${mobileOpen ? 'is-mobile-open' : ''}`
 
   return (
-    <div className={`app-frame ${theme === 'dark' ? 'dark' : ''}`}>
+    <div className={`app-frame ${resolvedTheme === 'dark' ? 'dark' : ''}`}>
       <aside className={sidebarClass} aria-label="Main navigation">
         <div className="brand-lockup">
           <div className="brand-mark"><Workflow size={19} strokeWidth={1.8} /></div>
@@ -123,20 +142,20 @@ function AppFrame() {
             <div className="breadcrumbs"><span>Workspace</span><span className="crumb-slash">/</span><strong>{current}</strong></div>
           </div>
           <div className="topbar-actions">
-            <div className="connection-status"><span className="live-dot" />Live</div>
+            <div className={`connection-status ${connectionState}`} aria-label={`Connection ${connectionState}`}><span className="live-dot" />{connectionState === 'live' ? 'Live' : connectionState === 'connecting' ? 'Connecting' : 'Reconnecting'}</div>
             <button className="search-trigger" onClick={() => setPaletteOpen(true)} aria-label="Search or jump to">
               <Search size={16} /><span>Search anything</span><kbd><Command size={11} /> K</kbd>
             </button>
             {['ADMIN', 'HR', 'MANAGER'].includes(role) && <button className="icon-button topbar-icon" aria-label="Notifications" onClick={() => go(role === 'MANAGER' ? '/manager' : '/')}><Bell size={18} /><i className="notification-dot" /></button>}
-            <button className="icon-button topbar-icon theme-toggle" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}>
-              {theme === 'dark' ? <Sun size={18} /> : <Moon size={17} />}
+            <button className="icon-button topbar-icon theme-toggle" onClick={() => setTheme(theme === 'system' ? 'light' : theme === 'light' ? 'dark' : 'system')} aria-label={`Theme: ${theme}. Change theme`} title={`Theme: ${theme}`}>
+              {resolvedTheme === 'dark' ? <Sun size={18} /> : <Moon size={17} />}
             </button>
             <button className="role-select" onClick={signOut} title="Sign out"><span className="role-avatar">{user.name.slice(0, 1).toUpperCase()}</span><span className="role-name">Sign out</span><LogOut size={14} /></button>
           </div>
         </header>
 
         <main className="page-content" key={location.pathname}>
-          <Routes>
+          <Suspense fallback={<div className="page-skeleton" aria-label="Loading page"><span /></div>}><Routes>
             {['ADMIN', 'HR'].includes(role) && <Route path="/" element={<HRPage />} />}
             {['ADMIN', 'HR', 'MANAGER'].includes(role) && <Route path="/hire/:id" element={<HireDetail />} />}
             {['ADMIN', 'MANAGER'].includes(role) && <Route path="/manager" element={<ManagerPage />} />}
@@ -144,7 +163,7 @@ function AppFrame() {
             {['ADMIN', 'HR'].includes(role) && <Route path="/insights" element={<InsightsPage />} />}
             {role === 'NEW_HIRE' && <Route path="/my-onboarding" element={<div className="empty-state"><Workflow size={30} /><h1>Your onboarding plan</h1><p>Your personal task timeline will appear here once HR links your hire record.</p></div>} />}
             <Route path="*" element={<div className="empty-state"><Compass size={30} /><h1>That page is not here yet</h1><p>Choose a workspace page from the navigation.</p><button className="button-primary" onClick={() => go('/')}>Back to overview</button></div>} />
-          </Routes>
+          </Routes></Suspense>
         </main>
         <footer className="app-footer"><span>OnboardIQ <span className="footer-separator">·</span> Workforce onboarding, in sync.</span><span><Sparkles size={13} /> AI off <span className="footer-muted">(templates)</span></span></footer>
       </div>
@@ -152,12 +171,12 @@ function AppFrame() {
       {['ADMIN', 'HR'].includes(role) && <button className={`demo-fab ${demoOpen ? 'selected' : ''}`} onClick={() => setDemoOpen(value => !value)} aria-label={demoOpen ? 'Close demo controls' : 'Open demo controls'}>
         {demoOpen ? <X size={17} /> : <Gauge size={17} />}<span>Demo controls</span>
       </button>}
-      {demoOpen && ['ADMIN', 'HR'].includes(role) && <div className="demo-drawer"><div className="demo-drawer-head"><div><span className="eyebrow">LIVE SIMULATION</span><h3>Demo controls</h3></div><button className="icon-button" onClick={() => setDemoOpen(false)} aria-label="Close demo controls"><X size={17} /></button></div><DemoPanel /></div>}
+      {demoOpen && ['ADMIN', 'HR'].includes(role) && <div className="demo-drawer"><div className="demo-drawer-head"><div><span className="eyebrow">LIVE SIMULATION</span><h3>Demo controls</h3></div><button className="icon-button" onClick={() => setDemoOpen(false)} aria-label="Close demo controls"><X size={17} /></button></div><Suspense fallback={<div className="panel-loading">Loading controls…</div>}><DemoPanel /></Suspense></div>}
 
       {paletteOpen && <div className="palette-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setPaletteOpen(false) }}>
         <section className="command-palette" role="dialog" aria-modal="true" aria-label="Command palette">
           <div className="palette-search"><Search size={18} /><input autoFocus value={query === '?' ? '' : query} onChange={event => setQuery(event.target.value)} placeholder="Search pages, hires, or actions…" /><kbd>ESC</kbd></div>
-          {query === '?' ? <div className="palette-results"><p className="palette-label">KEYBOARD SHORTCUTS</p><div className="shortcut-row"><span>Open search</span><kbd>⌘ K</kbd></div><div className="shortcut-row"><span>Focus search</span><kbd>/</kbd></div><div className="shortcut-row"><span>Close dialog</span><kbd>ESC</kbd></div><div className="shortcut-row"><span>Show shortcuts</span><kbd>?</kbd></div></div> : <div className="palette-results">
+          {query === '?' ? <div className="palette-results"><p className="palette-label">KEYBOARD SHORTCUTS</p><div className="shortcut-row"><span>Open search</span><kbd>Ctrl K</kbd></div><div className="shortcut-row"><span>Focus search</span><kbd>/</kbd></div><div className="shortcut-row"><span>Go to overview</span><kbd>G, H</kbd></div><div className="shortcut-row"><span>Go to approvals</span><kbd>G, A</kbd></div><div className="shortcut-row"><span>Go to team queue</span><kbd>G, T</kbd></div><div className="shortcut-row"><span>Close dialog</span><kbd>ESC</kbd></div><div className="shortcut-row"><span>Show shortcuts</span><kbd>?</kbd></div></div> : <div className="palette-results">
             <p className="palette-label">PAGES</p>
             {visibleRoutes.filter(item => `${item.label} ${item.description}`.toLowerCase().includes(query.toLowerCase())).map(item => <button key={item.label} className="palette-option" onClick={() => go(item.to)}><span className="palette-option-icon"><ArrowUpRight size={16} /></span><span>{item.label}<small>{item.description}</small></span><kbd>↵</kbd></button>)}
             {query && hireResults.length > 0 && <><p className="palette-label">HIRES</p>{hireResults.slice(0, 5).map(hire => <button key={hire.id} className="palette-option" onClick={() => go(`/hire/${hire.id}`)}><span className="hire-avatar">{hire.name.split(' ').map(part => part[0]).join('').slice(0, 2)}</span><span>{hire.name}<small>{hire.role} · {hire.department}</small></span><ArrowUpRight size={15} /></button>)}</>}
@@ -166,7 +185,7 @@ function AppFrame() {
           <div className="palette-foot"><span><Command size={12} /> Navigate</span><span><Check size={12} /> Select</span><span><X size={12} /> Close</span></div>
         </section>
       </div>}
-      <div className="sr-only" aria-live="polite">{current} page</div>
+      <div className="sr-only" aria-live="polite">{current} page. {lastMessage}</div>
     </div>
   )
 }
@@ -197,7 +216,7 @@ function AuthCoordinator() {
   const onAuthenticated = (nextUser: AuthUser) => { setUser(nextUser); navigate('/', { replace: true }) }
 
   if (checking) return <div className="auth-loading"><span className="brand-mark"><Workflow size={19} /></span><strong>Restoring your session…</strong></div>
-  if (!user && ['/forgot-password', '/reset-password', '/accept-invite'].includes(location.pathname)) return <AccountRecovery />
+  if (!user && ['/forgot-password', '/reset-password', '/accept-invite'].includes(location.pathname)) return <Suspense fallback={<div className="auth-loading">Loading secure page…</div>}><AccountRecovery /></Suspense>
   if (!user) return <LoginPage onAuthenticated={onAuthenticated} />
   if (location.pathname === '/login') return <Navigate to="/" replace />
   const role = user.role

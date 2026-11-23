@@ -1,4 +1,5 @@
 import axios from 'axios'
+import type { components } from './generated'
 
 const BASE = import.meta.env.VITE_API_URL || '/api'
 const api = axios.create({ baseURL: BASE, withCredentials: true })
@@ -32,21 +33,30 @@ api.interceptors.response.use(response => response, async error => {
   return Promise.reject(error)
 })
 
-export interface AuthUser { id: number; email: string; name: string; role: string; team?: string | null; must_change_password: boolean }
+export type AuthUser = components['schemas']['UserOut']
+export type HireCreate = components['schemas']['HireCreate']
+export type Hire = components['schemas']['HireOut']
+export type Task = components['schemas']['TaskOut']
 export async function login(email: string, password: string) {
-  const response = await api.post('/auth/login', { email, password })
+  const response = await api.post<components['schemas']['LoginOut']>('/auth/login', { email, password })
   accessToken = response.data.access_token
   return response.data.user as AuthUser
 }
-export async function refreshAccessToken() {
+export async function refreshAccessToken(): Promise<string> {
   if (!refreshFlight) {
     refreshFlight = api.post('/auth/refresh', {}, { headers: { 'X-CSRF-Token': csrfToken() } })
-      .then(response => { accessToken = response.data.access_token; return accessToken })
+      .then((response: { data: { access_token: string } }) => {
+        const token = response.data.access_token as string
+        accessToken = token
+        return token
+      })
       .finally(() => { refreshFlight = null })
   }
   return refreshFlight
 }
 export const getMe = () => api.get('/auth/me').then(response => response.data as AuthUser)
+export const createStreamTicket = () => api.post('/events/ticket').then(response => response.data as { ticket: string; expires_in: number })
+export function eventStreamUrl(ticket: string) { return `${BASE}/events/stream?ticket=${encodeURIComponent(ticket)}` }
 export const requestPasswordReset = (email: string) => api.post('/auth/password/forgot', { email }).then(response => response.data)
 export const resetPassword = (token: string, password: string) => api.post('/auth/password/reset', { token, password }).then(response => response.data)
 export const acceptInvite = (token: string, password: string) => api.post('/auth/accept-invite', { token, password }).then(response => response.data)
@@ -55,10 +65,10 @@ export async function logout() {
   accessToken = null
 }
 
-export const getHires = () => api.get('/hires').then(r => r.data)
-export const createHire = (data: HireCreate) => api.post('/hires', data).then(r => r.data)
-export const getHire = (id: number) => api.get(`/hires/${id}`).then(r => r.data)
-export const getHireTasks = (id: number) => api.get(`/hires/${id}/tasks`).then(r => r.data)
+export const getHires = () => api.get<Hire[]>('/hires').then(r => r.data)
+export const createHire = (data: HireCreate) => api.post<Hire>('/hires', data).then(r => r.data)
+export const getHire = (id: number) => api.get<Hire>(`/hires/${id}`).then(r => r.data)
+export const getHireTasks = (id: number) => api.get<Task[]>(`/hires/${id}/tasks`).then(r => r.data)
 export const getHireAudit = (id: number) => api.get(`/hires/${id}/audit`).then(r => r.data)
 export const explainRisk = (id: number) => api.get(`/hires/${id}/explain`).then(r => r.data)
 export const approveTask = (id: number) => api.post(`/tasks/${id}/approve`).then(r => r.data)
@@ -76,17 +86,7 @@ export const getNotifications = (role?: string) =>
 export const markNotificationRead = (id: number) => api.post(`/notifications/${id}/read`).then(r => r.data)
 export const resetAll = () => api.post('/reset').then(r => r.data)
 
-export interface HireCreate { name: string; role: string; department: string; start_day: number }
 export interface ExperimentParams { n_hires: number; stall_probability: number; seed: number }
-export interface Hire {
-  id: number; name: string; role: string; department: string;
-  start_day: number; status: string; readiness: number; projected_day: number | null
-}
-export interface Task {
-  id: number; key: string; title: string; team: string; duration_days: number;
-  depends_on: string[]; needs_approval: boolean; approval_state: string;
-  status: string; ticket_id: string | null; slack: number | null; critical: boolean; flag: string
-}
 export interface Ticket {
   id: number; ticket_id: string; title: string; team: string;
   status: string; hire_id: number | null; task_id: number | null; estimate_days: number; created_at: string

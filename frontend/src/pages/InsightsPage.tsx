@@ -112,7 +112,7 @@ export default function InsightsPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} tickFormatter={v => `${v}%`} />
-                <Tooltip formatter={(v: number) => [`${v}%`, 'Day-1 Readiness']} />
+                <Tooltip formatter={value => [`${Number(value ?? 0)}%`, 'Day-1 Readiness']} />
                 <Bar dataKey="readiness" radius={[6, 6, 0, 0]}>
                   {chartData.map((entry, index) => <Cell key={index} fill={entry.fill} />)}
                 </Bar>

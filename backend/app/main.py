@@ -35,9 +35,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for api_router in (hires.router, tasks.router, sim.router, events.router, auth.users_router, auth.mail_router):
+for api_router in (hires.router, tasks.router, sim.router, auth.users_router, auth.mail_router):
     app.include_router(api_router, dependencies=[Depends(auth.get_current_user)])
     app.include_router(api_router, prefix="/api", dependencies=[Depends(auth.get_current_user)])
+# The ticket endpoint authenticates itself with a JWT. The stream endpoint must
+# accept the single-use ticket because native EventSource cannot send headers.
+app.include_router(events.router)
+app.include_router(events.router, prefix="/api")
 app.include_router(auth.router)
 app.include_router(auth.router, prefix="/api")
 

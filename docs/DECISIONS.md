@@ -114,3 +114,15 @@
 - The demo role selector remains a visual prototype; it does not enforce backend RBAC.
 - The optional LangGraph adapter stays disabled until the default orchestrator passes its expanded test suite.
 - The local mail outbox is the delivery mechanism for development; SMTP configuration and real delivery remain optional and unimplemented.
+
+## 2026-11-23 — Keep the browser event stream ticket-only
+
+- **Decision:** Exclude `/events/stream` from the router-wide bearer dependency while keeping `/events/ticket` individually JWT-protected.
+- **Why:** Browser EventSource cannot attach Authorization headers. The 60-second single-use stream ticket is the stream’s authentication credential; applying the global bearer dependency made every browser stream fail with 401.
+- **Alternative considered:** Put the access JWT in the stream URL or add a custom fetch-based SSE parser. The URL would expose a longer-lived credential, and custom parsing adds client complexity without improving the existing ticket design.
+
+## 2026-11-23 — Generate frontend contracts directly from FastAPI OpenAPI
+
+- **Decision:** Check in a small standard-library generator that imports the FastAPI schema and emits `components` and `paths` TypeScript contracts, exposed through `npm run typegen:api`.
+- **Why:** This keeps API contracts reproducible and aligned with the source schema without adding a frontend runtime dependency or changing the user's already-dirty npm lockfile.
+- **Alternative considered:** Add an OpenAPI typegen package to the lockfile. That would mix generated dependency edits with unrelated pre-existing lockfile changes; the local generator needs no additional package.

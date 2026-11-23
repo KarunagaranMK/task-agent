@@ -196,5 +196,31 @@ This file records verified state against the phases in the product brief. A gate
 
 ## Next phase — P6 Frontend foundation
 
-1. Add generated API types, route-level code splitting, SSE client/reconnect and responsive auth/theme/shell polish.
-2. Run build and inspect visual login/shell behavior before committing P6.
+## P6 — Frontend foundation
+
+### Done
+
+- Enabled TypeScript strict mode and fixed the type mismatches it exposed.
+- Added `scripts/generate_api_types.py` and the `npm run typegen:api` command to generate the frontend contract from FastAPI OpenAPI. The API client now uses generated schemas for auth, hire, and task contracts.
+- Added route-level lazy loading with Suspense fallbacks for dashboard pages, account recovery, and demo controls.
+- Added authenticated SSE ticket acquisition, a native EventSource client, exponential reconnect, and 15-second query invalidation fallback. The stream route is authorized by its single-use ticket; ticket creation still requires JWT authentication.
+- Added persisted system/light/dark themes, live connection status, keyboard shortcuts, loading shimmer, and reduced-motion support.
+- Ran the production build and signed in through the local UI. Visually inspected the login and admin shell at the current desktop viewport; confirmed the connection indicator reaches Live.
+- Fixed the P5 SSE integration issue found during visual review: app-wide bearer dependencies had been applied to the EventSource route, which cannot send the Authorization header.
+
+### Mocked
+
+- The local app continues to use demo seed data and local SQLite-backed MCP systems. No external HRIS/ITSM vendor service is connected.
+- Authenticated notifications are refetched through React Query after SSE updates; a full notification popover is part of P7.
+
+### Known gaps
+
+- The responsive screenshot sweep at 390, 768, and 1440 px in both themes is still pending with the P7 Playwright visual QA setup; the P6 manual review covered the login and admin shell at desktop size.
+- The event hook invalidates queries for each notification and does not yet display the planned live row flash/action toast.
+- Browser-based visual review required an escalated local loopback server. In-sandbox Python imports that initialize the MCP asyncio client cannot create a Windows socketpair; the test gate was therefore run outside the sandbox.
+
+### Gate and commit
+
+- **P6 gate: passed.** Strict TypeScript/Vite build passes; local login succeeds; SSE connection visibly reaches Live; login and admin shell visual review completed.
+- **Tests:** `python run.py --test` passed **111 backend tests** and the strict TypeScript/Vite production build. Pytest and Starlette emitted deprecation warnings only.
+- Conventional P6 commit follows this progress update.

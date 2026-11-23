@@ -6,6 +6,7 @@ All logic is deterministic — no LLM involved.
 from typing import List, Dict
 from collections import deque
 from dataclasses import dataclass, field
+from typing import TypedDict
 
 
 @dataclass
@@ -32,6 +33,8 @@ def compute_cpm(tasks: List[CPMTask], deadline: float) -> List[CPMTask]:
         return tasks
 
     task_map = {t.key: t for t in tasks}
+    if len(task_map) != len(tasks):
+        raise ValueError("Task keys must be unique")
 
     # Kahn's topological sort + cycle detection
     in_degree: Dict[str, int] = {t.key: 0 for t in tasks}
@@ -39,9 +42,10 @@ def compute_cpm(tasks: List[CPMTask], deadline: float) -> List[CPMTask]:
 
     for t in tasks:
         for dep in t.deps:
-            if dep in task_map:
-                in_degree[t.key] += 1
-                children[dep].append(t.key)
+            if dep not in task_map:
+                raise ValueError(f"Unknown dependency '{dep}' in task '{t.key}'")
+            in_degree[t.key] += 1
+            children[dep].append(t.key)
 
     queue: deque = deque([k for k, deg in in_degree.items() if deg == 0])
     topo_order: List[str] = []
@@ -71,7 +75,9 @@ def compute_cpm(tasks: List[CPMTask], deadline: float) -> List[CPMTask]:
 
     # Effective project end
     project_ef = max(t.ef for t in tasks)
-    effective_deadline = deadline if deadline > 0 else project_ef
+    # A zero or negative deadline is meaningful: it means the hire's Day-1
+    # deadline has arrived or passed, and must produce negative slack.
+    effective_deadline = deadline
 
     # Backward pass: LS/LF
     for key in reversed(topo_order):
@@ -125,3 +131,48 @@ def is_stalled(task, current_day: int, stall_days: int = 2) -> bool:
         idle = current_day - task.last_activity_day
         return idle >= stall_days
     return False
+
+
+class WhatIfResult(TypedDict):
+    task_key: str
+    delay_days: int
+    projected_ready_day: float
+    baseline_ready_day: float
+    delta_days: float
+    critical_path: list[str]
+    tasks: list[CPMTask]
+
+
+def compute_what_if(
+    tasks: list[CPMTask],
+    deadline: float,
+    task_key: str,
+    delay_days: int,
+    current_day: float = 0,
+) -> WhatIfResult:
+    """Purely recompute project timing after adding delay to one open task."""
+    if delay_days < 0 or delay_days > 10:
+        raise ValueError("Delay must be between 0 and 10 business days")
+    if not any(task.key == task_key for task in tasks):
+        raise ValueError(f"Unknown or closed task '{task_key}'")
+    baseline = compute_cpm(
+        [CPMTask(key=t.key, remaining_days=t.remaining_days, deps=list(t.deps)) for t in tasks],
+        deadline,
+    )
+    delayed_inputs = [
+        CPMTask(key=t.key, remaining_days=t.remaining_days + (delay_days if t.key == task_key else 0), deps=list(t.deps))
+        for t in tasks
+    ]
+    delayed = compute_cpm(delayed_inputs, deadline)
+    baseline_finish = max((t.ef for t in baseline), default=0.0)
+    delayed_finish = max((t.ef for t in delayed), default=0.0)
+    critical_path = [t.key for t in delayed if t.critical]
+    return {
+        "task_key": task_key,
+        "delay_days": delay_days,
+        "projected_ready_day": current_day + delayed_finish,
+        "baseline_ready_day": current_day + baseline_finish,
+        "delta_days": delayed_finish - baseline_finish,
+        "critical_path": critical_path,
+        "tasks": delayed,
+    }

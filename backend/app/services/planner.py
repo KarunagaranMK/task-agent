@@ -3,7 +3,7 @@ Plan generator: creates a task DAG for a hire based on role template.
 LLM used optionally to add role-specific tasks; falls back to template on any error.
 """
 from typing import List, Dict, Any, Optional
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 import json
 
 
@@ -12,7 +12,7 @@ class TaskSpec(BaseModel):
     title: str
     team: str
     duration_days: int
-    depends_on: List[str] = []
+    depends_on: List[str] = Field(default_factory=list)
     needs_approval: bool = False
     fallback_title: Optional[str] = None
     fallback_days: Optional[int] = None
@@ -24,21 +24,49 @@ class TaskSpec(BaseModel):
             raise ValueError(f"Invalid team: {v}")
         return v
 
+    @field_validator("key", "title")
+    @classmethod
+    def validate_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Task key and title must not be blank")
+        return value.strip()
+
+    @field_validator("duration_days")
+    @classmethod
+    def validate_duration(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("Task duration must be at least one business day")
+        return value
+
+    @field_validator("fallback_days")
+    @classmethod
+    def validate_fallback_duration(cls, value: Optional[int]) -> Optional[int]:
+        if value is not None and value < 1:
+            raise ValueError("Fallback duration must be at least one business day")
+        return value
+
 
 class PlanSpec(BaseModel):
     tasks: List[TaskSpec]
 
-    @field_validator("tasks")
-    @classmethod
-    def validate_dag(cls, tasks: List[TaskSpec]) -> List[TaskSpec]:
-        keys = {t.key for t in tasks}
+    @model_validator(mode="after")
+    def validate_dag(self) -> "PlanSpec":
+        tasks = self.tasks
+        keys = [t.key for t in tasks]
+        if len(set(keys)) != len(keys):
+            raise ValueError("Task keys must be unique")
+        key_set = set(keys)
         for t in tasks:
             for dep in t.depends_on:
-                if dep not in keys:
+                if dep not in key_set:
                     raise ValueError(f"Unknown dep '{dep}' in task '{t.key}'")
             if t.key in t.depends_on:
                 raise ValueError(f"Self-dependency in task '{t.key}'")
-        return tasks
+        # Reuse the same Kahn validation that powers CPM so invalid plans fail
+        # before tasks can be persisted or sent to external systems.
+        from app.services.cpm import CPMTask, compute_cpm
+        compute_cpm([CPMTask(key=t.key, remaining_days=t.duration_days, deps=t.depends_on) for t in tasks], deadline=0)
+        return self
 
 
 ROLE_TEMPLATES: Dict[str, List[Dict[str, Any]]] = {

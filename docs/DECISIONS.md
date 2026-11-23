@@ -54,6 +54,24 @@
 - **Why:** This adds a basic per-IP and per-account throttle without another service in the local-first setup.
 - **Alternative considered:** Add Redis-backed slowapi immediately. That adds infrastructure and conflicts with the Python-and-Node-only first-run requirement; production multi-process rate limiting remains a hardening item.
 
+## 2026-11-23 — Keep the current simulation model while adding a pure business calendar
+
+- **Decision:** Add a timezone-aware clock and holiday/weekend calendar as a standalone deterministic service, while preserving the prototype's integer `start_day` and demo clock for existing workflows.
+- **Why:** It gives scheduling code correct business-day primitives without breaking the existing scenario data and UI before downstream APIs are migrated.
+- **Alternative considered:** Replace every day counter with dates in this phase. That would mix a broad schema/UI migration into the CPM fixes and risk breaking the working prototype.
+
+## 2026-11-23 — Treat zero and negative deadlines as real deadline violations
+
+- **Decision:** CPM always uses the supplied deadline, including zero or negative values, and validates duplicate or unknown task dependencies before calculation.
+- **Why:** Substituting project finish time for an expired deadline concealed negative slack and falsely showed a hire as on track.
+- **Alternative considered:** Preserve the old fallback for nonpositive deadlines. That makes a due or overdue hire appear healthy.
+
+## 2026-11-23 — Define what-if delay as added remaining business-day duration
+
+- **Decision:** A what-if adds 0–10 business days to the selected open task's remaining duration and reruns CPM without mutating stored tasks.
+- **Why:** This produces a simple, deterministic scenario calculation that exposes projected-ready delta and the resulting critical path.
+- **Alternative considered:** Temporarily edit the database task and roll it back. That risks leaking scenario state through concurrent requests.
+
 ## Known decisions still pending
 
 - The deterministic in-process MCP adapters remain until persistent stdio client tests are implemented.

@@ -2,9 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from app.db.database import get_session
 from app.domain.models import Hire, Task, AuditEvent, User
-from app.services.orchestrator import create_hire_with_plan
+from app.services.orchestrator import create_hire_with_plan, get_current_day
 from app.auth import require_roles
-from pydantic import BaseModel
+from app.services.cpm import CPMTask, compute_what_if, get_remaining_days
+from app.services.planner import get_plan_for_role
+from pydantic import BaseModel, Field
 from typing import Optional, List
 
 
@@ -17,6 +19,15 @@ class HireCreate(BaseModel):
     department: str
     start_day: int
     manager_id: Optional[int] = None
+
+
+class PlanPreviewRequest(BaseModel):
+    role: str = Field(min_length=1, max_length=120)
+
+
+class WhatIfRequest(BaseModel):
+    task_key: str
+    delay_days: int = Field(ge=0, le=10)
 
 
 class TaskOut(BaseModel):
@@ -45,6 +56,12 @@ class HireOut(BaseModel):
     readiness: float
     projected_day: Optional[int]
     manager_id: Optional[int] = None
+
+
+@router.post("/plan-preview")
+def plan_preview(data: PlanPreviewRequest, _user=Depends(require_roles("ADMIN", "HR"))):
+    plan = get_plan_for_role(data.role, hire_id=0)
+    return {"role": data.role, "tasks": [task.model_dump() for task in plan.tasks]}
 
 
 def _hire_out(h: Hire) -> HireOut:
@@ -135,6 +152,30 @@ def get_hire_audit(hire_id: int, session: Session = Depends(get_session), user=D
         }
         for e in events
     ]
+
+
+@router.post("/{hire_id}/what-if")
+def what_if(hire_id: int, data: WhatIfRequest, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR", "MANAGER"))):
+    hire = session.get(Hire, hire_id)
+    if hire is None or (user.role == "MANAGER" and hire.manager_id != user.id):
+        raise HTTPException(404, "Hire not found")
+    open_statuses = ("pending", "queued", "dispatched", "awaiting_approval")
+    current_day = get_current_day(session)
+    open_tasks = session.exec(select(Task).where(Task.hire_id == hire_id, Task.status.in_(open_statuses))).all()
+    done_keys = {task.key for task in session.exec(select(Task).where(Task.hire_id == hire_id, Task.status == "done")).all()}
+    cpm_tasks = [
+        CPMTask(
+            key=task.key,
+            remaining_days=get_remaining_days(task.status, task.duration_days, task.dispatched_day, current_day),
+            deps=[dependency for dependency in task.depends_on_list if dependency not in done_keys],
+        )
+        for task in open_tasks
+    ]
+    try:
+        result = compute_what_if(cpm_tasks, hire.start_day - current_day, data.task_key, data.delay_days, current_day)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {**result, "tasks": [task.__dict__ for task in result["tasks"]]}
 
 
 @router.get("/{hire_id}/explain")

@@ -70,7 +70,36 @@ This file records verified state against the phases in the product brief. A gate
 - **Tests:** 85 backend tests passed; TypeScript/Vite production build passed.
 - Conventional P1 commit follows this progress update.
 
-## Next phase — P2 Domain core
+## P2 — Domain core
 
-1. Audit and complete the business-day clock/calendar, template DAG validation, plan preview, critical-path slack and what-if functions against the brief.
-2. Add unit tests for cycle rejection, date boundaries, critical path, and what-if results; record verified gaps before committing P2.
+### Done
+
+- Added a timezone-aware UTC clock and business calendar with weekend skipping, holiday support, signed business-day counts, join-day deadline calculation, and business-day demo offset.
+- Strengthened plan validation: task keys and titles must be nonblank, keys unique, durations positive, teams allowed, dependencies present, and the graph acyclic.
+- Strengthened CPM to reject duplicate/unknown dependencies and preserve negative or zero deadlines so expired schedules stay at risk.
+- Added a pure what-if calculation for 0–10 business-day delay to an open task; it returns baseline/projected ready day, delta, and the recomputed critical path without changing stored tasks.
+- Added role-based plan preview and hire what-if endpoints with manager ownership checks.
+- Added tests for calendar boundaries/holidays, timezone-aware storage, plan DAG validation, deadline risk, CPM dependencies, what-if outputs, and API responses.
+- P2 gate run: `python run.py --test` passed **101 backend tests** and the TypeScript/Vite production build.
+
+### Mocked
+
+- Role templates are validated code-defined plans; editable, versioned template records and the visual template editor remain for P8.
+- Hire schedules still use the prototype's integer simulated-day fields. The new date-based clock is available as a pure service but is not yet wired into persisted hire dates or every orchestrator decision.
+
+### Known gaps
+
+- Holiday lists, organization timezone settings, and demo clock offset are not yet persisted/admin-configurable.
+- The hire what-if API reports relative simulated day numbers; it does not yet return an ISO calendar date.
+- Frontend plan preview/what-if interactions are scheduled for P7/P8.
+
+### Gate and commit
+
+- **P2 gate: passed.** Full backend suite and frontend build pass with the new planner/CPM/calendar coverage.
+- **Tests:** 101 backend tests passed; TypeScript/Vite production build passed.
+- Conventional P2 commit follows this progress update.
+
+## Next phase — P3 Integration
+
+1. Move ticket and HRIS operations behind local mock MCP servers and persistent clients.
+2. Verify outage queueing, idempotent dispatch, and MCP round trips before committing P3.

@@ -1,5 +1,5 @@
 import pytest
-from app.services.cpm import CPMTask, compute_cpm, get_remaining_days, is_stalled
+from app.services.cpm import CPMTask, compute_cpm, compute_what_if, get_remaining_days, is_stalled
 
 
 def _t(key: str, rem: float, deps: list[str] | None = None) -> CPMTask:
@@ -76,6 +76,33 @@ def test_single_task():
     assert result[0].es == 0
     assert result[0].ef == 4
     assert result[0].slack == pytest.approx(6.0)
+
+
+def test_deadline_at_zero_remains_at_risk():
+    result = compute_cpm([_t("A", 2)], deadline=0)
+    assert result[0].slack == pytest.approx(-2)
+    assert result[0].critical
+
+
+def test_unknown_dependency_is_rejected():
+    with pytest.raises(ValueError, match="Unknown dependency"):
+        compute_cpm([_t("A", 1, ["missing"])], deadline=5)
+
+
+def test_what_if_recomputes_projected_finish_and_critical_path():
+    tasks = [_t("laptop", 3), _t("accounts", 1), _t("access", 1, ["accounts"])]
+    result = compute_what_if(tasks, deadline=8, task_key="laptop", delay_days=2, current_day=4)
+    assert result["baseline_ready_day"] == pytest.approx(7)
+    assert result["projected_ready_day"] == pytest.approx(9)
+    assert result["delta_days"] == pytest.approx(2)
+    assert "laptop" in result["critical_path"]
+
+
+def test_what_if_delay_bounds_and_closed_task_validation():
+    with pytest.raises(ValueError, match="between 0 and 10"):
+        compute_what_if([_t("A", 1)], 5, "A", 11)
+    with pytest.raises(ValueError, match="Unknown or closed"):
+        compute_what_if([_t("A", 1)], 5, "done", 1)
 
 
 # ---------------------------------------------------------------------------

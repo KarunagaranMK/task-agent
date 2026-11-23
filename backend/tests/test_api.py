@@ -16,6 +16,22 @@ def test_create_hire(client):
     assert data["readiness"] == 0.0
 
 
+def test_plan_preview_returns_validated_role_template(client):
+    response = client.post("/hires/plan-preview", json={"role": "Data Analyst"})
+    assert response.status_code == 200
+    tasks = response.json()["tasks"]
+    assert any(task["key"] == "it:laptop" for task in tasks)
+    assert any(task["needs_approval"] for task in tasks)
+
+
+def test_what_if_returns_recomputed_path(client):
+    hire = client.post("/hires", json={"name": "Priya", "role": "Data Analyst", "department": "Analytics", "start_day": 8}).json()
+    response = client.post(f"/hires/{hire['id']}/what-if", json={"task_key": "it:laptop", "delay_days": 2})
+    assert response.status_code == 200
+    assert response.json()["delta_days"] >= 0
+    assert response.json()["critical_path"]
+
+
 def test_list_hires_empty(client):
     r = client.get("/hires")
     assert r.status_code == 200

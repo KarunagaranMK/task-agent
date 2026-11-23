@@ -6,32 +6,37 @@ A multi-agent AI system that orchestrates cross-team (IT, HR, Facilities) employ
 
 ---
 
-## 🚀 Quick Start (< 3 minutes)
+## 🚀 Quick Start
+
+Prerequisites: **Python 3.11+** and **Node.js 20+**. The local demo uses SQLite; Docker, Postgres, SMTP, and an LLM key are not required.
+
+Run the same command in Windows PowerShell, macOS Terminal, or Linux:
 
 ```bash
-# 1. Clone & setup
-cp .env.example .env          # Gemini API key optional
-
-# 2. Backend
-cd backend
-pip install -r requirements.txt
-python seed.py                # loads Priya + 2 demo hires
-uvicorn app.main:app --reload --port 8000
-
-# 3. Frontend (new terminal)
-cd frontend
-npm install
-npm run dev                   # → http://localhost:5173
+python run.py
 ```
 
-**Or with Docker:**
+The launcher creates a virtual environment, installs dependencies, creates `.env`, applies SQLite migrations, seeds the demo once, starts the API and frontend, checks health, and opens the browser.
+
+Useful options:
+
 ```bash
-docker compose up --build
-# API:  http://localhost:8000/docs
-# UI:   http://localhost:3000
+python run.py --reset          # restore a fresh demo database
+python run.py --test           # backend tests and frontend build
+python run.py --no-browser     # start without opening a browser
+python run.py --prod --no-browser  # serve the built UI and API on :8000
 ```
 
-No API key required — all LLM features have template fallbacks.
+The current prototype uses a client-side role switcher; it does not yet provide login or backend-enforced RBAC. The demo has no passwords or real user accounts.
+
+| Issue | What to check |
+|-------|---------------|
+| Port 8000 or 5173 is in use | Stop the service using that port, then rerun `python run.py`. |
+| Wrong Node version | Install Node.js 20 or newer and verify with `node --version`. |
+| Missing virtual environment | Run `python run.py` again; it creates `.venv` automatically. |
+| SQLite database is locked | Close another app instance using `backend/onboarding.db`; then retry. Use `--reset` only when you want to recreate the demo data. |
+
+No API key is required; unavailable LLM features use deterministic template text.
 
 ---
 

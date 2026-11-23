@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
 from typing import Optional
+from pathlib import Path
 
 
 class Settings(BaseSettings):
@@ -9,7 +10,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: Optional[str] = None
     ITSM_OFFLINE: bool = False
 
-    model_config = {"env_file": ".env", "extra": "ignore"}
+    model_config = {"env_file": Path(__file__).resolve().parents[2] / ".env", "extra": "ignore"}
 
 
 settings = Settings()

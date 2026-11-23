@@ -18,6 +18,7 @@ def _call(service: str, tool_name: str, arguments: dict[str, Any]) -> dict[str, 
                 "get_ticket_status": itsm_mcp._get_status_impl,
                 "update_ticket_status": itsm_mcp._update_status_impl,
                 "cancel_ticket": itsm_mcp._cancel_ticket_impl,
+                "update_ticket_details": itsm_mcp._update_ticket_details_impl,
                 "set_service_offline": itsm_mcp._set_offline_impl,
                 "reset_service": itsm_mcp._reset_impl,
             }
@@ -60,6 +61,12 @@ def update_ticket_status(ticket_id: str, ticket_status: str) -> dict[str, Any]:
 
 def cancel_ticket(ticket_id: str) -> dict[str, Any]:
     return _call("itsm", "cancel_ticket", {"ticket_id": ticket_id})
+
+
+def update_ticket_details(ticket_id: str, title: str, estimate_days: int) -> dict[str, Any]:
+    return _call("itsm", "update_ticket_details", {
+        "ticket_id": ticket_id, "title": title, "estimate_days": estimate_days,
+    })
 
 
 def get_new_hire(hire_id: int) -> dict[str, Any]:

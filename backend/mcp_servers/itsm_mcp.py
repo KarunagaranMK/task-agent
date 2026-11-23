@@ -123,6 +123,20 @@ def _cancel_ticket_impl(ticket_id: str) -> dict:
     return _update_status_impl(ticket_id, "cancelled")
 
 
+def _update_ticket_details_impl(ticket_id: str, title: str, estimate_days: int) -> dict:
+    if _is_offline():
+        return {"error": "service_unavailable"}
+    db = _get_db()
+    try:
+        result = db.execute("UPDATE tickets SET title=?, estimate_days=? WHERE ticket_id=?", (title, estimate_days, ticket_id))
+        db.commit()
+        if result.rowcount == 0:
+            return {"error": "not_found"}
+        return {"ticket_id": ticket_id, "title": title, "estimate_days": estimate_days}
+    finally:
+        db.close()
+
+
 if HAS_MCP:
     @mcp.tool()
     def create_ticket(idempotency_key: str, title: str, team: str, estimate_days: int) -> dict:
@@ -143,6 +157,11 @@ if HAS_MCP:
     def cancel_ticket(ticket_id: str) -> dict:
         """Cancel a ticket through the mock ITSM boundary."""
         return _cancel_ticket_impl(ticket_id)
+
+    @mcp.tool()
+    def update_ticket_details(ticket_id: str, title: str, estimate_days: int) -> dict:
+        """Update the details for an existing ITSM ticket."""
+        return _update_ticket_details_impl(ticket_id, title, estimate_days)
 
     @mcp.tool()
     def set_service_offline(offline: bool) -> dict:

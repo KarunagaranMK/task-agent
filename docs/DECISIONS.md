@@ -72,6 +72,18 @@
 - **Why:** This produces a simple, deterministic scenario calculation that exposes projected-ready delta and the resulting critical path.
 - **Alternative considered:** Temporarily edit the database task and roll it back. That risks leaking scenario state through concurrent requests.
 
+## 2026-11-23 — Use the maintained MCP Python SDK 1.x line for FastMCP stdio
+
+- **Decision:** Use `mcp[cli]>=1.28,<2`, the SDK's FastMCP server API, and persistent stdio sessions; bump Uvicorn to a compatible `>=0.31.1` range.
+- **Why:** MCP 1.x remains the supported maintenance line for existing FastMCP code and provides the required stdio transport. The initial dependency attempt showed the existing Uvicorn 0.30.6 pin could not resolve with MCP.
+- **Alternative considered:** Use the SDK's v2 API, which renames FastMCP and changes imports, or use the separate `fastmcp` distribution. The pinned 1.x API matches the brief and keeps this implementation on the official Python SDK.
+
+## 2026-11-23 — Keep MCP systems of record separate from the application read model
+
+- **Decision:** The mock ITSM and HRIS services own persistent SQLite records behind MCP tools; the app mirrors accepted ticket data into its local tables for queries and UI display.
+- **Why:** Tool calls stay the only path for external-system reads/writes, while the existing UI/API can keep its current read model.
+- **Alternative considered:** Continue creating tickets directly in the app database. That would bypass the integration boundary and make outage/idempotency behavior impossible to validate independently.
+
 ## Known decisions still pending
 
 - The deterministic in-process MCP adapters remain until persistent stdio client tests are implemented.

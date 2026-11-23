@@ -10,8 +10,13 @@ from app.domain.models import (
     Notification, Ticket, SimState, ApprovalState, TaskFlag,
 )
 from app.services.cpm import CPMTask, compute_cpm, get_remaining_days, is_stalled
-import uuid
 import logging
+from app.mcp_clients.tools import (
+    create_ticket as mcp_create_ticket,
+    set_itsm_offline,
+    update_onboarding_status as mcp_update_onboarding_status,
+    upsert_new_hire as mcp_upsert_new_hire,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -92,8 +97,12 @@ def dispatch_task(session: Session, task: Task, current_day: int,
             session.commit()
         return True
 
-    if itsm_offline:
-        # Queue in outbox (idempotent)
+    set_itsm_offline(itsm_offline)
+    result = mcp_create_ticket(
+        ikey, task.title, task.team.value if hasattr(task.team, "value") else str(task.team), task.duration_days
+    )
+    if result.get("error") == "service_unavailable":
+        # Queue in outbox (idempotent); the MCP server remains the ticket system of record.
         ob = session.exec(
             select(OutboxItem).where(OutboxItem.idempotency_key == ikey)
         ).first()
@@ -115,8 +124,12 @@ def dispatch_task(session: Session, task: Task, current_day: int,
                   "warning", "it_provisioner")
         return False
 
-    # Create ticket
-    ticket_id = f"TKT-{uuid.uuid4().hex[:8].upper()}"
+    if result.get("error") or not result.get("ticket_id"):
+        logger.error("ITSM create_ticket returned an invalid response: %s", result.get("error", "missing ticket id"))
+        return False
+
+    # Create a local read-model row after the MCP tool accepts the ticket.
+    ticket_id = str(result["ticket_id"])
     ticket = Ticket(
         ticket_id=ticket_id,
         idempotency_key=ikey,
@@ -125,7 +138,7 @@ def dispatch_task(session: Session, task: Task, current_day: int,
         estimate_days=task.duration_days,
         hire_id=task.hire_id,
         task_id=task.id,
-        status="open",
+        status=str(result.get("status", "open")),
     )
     session.add(ticket)
 
@@ -148,6 +161,9 @@ def dispatch_task(session: Session, task: Task, current_day: int,
 
 def drain_outbox(session: Session, current_day: int) -> None:
     """Drain queued outbox items — idempotent, no duplicate tickets."""
+    # Callers drain only after observing recovery. The monitor sets the outage
+    # flag before this method, and invokes it only when the service is online.
+    set_itsm_offline(False)
     items = session.exec(select(OutboxItem)).all()
     for item in items:
         # Double-check idempotency
@@ -158,7 +174,12 @@ def drain_outbox(session: Session, current_day: int) -> None:
             session.delete(item)
             continue
 
-        ticket_id = f"TKT-{uuid.uuid4().hex[:8].upper()}"
+        result = mcp_create_ticket(item.idempotency_key, item.title, item.team, item.estimate_days)
+        if result.get("error") == "service_unavailable" or not result.get("ticket_id"):
+            item.retry_count += 1
+            session.add(item)
+            continue
+        ticket_id = str(result["ticket_id"])
         ticket = Ticket(
             ticket_id=ticket_id,
             idempotency_key=item.idempotency_key,
@@ -167,7 +188,7 @@ def drain_outbox(session: Session, current_day: int) -> None:
             estimate_days=item.estimate_days,
             hire_id=item.hire_id,
             task_id=item.task_id,
-            status="open",
+            status=str(result.get("status", "open")),
         )
         session.add(ticket)
 
@@ -329,6 +350,7 @@ def update_hire_status(
     )
     session.add(hire)
     session.commit()
+    mcp_update_onboarding_status(hire.id, str(hire.status), hire.readiness)
 
 
 # ---------------------------------------------------------------------------
@@ -344,6 +366,7 @@ def monitor_tick(session: Session) -> None:
     sim_state = get_or_create_sim_state(session)
     current_day = sim_state.current_day
     itsm_offline = sim_state.itsm_offline
+    set_itsm_offline(itsm_offline)
 
     if not itsm_offline:
         drain_outbox(session, current_day)
@@ -416,6 +439,8 @@ def create_hire_with_plan(
     session.add(hire)
     session.commit()
     session.refresh(hire)
+
+    mcp_upsert_new_hire(hire.id, hire.name, hire.role, hire.department, hire.start_day)
 
     plan = get_plan_for_role(role, hire.id)
 

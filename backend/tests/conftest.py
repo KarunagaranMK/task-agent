@@ -6,6 +6,9 @@ from app.main import app
 from app.db.database import get_session
 from app.auth import get_current_user
 from app.domain.models import User
+from app.config import settings
+
+settings.MCP_MODE = "inprocess"
 
 
 @pytest.fixture(name="session")
@@ -18,6 +21,13 @@ def session_fixture():
     SQLModel.metadata.create_all(engine)
     with Session(engine) as session:
         yield session
+
+
+@pytest.fixture(autouse=True)
+def isolate_mcp_databases(tmp_path, monkeypatch):
+    monkeypatch.setenv("ITSM_DB_PATH", str(tmp_path / "itsm.db"))
+    monkeypatch.setenv("HRIS_DB_PATH", str(tmp_path / "hris.db"))
+    monkeypatch.setenv("ONBOARDIQ_MCP_DB_DIR", str(tmp_path / "stdio-mcp"))
 
 
 @pytest.fixture(name="client")

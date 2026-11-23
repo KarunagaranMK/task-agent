@@ -10,7 +10,7 @@ import os
 from datetime import datetime
 
 try:
-    from fastmcp import FastMCP
+    from mcp.server.fastmcp import FastMCP
     mcp = FastMCP("itsm-mcp")
     HAS_MCP = True
 except ImportError:
@@ -34,12 +34,39 @@ def _get_db() -> sqlite3.Connection:
             created_at TEXT
         )
     """)
+    conn.execute("CREATE TABLE IF NOT EXISTS service_state (singleton INTEGER PRIMARY KEY CHECK(singleton=1), offline INTEGER NOT NULL DEFAULT 0)")
+    conn.execute("INSERT OR IGNORE INTO service_state (singleton, offline) VALUES (1, 0)")
     conn.commit()
     return conn
 
 
 def _is_offline() -> bool:
-    return os.environ.get("ITSM_OFFLINE", "false").lower() == "true"
+    db = _get_db()
+    try:
+        return bool(db.execute("SELECT offline FROM service_state WHERE singleton=1").fetchone()[0])
+    finally:
+        db.close()
+
+
+def _set_offline_impl(offline: bool) -> dict:
+    db = _get_db()
+    try:
+        db.execute("UPDATE service_state SET offline=? WHERE singleton=1", (int(offline),))
+        db.commit()
+        return {"offline": offline}
+    finally:
+        db.close()
+
+
+def _reset_impl() -> dict:
+    db = _get_db()
+    try:
+        db.execute("DELETE FROM tickets")
+        db.execute("UPDATE service_state SET offline=0 WHERE singleton=1")
+        db.commit()
+        return {"status": "reset"}
+    finally:
+        db.close()
 
 
 def _create_ticket_impl(idempotency_key: str, title: str, team: str, estimate_days: int) -> dict:
@@ -76,6 +103,26 @@ def _get_status_impl(ticket_id: str) -> dict:
         db.close()
 
 
+def _update_status_impl(ticket_id: str, status: str) -> dict:
+    if _is_offline():
+        return {"error": "service_unavailable"}
+    if status not in {"open", "in_progress", "done", "stalled", "blocked", "cancelled"}:
+        return {"error": "invalid_status"}
+    db = _get_db()
+    try:
+        result = db.execute("UPDATE tickets SET status=? WHERE ticket_id=?", (status, ticket_id))
+        db.commit()
+        if result.rowcount == 0:
+            return {"error": "not_found"}
+        return {"ticket_id": ticket_id, "status": status}
+    finally:
+        db.close()
+
+
+def _cancel_ticket_impl(ticket_id: str) -> dict:
+    return _update_status_impl(ticket_id, "cancelled")
+
+
 if HAS_MCP:
     @mcp.tool()
     def create_ticket(idempotency_key: str, title: str, team: str, estimate_days: int) -> dict:
@@ -89,16 +136,23 @@ if HAS_MCP:
 
     @mcp.tool()
     def update_ticket_status(ticket_id: str, status: str) -> dict:
-        """Update ticket status."""
-        if _is_offline():
-            return {"error": "service_unavailable"}
-        db = _get_db()
-        try:
-            db.execute("UPDATE tickets SET status = ? WHERE ticket_id = ?", (status, ticket_id))
-            db.commit()
-            return {"ticket_id": ticket_id, "status": status}
-        finally:
-            db.close()
+        """Update ticket status through the mock ITSM boundary."""
+        return _update_status_impl(ticket_id, status)
+
+    @mcp.tool()
+    def cancel_ticket(ticket_id: str) -> dict:
+        """Cancel a ticket through the mock ITSM boundary."""
+        return _cancel_ticket_impl(ticket_id)
+
+    @mcp.tool()
+    def set_service_offline(offline: bool) -> dict:
+        """Demo-only chaos switch for the mock ITSM service."""
+        return _set_offline_impl(offline)
+
+    @mcp.tool()
+    def reset_service() -> dict:
+        """Reset local mock ITSM data for the demo scenario."""
+        return _reset_impl()
 
     if __name__ == "__main__":
         mcp.run(transport="stdio")

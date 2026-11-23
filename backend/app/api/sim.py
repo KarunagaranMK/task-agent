@@ -7,6 +7,7 @@ from app.domain.models import (
 from app.services.orchestrator import advance_day, monitor_tick, get_or_create_sim_state
 from app.services.experiment import run_experiment
 from app.auth import get_current_user, require_roles
+from app.mcp_clients.tools import reset_mcp_services, set_itsm_offline
 from pydantic import BaseModel
 from typing import Optional
 
@@ -34,6 +35,7 @@ def toggle_itsm(offline: bool, session: Session = Depends(get_session), _user=De
     state.itsm_offline = offline
     session.add(state)
     session.commit()
+    set_itsm_offline(offline)
     return {"itsm_offline": offline}
 
 
@@ -119,4 +121,5 @@ def reset_all(session: Session = Depends(get_session), _user=Depends(require_rol
     for model in (AuditEvent, Notification, OutboxItem, Ticket, Task, Hire, SimState):
         session.exec(delete(model))
     session.commit()
+    reset_mcp_services()
     return {"message": "All data reset"}

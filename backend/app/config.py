@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     DEMO_MODE: bool = True
     JWT_SECRET: str = "local-dev-only-change-this-secret"
     COOKIE_SECURE: bool = False
+    MCP_MODE: str = "stdio"
 
     model_config = {"env_file": Path(__file__).resolve().parents[2] / ".env", "extra": "ignore"}
 

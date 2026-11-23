@@ -101,5 +101,37 @@ This file records verified state against the phases in the product brief. A gate
 
 ## Next phase — P3 Integration
 
-1. Move ticket and HRIS operations behind local mock MCP servers and persistent clients.
-2. Verify outage queueing, idempotent dispatch, and MCP round trips before committing P3.
+## P3 — Integration
+
+### Done
+
+- Added the official MCP Python SDK 1.x FastMCP servers for mock ITSM and HRIS, each with its own persistent SQLite database.
+- Added one long-lived stdio client session per service, guarded for concurrent calls and closed at process exit. Broken sessions return `service_unavailable` and are recreated on the next call.
+- Routed ticket creation, reads/status changes, cancellation, HRIS hire registration, and onboarding status updates through MCP tools. The app ticket table is now a read-model mirror of tool results.
+- Added MCP-backed ITSM offline controls. Failed ticket creation is queued in the outbox; retry uses the same idempotency key, including the case where the service accepted a ticket but the response was lost.
+- Demo reset clears mock ITSM and HRIS stores so IDs can be reused without stale tickets.
+- Added actual stdio round-trip, duplicate idempotency, offline response, outbox recovery, and no-duplicate recovery tests.
+- Updated Uvicorn to a compatible range after the existing 0.30.6 pin conflicted with the MCP SDK.
+- P3 gate run: `python run.py --test` passed **103 backend tests** and the TypeScript/Vite production build.
+
+### Mocked
+
+- ITSM and HRIS are local SQLite-backed services, not vendor integrations.
+- Unit tests use the same tool implementations in-process for isolation; dedicated tests exercise actual stdio subprocess sessions.
+
+### Known gaps
+
+- MCP process health is detected when a tool call fails; there is no scheduled health dashboard or automatic outbox retry scheduler until P4.
+- HRIS update failures do not yet have a durable retry queue.
+- The current IT console still changes status through its existing complete/stall actions; the broader ticket workflow and comments arrive in P7.
+
+### Gate and commit
+
+- **P3 gate: passed.** MCP stdio round trip, service outage, idempotent duplicate prevention, and outbox recovery tests pass.
+- **Tests:** 103 backend tests passed; TypeScript/Vite production build passed.
+- Conventional P3 commit follows this progress update.
+
+## Next phase — P4 Orchestrator
+
+1. Add deterministic monitor-cycle safeguards, audit/approval actor attribution, one-time escalation, and durable restart recovery.
+2. Add stall-rescue and restart tests before committing P4.

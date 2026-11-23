@@ -4,6 +4,7 @@ from app.db.database import get_session
 from app.domain.models import Task, TaskStatus, ApprovalState, Ticket
 from app.services.orchestrator import audit, notify, get_current_day
 from app.auth import require_roles
+from app.mcp_clients.tools import update_ticket_status as mcp_update_ticket_status
 
 
 router = APIRouter(tags=["tasks"])
@@ -64,6 +65,11 @@ def complete_ticket(ticket_id: str, session: Session = Depends(get_session), use
         raise HTTPException(404, "Ticket not found")
     if user.role != "ADMIN" and ticket.team != user.team:
         raise HTTPException(403, "Ticket belongs to another team")
+    external = mcp_update_ticket_status(ticket_id, "done")
+    if external.get("error") == "service_unavailable":
+        raise HTTPException(503, "ITSM service is unavailable")
+    if external.get("error"):
+        raise HTTPException(502, "ITSM service could not update the ticket")
     ticket.status = "done"
     session.add(ticket)
 
@@ -86,6 +92,9 @@ def stall_ticket(ticket_id: str, session: Session = Depends(get_session), user=D
         raise HTTPException(404, "Ticket not found")
     if user.role != "ADMIN" and ticket.team != user.team:
         raise HTTPException(403, "Ticket belongs to another team")
+    external = mcp_update_ticket_status(ticket_id, "stalled")
+    if external.get("error") == "service_unavailable":
+        raise HTTPException(503, "ITSM service is unavailable")
     ticket.status = "stalled"
     session.add(ticket)
     # Do NOT update last_activity_day — that triggers stall detection

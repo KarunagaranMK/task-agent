@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from app.db.database import get_session
-from app.domain.models import Hire, Task, AuditEvent
+from app.domain.models import Hire, Task, AuditEvent, User
 from app.services.orchestrator import create_hire_with_plan
+from app.auth import require_roles
 from pydantic import BaseModel
 from typing import Optional, List
 
@@ -15,6 +16,7 @@ class HireCreate(BaseModel):
     role: str
     department: str
     start_day: int
+    manager_id: Optional[int] = None
 
 
 class TaskOut(BaseModel):
@@ -42,6 +44,7 @@ class HireOut(BaseModel):
     status: str
     readiness: float
     projected_day: Optional[int]
+    manager_id: Optional[int] = None
 
 
 def _hire_out(h: Hire) -> HireOut:
@@ -54,31 +57,42 @@ def _hire_out(h: Hire) -> HireOut:
         status=h.status,
         readiness=h.readiness,
         projected_day=h.projected_day,
+        manager_id=h.manager_id,
     )
 
 
 @router.post("", response_model=HireOut)
-def create_hire(data: HireCreate, session: Session = Depends(get_session)):
-    hire = create_hire_with_plan(session, data.name, data.role, data.department, data.start_day)
+def create_hire(data: HireCreate, session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "HR"))):
+    if data.manager_id is not None and session.get(User, data.manager_id) is None:
+        raise HTTPException(422, "Manager not found")
+    hire = create_hire_with_plan(session, data.name, data.role, data.department, data.start_day, data.manager_id)
     return _hire_out(hire)
 
 
 @router.get("", response_model=List[HireOut])
-def list_hires(session: Session = Depends(get_session)):
-    hires = session.exec(select(Hire)).all()
+def list_hires(session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR", "MANAGER"))):
+    query = select(Hire)
+    if user.role == "MANAGER":
+        query = query.where(Hire.manager_id == user.id)
+    hires = session.exec(query).all()
     return [_hire_out(h) for h in hires]
 
 
 @router.get("/{hire_id}", response_model=HireOut)
-def get_hire(hire_id: int, session: Session = Depends(get_session)):
+def get_hire(hire_id: int, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR", "MANAGER"))):
     hire = session.get(Hire, hire_id)
     if not hire:
+        raise HTTPException(404, "Hire not found")
+    if user.role == "MANAGER" and hire.manager_id != user.id:
         raise HTTPException(404, "Hire not found")
     return _hire_out(hire)
 
 
 @router.get("/{hire_id}/tasks", response_model=List[TaskOut])
-def get_hire_tasks(hire_id: int, session: Session = Depends(get_session)):
+def get_hire_tasks(hire_id: int, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR", "MANAGER"))):
+    hire = session.get(Hire, hire_id)
+    if hire is None or (user.role == "MANAGER" and hire.manager_id != user.id):
+        raise HTTPException(404, "Hire not found")
     tasks = session.exec(select(Task).where(Task.hire_id == hire_id)).all()
     return [
         TaskOut(
@@ -101,7 +115,10 @@ def get_hire_tasks(hire_id: int, session: Session = Depends(get_session)):
 
 
 @router.get("/{hire_id}/audit")
-def get_hire_audit(hire_id: int, session: Session = Depends(get_session)):
+def get_hire_audit(hire_id: int, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR", "MANAGER"))):
+    hire = session.get(Hire, hire_id)
+    if hire is None or (user.role == "MANAGER" and hire.manager_id != user.id):
+        raise HTTPException(404, "Hire not found")
     events = session.exec(
         select(AuditEvent)
         .where(AuditEvent.hire_id == hire_id)
@@ -121,9 +138,11 @@ def get_hire_audit(hire_id: int, session: Session = Depends(get_session)):
 
 
 @router.get("/{hire_id}/explain")
-def explain_risk(hire_id: int, session: Session = Depends(get_session)):
+def explain_risk(hire_id: int, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR", "MANAGER"))):
     hire = session.get(Hire, hire_id)
     if not hire:
+        raise HTTPException(404, "Hire not found")
+    if user.role == "MANAGER" and hire.manager_id != user.id:
         raise HTTPException(404, "Hire not found")
 
     tasks = session.exec(select(Task).where(Task.hire_id == hire_id)).all()

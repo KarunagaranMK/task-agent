@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select, delete
 from app.db.database import get_session
 from app.domain.models import (
@@ -6,6 +6,7 @@ from app.domain.models import (
 )
 from app.services.orchestrator import advance_day, monitor_tick, get_or_create_sim_state
 from app.services.experiment import run_experiment
+from app.auth import get_current_user, require_roles
 from pydantic import BaseModel
 from typing import Optional
 
@@ -14,21 +15,21 @@ router = APIRouter(tags=["sim"])
 
 
 @router.post("/sim/advance")
-def sim_advance(session: Session = Depends(get_session)):
+def sim_advance(session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "HR"))):
     day = advance_day(session)
     monitor_tick(session)
     return {"current_day": day, "message": f"Advanced to day {day} and ran monitor"}
 
 
 @router.post("/monitor/tick")
-def manual_tick(session: Session = Depends(get_session)):
+def manual_tick(session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "HR"))):
     monitor_tick(session)
     state = get_or_create_sim_state(session)
     return {"message": "Monitor tick complete", "current_day": state.current_day}
 
 
 @router.post("/chaos/itsm")
-def toggle_itsm(offline: bool, session: Session = Depends(get_session)):
+def toggle_itsm(offline: bool, session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "HR"))):
     state = get_or_create_sim_state(session)
     state.itsm_offline = offline
     session.add(state)
@@ -43,12 +44,12 @@ class ExperimentRequest(BaseModel):
 
 
 @router.post("/experiments/run")
-def run_exp(req: ExperimentRequest):
+def run_exp(req: ExperimentRequest, _user=Depends(require_roles("ADMIN", "HR"))):
     return run_experiment(req.n_hires, req.stall_probability, req.seed)
 
 
 @router.get("/metrics")
-def get_metrics(session: Session = Depends(get_session)):
+def get_metrics(session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "HR"))):
     hires = session.exec(select(Hire)).all()
     total = len(hires)
     ready = sum(1 for h in hires if h.status == "ready")
@@ -78,7 +79,8 @@ def get_metrics(session: Session = Depends(get_session)):
 
 
 @router.get("/notifications")
-def get_notifications(role: Optional[str] = None, session: Session = Depends(get_session)):
+def get_notifications(role: Optional[str] = None, session: Session = Depends(get_session), user=Depends(get_current_user)):
+    role = user.role
     query = select(Notification)
     if role:
         query = query.where(Notification.for_role == role)
@@ -98,17 +100,21 @@ def get_notifications(role: Optional[str] = None, session: Session = Depends(get
 
 
 @router.post("/notifications/{nid}/read")
-def mark_read(nid: int, session: Session = Depends(get_session)):
+def mark_read(nid: int, session: Session = Depends(get_session), user=Depends(get_current_user)):
     n = session.get(Notification, nid)
-    if n:
-        n.read = True
-        session.add(n)
-        session.commit()
+    own_role = user.team if user.role == "IT_STAFF" else user.role
+    if n is None:
+        raise HTTPException(404, "Notification not found")
+    if n.for_role.lower() not in {own_role.lower(), user.role.lower()}:
+        raise HTTPException(403, "Notification belongs to another role")
+    n.read = True
+    session.add(n)
+    session.commit()
     return {"id": nid, "read": True}
 
 
 @router.post("/reset")
-def reset_all(session: Session = Depends(get_session)):
+def reset_all(session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN"))):
     """Reset all data for a clean demo."""
     for model in (AuditEvent, Notification, OutboxItem, Ticket, Task, Hire, SimState):
         session.exec(delete(model))

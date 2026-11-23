@@ -28,9 +28,19 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     with engine.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata, render_as_batch=True)
-        with context.begin_transaction():
-            context.run_migrations()
+        raw_connection = connection.connection.driver_connection
+        is_sqlite = connection.dialect.name == "sqlite"
+        if is_sqlite:
+            raw_connection.commit()
+            raw_connection.execute("PRAGMA foreign_keys=OFF")
+        try:
+            context.configure(connection=connection, target_metadata=target_metadata, render_as_batch=True)
+            with context.begin_transaction():
+                context.run_migrations()
+        finally:
+            if is_sqlite:
+                raw_connection.commit()
+                raw_connection.execute("PRAGMA foreign_keys=ON")
 
 
 if context.is_offline_mode():

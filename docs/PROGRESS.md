@@ -39,7 +39,38 @@ This file records verified state against the phases in the product brief. A gate
 - **Tests:** 53 backend tests passed; TypeScript/Vite production build passed (the bundle-size advisory remains).
 - Conventional P0 commit follows this progress update.
 
-## Next phase — P1 Auth and RBAC
+## P1 — Auth and RBAC
 
-1. Implement backend-enforced authentication, access roles, invite/reset flows, and role-matrix tests before adding more product routes.
-2. Continue the remaining phases in the order in the brief; the current role selector is only a demo convenience.
+### Done
+
+- Added Argon2id password hashing, a 10-character minimum, generic login errors, per-account lockout, and an in-process IP/account attempt limiter.
+- Added short-lived access JWTs in memory on the client and hashed, rotating refresh tokens in httpOnly SameSite=Lax cookies. Refresh-token reuse revokes its token family; cookie endpoints use double-submit CSRF and an Origin allowlist.
+- Added logout, logout-all, password change, generic forgot-password, single-use 30-minute reset tokens, invitation acceptance, and `must_change_password` for invited accounts.
+- Added admin-only user list, invite, role/team update, and deactivation endpoints. First non-demo admin creation is available through `python -m app.cli create-admin`.
+- Added auth security audit records and a persistent local mail outbox; demo administrators can inspect it at `/api/dev/mail`.
+- Added role guards for hire, approval, ticket, simulation, and user-management routes. Manager hire reads are scoped to assigned hires; IT staff ticket access is restricted to their team.
+- Added a split-screen sign-in experience, one-click demo account fill, recovery/reset/invitation screens, and role-aware application navigation.
+- Alembic migration `0003_auth_lifecycle` adds one-time tokens, mail outbox, and security audit tables. API startup no longer mutates schema outside Alembic.
+- P1 gate run: `python run.py --test` passed **85 backend tests** and the TypeScript/Vite production build. Tests include login/me, CSRF, refresh rotation/reuse, lockout, reset single-use, invite acceptance, logout, password change, admin-only user operations, role matrices, and manager data isolation.
+
+### Mocked
+
+- Recovery and invitation messages are written to the local database outbox; SMTP is not configured.
+- The session and recovery screens were typechecked/built; no browser-driven login or full visual screenshot matrix has been run yet.
+
+### Known gaps
+
+- Rate limiting uses process memory and is intended for the single-process local app; multi-worker deployments need a shared limiter.
+- Security headers, comprehensive route-by-route RBAC matrices, password-change UI, and user administration UI remain for later hardening/product phases.
+- The bundle currently exceeds Vite's 500 kB advisory threshold; build still succeeds.
+
+### Gate and commit
+
+- **P1 gate: passed.** Auth/session flows and role allow/deny cases pass in the backend suite; the frontend login and recovery flows compile into the production bundle.
+- **Tests:** 85 backend tests passed; TypeScript/Vite production build passed.
+- Conventional P1 commit follows this progress update.
+
+## Next phase — P2 Domain core
+
+1. Audit and complete the business-day clock/calendar, template DAG validation, plan preview, critical-path slack and what-if functions against the brief.
+2. Add unit tests for cycle rejection, date boundaries, critical path, and what-if results; record verified gaps before committing P2.

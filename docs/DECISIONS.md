@@ -36,8 +36,27 @@
 - **Why:** The brief requires a local-first application that still renders without a network connection.
 - **Alternative considered:** Import a hosted font at runtime. That would fail on offline and restricted networks.
 
+## 2026-11-23 — Keep schema changes under Alembic and bootstrap local access through demo seeding
+
+- **Decision:** Use Alembic for all schema changes, keep demo accounts behind `DEMO_MODE`, and provide a prompted `create-admin` command for non-demo installs.
+- **Why:** The app should start predictably after `run.py` migrates the database, without hidden `create_all` behavior. Invited users set their own password through a hashed, one-use token delivered into the local mail outbox.
+- **Alternative considered:** Create or alter tables implicitly during API startup and email passwords directly. That would make deployments harder to reason about and expose credentials.
+
+## 2026-11-23 — Keep refresh secrets opaque and audit authentication events separately
+
+- **Decision:** Store only SHA-256 digests of random refresh and one-time tokens; rotate refresh tokens on every use; persist security-specific events in a dedicated audit table.
+- **Why:** Tokens can be revoked or replay-detected without storing bearer secrets, while auth events do not require a hire-specific foreign key.
+- **Alternative considered:** Reuse hire activity records. Those records require a hire id and would misrepresent account actions.
+
+## 2026-11-23 — Use a memory token bucket alongside durable account lockout
+
+- **Decision:** Limit repeated sign-in attempts by client IP and normalized account key in the single-process local server, and retain the per-account five-failure lockout in the database.
+- **Why:** This adds a basic per-IP and per-account throttle without another service in the local-first setup.
+- **Alternative considered:** Add Redis-backed slowapi immediately. That adds infrastructure and conflicts with the Python-and-Node-only first-run requirement; production multi-process rate limiting remains a hardening item.
+
 ## Known decisions still pending
 
 - The deterministic in-process MCP adapters remain until persistent stdio client tests are implemented.
 - The demo role selector remains a visual prototype; it does not enforce backend RBAC.
 - The optional LangGraph adapter stays disabled until the default orchestrator passes its expanded test suite.
+- The local mail outbox is the delivery mechanism for development; SMTP configuration and real delivery remain optional and unimplemented.

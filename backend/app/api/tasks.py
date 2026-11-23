@@ -3,13 +3,14 @@ from sqlmodel import Session, select
 from app.db.database import get_session
 from app.domain.models import Task, TaskStatus, ApprovalState, Ticket
 from app.services.orchestrator import audit, notify, get_current_day
+from app.auth import require_roles
 
 
 router = APIRouter(tags=["tasks"])
 
 
 @router.post("/tasks/{task_id}/approve")
-def approve_task(task_id: int, session: Session = Depends(get_session)):
+def approve_task(task_id: int, session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "MANAGER"))):
     task = session.get(Task, task_id)
     if not task:
         raise HTTPException(404, "Task not found")
@@ -22,7 +23,7 @@ def approve_task(task_id: int, session: Session = Depends(get_session)):
 
 
 @router.post("/tasks/{task_id}/reject")
-def reject_task(task_id: int, session: Session = Depends(get_session)):
+def reject_task(task_id: int, session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "MANAGER"))):
     task = session.get(Task, task_id)
     if not task:
         raise HTTPException(404, "Task not found")
@@ -35,8 +36,11 @@ def reject_task(task_id: int, session: Session = Depends(get_session)):
 
 
 @router.get("/tickets")
-def list_tickets(session: Session = Depends(get_session)):
-    tickets = session.exec(select(Ticket)).all()
+def list_tickets(session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "IT_STAFF"))):
+    query = select(Ticket)
+    if user.role != "ADMIN":
+        query = query.where(Ticket.team == user.team)
+    tickets = session.exec(query).all()
     return [
         {
             "id": t.id,
@@ -54,10 +58,12 @@ def list_tickets(session: Session = Depends(get_session)):
 
 
 @router.post("/tickets/{ticket_id}/complete")
-def complete_ticket(ticket_id: str, session: Session = Depends(get_session)):
+def complete_ticket(ticket_id: str, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "IT_STAFF"))):
     ticket = session.exec(select(Ticket).where(Ticket.ticket_id == ticket_id)).first()
     if not ticket:
         raise HTTPException(404, "Ticket not found")
+    if user.role != "ADMIN" and ticket.team != user.team:
+        raise HTTPException(403, "Ticket belongs to another team")
     ticket.status = "done"
     session.add(ticket)
 
@@ -74,10 +80,12 @@ def complete_ticket(ticket_id: str, session: Session = Depends(get_session)):
 
 
 @router.post("/tickets/{ticket_id}/stall")
-def stall_ticket(ticket_id: str, session: Session = Depends(get_session)):
+def stall_ticket(ticket_id: str, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "IT_STAFF"))):
     ticket = session.exec(select(Ticket).where(Ticket.ticket_id == ticket_id)).first()
     if not ticket:
         raise HTTPException(404, "Ticket not found")
+    if user.role != "ADMIN" and ticket.team != user.team:
+        raise HTTPException(403, "Ticket belongs to another team")
     ticket.status = "stalled"
     session.add(ticket)
     # Do NOT update last_activity_day — that triggers stall detection

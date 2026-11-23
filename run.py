@@ -14,6 +14,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from dotenv import dotenv_values
 
 ROOT = Path(__file__).resolve().parent
 VENV = ROOT / ".venv"
@@ -53,6 +54,9 @@ def prepare(*, reset: bool = False) -> None:
         sample = (ROOT / ".env.example").read_text(encoding="utf-8")
         sample = sample.replace("JWT_SECRET=generated-by-run-py", f"JWT_SECRET={secrets.token_urlsafe(48)}")
         env_file.write_text(sample, encoding="utf-8")
+    for key, value in dotenv_values(env_file).items():
+        if value is not None:
+            os.environ.setdefault(key, value)
     os.environ.setdefault("DEMO_MODE", "true")
 
     if reset:
@@ -62,6 +66,7 @@ def prepare(*, reset: bool = False) -> None:
     command([str(PYTHON), "-m", "alembic", "-c", "alembic.ini", "upgrade", "head"], cwd=ROOT / "backend")
     # The prototype seeds demo records only when the persistent store is empty.
     if os.environ.get("DEMO_MODE", "true").lower() == "true":
+        command([str(PYTHON), "seed.py", "--users-only"], cwd=ROOT / "backend")
         has_hires = subprocess.run(
             [str(PYTHON), "-c", "from app.db.database import engine; from sqlmodel import Session, select; from app.domain.models import Hire; s=Session(engine); print(bool(s.exec(select(Hire.id)).first())); s.close()"],
             cwd=ROOT / "backend", text=True, capture_output=True, check=True,
@@ -145,6 +150,9 @@ def main() -> int:
         print("  API:    http://localhost:8000/docs")
         print("  Health: http://localhost:8000/health")
         print("  Demo:   Priya Sharma · Data Analyst · 8 days")
+        if os.environ.get("DEMO_MODE", "true").lower() == "true":
+            print("  Demo login: admin@demo.local, hr@demo.local, manager@demo.local, it@demo.local, facilities@demo.local, newhire@demo.local")
+            print("  Password: OnboardIQ-Demo!")
         if not opts.no_browser:
             import webbrowser
             webbrowser.open("http://localhost:8000" if opts.prod else "http://localhost:5173")

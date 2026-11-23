@@ -4,6 +4,8 @@ from sqlmodel import create_engine, Session, SQLModel
 from sqlmodel.pool import StaticPool
 from app.main import app
 from app.db.database import get_session
+from app.auth import get_current_user
+from app.domain.models import User
 
 
 @pytest.fixture(name="session")
@@ -24,6 +26,21 @@ def client_fixture(session: Session):
         return session
 
     app.dependency_overrides[get_session] = _override
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id=1, email="test@example.local", name="Test Admin", role="ADMIN", password_hash="unused"
+    )
+    with TestClient(app) as client:
+        yield client
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture(name="anonymous_client")
+def anonymous_client_fixture(session: Session):
+    def _override():
+        return session
+
+    app.dependency_overrides[get_session] = _override
+    app.dependency_overrides.pop(get_current_user, None)
     with TestClient(app) as client:
         yield client
     app.dependency_overrides.clear()

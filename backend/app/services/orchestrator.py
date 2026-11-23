@@ -406,12 +406,13 @@ def create_hire_with_plan(
     role: str,
     department: str,
     start_day: int,
+    manager_id: Optional[int] = None,
 ) -> Hire:
     """Create a hire and generate their task plan from role template (+ optional LLM)."""
     from app.services.planner import get_plan_for_role
     from app.config import settings
 
-    hire = Hire(name=name, role=role, department=department, start_day=start_day)
+    hire = Hire(name=name, role=role, department=department, start_day=start_day, manager_id=manager_id)
     session.add(hire)
     session.commit()
     session.refresh(hire)

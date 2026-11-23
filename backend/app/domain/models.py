@@ -50,6 +50,8 @@ class Hire(SQLModel, table=True):
     status: HireStatus = HireStatus.on_track
     readiness: float = 0.0
     projected_day: Optional[int] = None
+    manager_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    new_hire_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     tasks: List["Task"] = Relationship(back_populates="hire")
 
@@ -139,3 +141,61 @@ class SimState(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     current_day: int = 0
     itsm_offline: bool = False
+
+
+class User(SQLModel, table=True):
+    __tablename__ = "users"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    email: str = Field(index=True, unique=True)
+    name: str
+    role: str
+    team: Optional[str] = None
+    password_hash: str
+    is_active: bool = True
+    must_change_password: bool = False
+    failed_logins: int = 0
+    locked_until: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class RefreshToken(SQLModel, table=True):
+    __tablename__ = "refresh_tokens"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", index=True)
+    family_id: str = Field(index=True)
+    token_hash: str = Field(unique=True, index=True)
+    expires_at: datetime
+    revoked_at: Optional[datetime] = None
+    replaced_by: Optional[int] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class OneTimeToken(SQLModel, table=True):
+    __tablename__ = "one_time_tokens"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", index=True)
+    token_hash: str = Field(unique=True, index=True)
+    purpose: str  # password_reset | invite
+    expires_at: datetime
+    used_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class MailOutbox(SQLModel, table=True):
+    __tablename__ = "mail_outbox"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    recipient: str
+    subject: str
+    body: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    sent_at: Optional[datetime] = None
+
+
+class SecurityAudit(SQLModel, table=True):
+    __tablename__ = "security_audit"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    actor_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    action: str
+    target: Optional[str] = None
+    detail: str = ""
+    created_at: datetime = Field(default_factory=datetime.utcnow)

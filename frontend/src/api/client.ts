@@ -1,7 +1,59 @@
 import axios from 'axios'
 
 const BASE = import.meta.env.VITE_API_URL || '/api'
-const api = axios.create({ baseURL: BASE })
+const api = axios.create({ baseURL: BASE, withCredentials: true })
+let accessToken: string | null = null
+let refreshFlight: Promise<string> | null = null
+
+function csrfToken() {
+  return document.cookie.split('; ').find(item => item.startsWith('csrf_token='))?.split('=').slice(1).join('=') ?? ''
+}
+
+export function setAccessToken(token: string | null) { accessToken = token }
+export function clearAccessToken() { accessToken = null }
+
+api.interceptors.request.use(config => {
+  if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`
+  return config
+})
+
+api.interceptors.response.use(response => response, async error => {
+  const config = error.config
+  if (error.response?.status === 401 && config && !config._retried && !String(config.url).includes('/auth/')) {
+    config._retried = true
+    try {
+      const token = await refreshAccessToken()
+      config.headers.Authorization = `Bearer ${token}`
+      return api(config)
+    } catch {
+      clearAccessToken()
+    }
+  }
+  return Promise.reject(error)
+})
+
+export interface AuthUser { id: number; email: string; name: string; role: string; team?: string | null; must_change_password: boolean }
+export async function login(email: string, password: string) {
+  const response = await api.post('/auth/login', { email, password })
+  accessToken = response.data.access_token
+  return response.data.user as AuthUser
+}
+export async function refreshAccessToken() {
+  if (!refreshFlight) {
+    refreshFlight = api.post('/auth/refresh', {}, { headers: { 'X-CSRF-Token': csrfToken() } })
+      .then(response => { accessToken = response.data.access_token; return accessToken })
+      .finally(() => { refreshFlight = null })
+  }
+  return refreshFlight
+}
+export const getMe = () => api.get('/auth/me').then(response => response.data as AuthUser)
+export const requestPasswordReset = (email: string) => api.post('/auth/password/forgot', { email }).then(response => response.data)
+export const resetPassword = (token: string, password: string) => api.post('/auth/password/reset', { token, password }).then(response => response.data)
+export const acceptInvite = (token: string, password: string) => api.post('/auth/accept-invite', { token, password }).then(response => response.data)
+export async function logout() {
+  await api.post('/auth/logout', {}, { headers: { 'X-CSRF-Token': csrfToken() } })
+  accessToken = null
+}
 
 export const getHires = () => api.get('/hires').then(r => r.data)
 export const createHire = (data: HireCreate) => api.post('/hires', data).then(r => r.data)

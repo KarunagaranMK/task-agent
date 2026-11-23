@@ -1,43 +1,33 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
 import os
-from app.db.database import create_db, get_session
 from app.api import hires, tasks, sim
-from contextlib import asynccontextmanager
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Test clients provide their own isolated session; touching the file database
-    # during their startup can block on a separate local demo server.
-    if get_session not in app.dependency_overrides:
-        create_db()
-    yield
-
-
+from app import auth
 app = FastAPI(
     title="Onboarding Orchestrator API",
     description="Cross-Team Employee Onboarding Orchestrator — CAT2-029",
     version="1.0.0",
-    lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:8000", "http://127.0.0.1:8000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(hires.router)
-app.include_router(tasks.router)
-app.include_router(sim.router)
+for api_router in (hires.router, tasks.router, sim.router, auth.users_router, auth.mail_router):
+    app.include_router(api_router, dependencies=[Depends(auth.get_current_user)])
+    app.include_router(api_router, prefix="/api", dependencies=[Depends(auth.get_current_user)])
+app.include_router(auth.router)
+app.include_router(auth.router, prefix="/api")
 
 @app.get("/health")
+@app.get("/api/health")
 def health():
     return {"status": "ok", "service": "onboarding-orchestrator"}
 

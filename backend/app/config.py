@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     JWT_SECRET: str = "local-dev-only-change-this-secret"
     COOKIE_SECURE: bool = False
     MCP_MODE: str = "stdio"
+    SCHEDULER_ENABLED: bool = True
+    MONITOR_INTERVAL_MINUTES: int = 15
 
     model_config = {"env_file": Path(__file__).resolve().parents[2] / ".env", "extra": "ignore"}
 

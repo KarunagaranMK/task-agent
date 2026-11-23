@@ -156,4 +156,4 @@ def test_audit_trail(client):
     hid = r.json()["id"]
     audit = client.get(f"/hires/{hid}/audit").json()
     assert len(audit) >= 1  # at least the plan_generator event
-    assert audit[0]["actor"] == "plan_generator"
+    assert audit[0]["actor"] == "agent:plan_generator"

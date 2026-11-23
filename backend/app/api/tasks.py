@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from app.db.database import get_session
-from app.domain.models import Task, TaskStatus, ApprovalState, Ticket
+from app.domain.models import Hire, Task, TaskStatus, ApprovalState, Ticket
 from app.services.orchestrator import audit, notify, get_current_day
 from app.auth import require_roles
 from app.mcp_clients.tools import update_ticket_status as mcp_update_ticket_status
@@ -15,10 +15,13 @@ def approve_task(task_id: int, session: Session = Depends(get_session), _user=De
     task = session.get(Task, task_id)
     if not task:
         raise HTTPException(404, "Task not found")
+    hire = session.get(Hire, task.hire_id)
+    if _user.role == "MANAGER" and (hire is None or hire.manager_id != _user.id):
+        raise HTTPException(404, "Task not found")
     task.approval_state = ApprovalState.approved
     task.status = TaskStatus.pending
     session.add(task)
-    audit(session, task.hire_id, f"Manager approved '{task.title}'", "info", "approval_gate")
+    audit(session, task.hire_id, f"Manager approved '{task.title}'", "info", f"user:{_user.id}")
     session.commit()
     return {"status": "approved", "task_id": task_id}
 
@@ -28,10 +31,13 @@ def reject_task(task_id: int, session: Session = Depends(get_session), _user=Dep
     task = session.get(Task, task_id)
     if not task:
         raise HTTPException(404, "Task not found")
+    hire = session.get(Hire, task.hire_id)
+    if _user.role == "MANAGER" and (hire is None or hire.manager_id != _user.id):
+        raise HTTPException(404, "Task not found")
     task.approval_state = ApprovalState.rejected
     task.status = TaskStatus.blocked
     session.add(task)
-    audit(session, task.hire_id, f"Manager rejected '{task.title}'", "warning", "approval_gate")
+    audit(session, task.hire_id, f"Manager rejected '{task.title}'", "warning", f"user:{_user.id}")
     session.commit()
     return {"status": "rejected", "task_id": task_id}
 
@@ -79,7 +85,7 @@ def complete_ticket(ticket_id: str, session: Session = Depends(get_session), use
             task.status = TaskStatus.done
             task.last_activity_day = get_current_day(session)
             session.add(task)
-            audit(session, task.hire_id, f"Task '{task.title}' completed", "info", "it_provisioner")
+            audit(session, task.hire_id, f"Task '{task.title}' completed", "info", f"user:{user.id}")
 
     session.commit()
     return {"ticket_id": ticket_id, "status": "done"}

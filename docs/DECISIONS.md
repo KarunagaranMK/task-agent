@@ -84,6 +84,18 @@
 - **Why:** Tool calls stay the only path for external-system reads/writes, while the existing UI/API can keep its current read model.
 - **Alternative considered:** Continue creating tickets directly in the app database. That would bypass the integration boundary and make outage/idempotency behavior impossible to validate independently.
 
+## 2026-11-23 — Guard every monitor cycle with a durable lease and one database commit
+
+- **Decision:** Run APScheduler in the FastAPI process, acquire a 60-second SQLite-backed monitor lease for both scheduled and manual ticks, write cycle state in one transaction, and release the lease after completion.
+- **Why:** Multiple app workers or a manual demo action must not dispatch the same work concurrently. If the process crashes, the lease expires and the next cycle can resume persisted outbox work.
+- **Alternative considered:** Use only APScheduler's in-process `max_instances=1`. That does not coordinate a second process and cannot recover after a crash.
+
+## 2026-11-23 — Reschedule a stalled task by updating its existing ticket
+
+- **Decision:** Apply fallback title and duration to the existing MCP ticket while keeping its ticket ID and idempotency key.
+- **Why:** Creating a second ticket with the same `hire:task` idempotency key would return the original ticket, while using a new key could duplicate work. Updating the existing request preserves exactly-once behavior.
+- **Alternative considered:** Cancel and recreate the ticket. That introduces a cancellation/recreation gap and ambiguous state if either tool response is lost.
+
 ## Known decisions still pending
 
 - The deterministic in-process MCP adapters remain until persistent stdio client tests are implemented.

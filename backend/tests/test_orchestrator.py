@@ -1,8 +1,13 @@
 import pytest
+import os
+import subprocess
+import sys
+from pathlib import Path
 from sqlmodel import Session, create_engine, SQLModel, select
 from sqlmodel.pool import StaticPool
 from app.domain.models import (
     Hire, Task, TaskStatus, Ticket, OutboxItem, SimState, ApprovalState,
+    AuditEvent, Notification, SchedulerLease,
 )
 from app.services.orchestrator import (
     create_hire_with_plan,
@@ -11,6 +16,8 @@ from app.services.orchestrator import (
     monitor_tick,
     get_or_create_sim_state,
     compute_readiness,
+    _acquire_monitor_lease,
+    _release_monitor_lease,
 )
 
 
@@ -188,3 +195,82 @@ def test_readiness_none_done(session):
     hire = create_hire_with_plan(session, "Henry", "default", "HR", 10)
     r = compute_readiness(session, hire)
     assert r == 0.0
+
+
+def test_monitor_lease_allows_only_one_active_owner(session):
+    assert _acquire_monitor_lease(session, "worker-a")
+    assert not _acquire_monitor_lease(session, "worker-b")
+    _release_monitor_lease(session, "worker-a")
+    assert _acquire_monitor_lease(session, "worker-b")
+
+
+def test_stalled_critical_laptop_uses_loaner_without_duplicate_ticket(session):
+    hire = create_hire_with_plan(session, "Priya", "Data Analyst", "Analytics", 2)
+    laptop = session.exec(select(Task).where(Task.hire_id == hire.id, Task.key == "it:laptop")).one()
+    laptop.duration_days = 6
+    session.add(laptop)
+    session.commit()
+    monitor_tick(session)
+    session.refresh(laptop)
+    original_ticket_id = laptop.ticket_id
+    assert original_ticket_id
+    state = get_or_create_sim_state(session)
+    state.current_day = 2
+    laptop.last_activity_day = 0
+    session.add_all([state, laptop])
+    session.commit()
+
+    monitor_tick(session)
+    session.refresh(laptop)
+    ticket = session.exec(select(Ticket).where(Ticket.ticket_id == original_ticket_id)).one()
+    assert laptop.flag == "rescheduled"
+    assert laptop.title == "Issue Loaner Laptop"
+    assert laptop.ticket_id == original_ticket_id
+    assert ticket.title == "Issue Loaner Laptop"
+    escalations = session.exec(select(AuditEvent).where(AuditEvent.hire_id == hire.id, AuditEvent.level == "critical", AuditEvent.message.contains("Provision Laptop"))).all()
+    assert len(escalations) == 1
+    assert len(session.exec(select(Notification).where(Notification.hire_id == hire.id)).all()) >= 2
+
+    monitor_tick(session)
+    laptop_escalations = session.exec(
+        select(AuditEvent).where(
+            AuditEvent.hire_id == hire.id,
+            AuditEvent.level == "critical",
+            AuditEvent.message.contains("Provision Laptop"),
+        )
+    ).all()
+    assert len(laptop_escalations) == 1
+
+
+def test_queued_ticket_recovers_after_backend_process_restart(tmp_path, monkeypatch):
+    from sqlmodel import create_engine
+
+    database_path = tmp_path / "restart.db"
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        session.add(SimState(current_day=1, itsm_offline=False))
+        session.commit()
+        hire = create_hire_with_plan(session, "Restart Hire", "default", "Ops", 8)
+        task = _get_first_independent_task(session, hire.id)
+        assert dispatch_task(session, task, 0, itsm_offline=True) is False
+        task_id = task.id
+
+    backend_dir = Path(__file__).resolve().parents[1]
+    env = os.environ.copy()
+    env.update({
+        "DATABASE_URL": f"sqlite:///{database_path.as_posix()}",
+        "MCP_MODE": "inprocess",
+        "ITSM_DB_PATH": os.environ["ITSM_DB_PATH"],
+        "HRIS_DB_PATH": os.environ["HRIS_DB_PATH"],
+    })
+    env["PYTHONPATH"] = str(backend_dir) + os.pathsep + env.get("PYTHONPATH", "")
+    code = (
+        "from sqlmodel import Session, select; from app.db.database import engine; "
+        "from app.services.orchestrator import monitor_tick; "
+        "from app.domain.models import OutboxItem, Ticket; "
+        "s=Session(engine); monitor_tick(s); "
+        f"print(str(len(s.exec(select(OutboxItem)).all())) + ':' + str(len(s.exec(select(Ticket).where(Ticket.task_id == {task_id})).all()))); s.close()"
+    )
+    result = subprocess.run([sys.executable, "-c", code], cwd=backend_dir, env=env, capture_output=True, text=True, timeout=30, check=True)
+    assert result.stdout.strip().endswith("0:1")

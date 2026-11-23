@@ -4,12 +4,26 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
 import os
+from contextlib import asynccontextmanager
 from app.api import hires, tasks, sim
 from app import auth
+from app.config import settings
+from app.services.scheduler import start_scheduler, stop_scheduler
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    if settings.SCHEDULER_ENABLED:
+        start_scheduler()
+    try:
+        yield
+    finally:
+        stop_scheduler()
 app = FastAPI(
     title="Onboarding Orchestrator API",
     description="Cross-Team Employee Onboarding Orchestrator — CAT2-029",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(

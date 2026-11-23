@@ -199,3 +199,11 @@ class SecurityAudit(SQLModel, table=True):
     target: Optional[str] = None
     detail: str = ""
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class SchedulerLease(SQLModel, table=True):
+    __tablename__ = "scheduler_leases"
+    id: int = Field(default=1, primary_key=True)
+    owner_id: str = ""
+    lease_until: datetime = Field(default_factory=lambda: datetime(1970, 1, 1))
+    updated_at: datetime = Field(default_factory=datetime.utcnow)

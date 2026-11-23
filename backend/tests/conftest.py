@@ -9,6 +9,7 @@ from app.domain.models import User
 from app.config import settings
 
 settings.MCP_MODE = "inprocess"
+settings.SCHEDULER_ENABLED = False
 
 
 @pytest.fixture(name="session")

@@ -4,18 +4,22 @@ Dispatch tasks, detect stalls, escalate, reschedule with fallbacks.
 All decisions are deterministic — LLM used only for notification messages.
 """
 from typing import List, Optional, Tuple
+from datetime import datetime, timedelta
+import uuid
 from sqlmodel import Session, select
 from app.domain.models import (
     Hire, Task, TaskStatus, HireStatus, OutboxItem, AuditEvent,
-    Notification, Ticket, SimState, ApprovalState, TaskFlag,
+    Notification, Ticket, SimState, ApprovalState, TaskFlag, SchedulerLease,
 )
 from app.services.cpm import CPMTask, compute_cpm, get_remaining_days, is_stalled
 import logging
 from app.mcp_clients.tools import (
+    cancel_ticket as mcp_cancel_ticket,
     create_ticket as mcp_create_ticket,
     set_itsm_offline,
     update_onboarding_status as mcp_update_onboarding_status,
     upsert_new_hire as mcp_upsert_new_hire,
+    update_ticket_details as mcp_update_ticket_details,
 )
 
 logger = logging.getLogger(__name__)
@@ -53,22 +57,21 @@ def get_current_day(session: Session) -> int:
 
 def audit(session: Session, hire_id: int, message: str,
           level: str = "info", actor: str = "system") -> None:
+    audit_actor = actor if actor.startswith(("agent:", "user:")) else f"agent:{actor}"
     event = AuditEvent(
         day=get_current_day(session),
         hire_id=hire_id,
         level=level,
         message=message,
-        actor_agent=actor,
+        actor_agent=audit_actor,
     )
     session.add(event)
-    session.commit()
 
 
 def notify(session: Session, role: str, message: str,
            hire_id: Optional[int] = None, task_id: Optional[int] = None) -> None:
     n = Notification(for_role=role, message=message, hire_id=hire_id, task_id=task_id)
     session.add(n)
-    session.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -84,7 +87,7 @@ def make_ikey(hire_id: int, task_key: str) -> str:
 # ---------------------------------------------------------------------------
 
 def dispatch_task(session: Session, task: Task, current_day: int,
-                  itsm_offline: bool = False) -> bool:
+                  itsm_offline: bool = False, *, commit: bool = True) -> bool:
     """Create ticket for task. Returns True if dispatched, False if queued (outbox)."""
     ikey = make_ikey(task.hire_id, task.key)
 
@@ -94,7 +97,8 @@ def dispatch_task(session: Session, task: Task, current_day: int,
         if task.ticket_id != existing.ticket_id:
             task.ticket_id = existing.ticket_id
             session.add(task)
-            session.commit()
+            if commit:
+                session.commit()
         return True
 
     set_itsm_offline(itsm_offline)
@@ -118,10 +122,13 @@ def dispatch_task(session: Session, task: Task, current_day: int,
             session.add(ob)
             task.status = TaskStatus.queued
             session.add(task)
-            session.commit()
+            if commit:
+                session.commit()
             audit(session, task.hire_id,
                   f"Task '{task.title}' queued in outbox (ITSM offline)",
                   "warning", "it_provisioner")
+            if commit:
+                session.commit()
         return False
 
     if result.get("error") or not result.get("ticket_id"):
@@ -147,11 +154,14 @@ def dispatch_task(session: Session, task: Task, current_day: int,
     task.dispatched_day = current_day
     task.last_activity_day = current_day
     session.add(task)
-    session.commit()
+    if commit:
+        session.commit()
 
     audit(session, task.hire_id,
           f"Ticket {ticket_id} created for '{task.title}' ({task.team})",
           "info", "supervisor")
+    if commit:
+        session.commit()
     return True
 
 
@@ -159,7 +169,7 @@ def dispatch_task(session: Session, task: Task, current_day: int,
 # Outbox drain
 # ---------------------------------------------------------------------------
 
-def drain_outbox(session: Session, current_day: int) -> None:
+def drain_outbox(session: Session, current_day: int, *, commit: bool = True) -> None:
     """Drain queued outbox items — idempotent, no duplicate tickets."""
     # Callers drain only after observing recovery. The monitor sets the outage
     # flag before this method, and invokes it only when the service is online.
@@ -204,7 +214,8 @@ def drain_outbox(session: Session, current_day: int) -> None:
                   "info", "supervisor")
 
         session.delete(item)
-    session.commit()
+    if commit:
+        session.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -251,7 +262,7 @@ def run_cpm_for_hire(
             task_map[ct.key].slack = ct.slack
             task_map[ct.key].critical = ct.critical
             session.add(task_map[ct.key])
-    session.commit()
+    # The enclosing monitor cycle commits all state and audit changes together.
 
     min_slack = min(ct.slack for ct in computed)
     return computed, min_slack
@@ -302,20 +313,36 @@ def handle_stalls(
         # Reschedule with fallback if available
         if task.fallback_title and task.flag != TaskFlag.rescheduled:
             old_title = task.title
+            fallback_title = task.fallback_title
+            fallback_days = task.fallback_days or 1
+            if task.ticket_id:
+                result = mcp_update_ticket_details(task.ticket_id, fallback_title, fallback_days)
+                if result.get("error"):
+                    logger.warning("Fallback update for ticket %s deferred: %s", task.ticket_id, result.get("error"))
+                    continue
+                ticket = session.exec(select(Ticket).where(Ticket.ticket_id == task.ticket_id)).first()
+                if ticket:
+                    ticket.title = fallback_title
+                    ticket.estimate_days = fallback_days
+                    ticket.updated_at = datetime.utcnow()
+                    session.add(ticket)
+            else:
+                queued = session.exec(select(OutboxItem).where(OutboxItem.task_id == task.id)).first()
+                if queued:
+                    queued.title = fallback_title
+                    queued.estimate_days = fallback_days
+                    session.add(queued)
             task.flag = TaskFlag.rescheduled
-            task.title = task.fallback_title
-            task.duration_days = task.fallback_days or 1
+            task.title = fallback_title
+            task.duration_days = fallback_days
             task.fallback_title = None
             task.fallback_days = None
-            # Reset for re-dispatch
-            task.status = TaskStatus.pending
-            task.dispatched_day = None
-            task.ticket_id = None
+            task.last_activity_day = current_day
             session.add(task)
             audit(session, hire.id,
                   f"RESCHEDULED: '{old_title}' → fallback '{task.title}' ({task.duration_days}d)",
                   "warning", "progress_monitor")
-    session.commit()
+    # The enclosing monitor cycle commits reschedule and notification records together.
 
 
 # ---------------------------------------------------------------------------
@@ -349,7 +376,7 @@ def update_hire_status(
         hire.start_day + max(0, int(-min_slack)) if min_slack < 0 else hire.start_day
     )
     session.add(hire)
-    session.commit()
+    # The enclosing monitor cycle commits the hire read-model and audit together.
     mcp_update_onboarding_status(hire.id, str(hire.status), hire.readiness)
 
 
@@ -357,7 +384,7 @@ def update_hire_status(
 # Monitor tick (the main scheduled loop)
 # ---------------------------------------------------------------------------
 
-def monitor_tick(session: Session) -> None:
+def _monitor_tick_body(session: Session) -> None:
     """
     Main monitor loop:
     1. Drain outbox if ITSM online
@@ -369,7 +396,7 @@ def monitor_tick(session: Session) -> None:
     set_itsm_offline(itsm_offline)
 
     if not itsm_offline:
-        drain_outbox(session, current_day)
+        drain_outbox(session, current_day, commit=False)
 
     hires = session.exec(select(Hire)).all()
     for hire in hires:
@@ -395,13 +422,12 @@ def monitor_tick(session: Session) -> None:
                     audit(session, hire.id,
                           f"Awaiting manager approval for '{task.title}'",
                           "info", "approval_gate")
-                    session.commit()
                 continue
 
             # Only dispatch if all deps done
             deps = task.depends_on_list
             if all(d in done_keys for d in deps):
-                dispatch_task(session, task, current_day, itsm_offline)
+                dispatch_task(session, task, current_day, itsm_offline, commit=False)
 
         # Refresh tasks after dispatch
         session.refresh(hire)
@@ -417,6 +443,53 @@ def monitor_tick(session: Session) -> None:
         update_hire_status(session, hire, min_slack, readiness)
 
     session.commit()
+
+
+def _acquire_monitor_lease(session: Session, owner_id: str, lease_seconds: int = 60) -> bool:
+    now = datetime.utcnow()
+    lease = session.get(SchedulerLease, 1)
+    if lease is None:
+        lease = SchedulerLease(id=1, owner_id="", lease_until=datetime(1970, 1, 1))
+        session.add(lease)
+        session.commit()
+        session.refresh(lease)
+    if lease.lease_until > now and lease.owner_id != owner_id:
+        return False
+    lease.owner_id = owner_id
+    lease.lease_until = now + timedelta(seconds=lease_seconds)
+    lease.updated_at = now
+    session.add(lease)
+    session.commit()
+    return True
+
+
+def _release_monitor_lease(session: Session, owner_id: str) -> None:
+    lease = session.get(SchedulerLease, 1)
+    if lease is not None and lease.owner_id == owner_id:
+        now = datetime.utcnow()
+        lease.owner_id = ""
+        lease.lease_until = now
+        lease.updated_at = now
+        session.add(lease)
+        session.commit()
+
+
+def monitor_tick(session: Session) -> bool:
+    """Run one monitor cycle under a durable DB lease; safe to retry after restart."""
+    # Ensure the simulation row exists before lease acquisition starts the cycle.
+    get_or_create_sim_state(session)
+    owner_id = str(uuid.uuid4())
+    if not _acquire_monitor_lease(session, owner_id):
+        logger.info("Monitor tick skipped; another worker owns the lease")
+        return False
+    try:
+        _monitor_tick_body(session)
+        return True
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        _release_monitor_lease(session, owner_id)
 
 
 # ---------------------------------------------------------------------------

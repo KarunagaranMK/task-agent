@@ -133,5 +133,37 @@ This file records verified state against the phases in the product brief. A gate
 
 ## Next phase — P4 Orchestrator
 
-1. Add deterministic monitor-cycle safeguards, audit/approval actor attribution, one-time escalation, and durable restart recovery.
-2. Add stall-rescue and restart tests before committing P4.
+## P4 — Orchestrator
+
+### Done
+
+- Added an APScheduler interval job that starts/stops with FastAPI and calls the same monitor as manual/demo triggers.
+- Added migration `0004_scheduler_lease` and a durable 60-second DB lease shared by scheduled and manual monitor cycles. A cycle now commits its DB state once before releasing the lease; failed cycles roll back the local transaction.
+- Made ticket creation, outbox drain, critical-path updates, escalations, notifications, readiness and audit records safe to replay after a process crash through stable MCP idempotency keys.
+- Fixed stall fallback handling: the existing ITSM ticket is updated to the loaner title/duration and retains its ticket ID, so recovery does not create duplicate work.
+- Kept escalation idempotent per task and scoped intervention to critical or near-critical tasks. Normal stalled items outside that band are only marked `watch`.
+- Audit events now identify agent actions as `agent:<name>` and human approvals/completions as `user:<id>`. Manager approvals are limited to tasks for their assigned hires.
+- Added tests for exclusive lease ownership, critical-path laptop rescue without duplicate ticket, one escalation per task, and outbox recovery from a separate backend subprocess.
+- P4 gate run: `python run.py --test` passed **106 backend tests** and the TypeScript/Vite production build.
+
+### Mocked
+
+- The scheduler is a single in-process APScheduler instance; the lease coordinates it with manual triggers and any additional local app processes.
+- HRIS updates are best-effort MCP calls; unlike ITSM ticket creation, they do not yet have their own durable retry outbox.
+
+### Known gaps
+
+- The 60-second lease is not renewed during a long cycle; current local mock operations are short. A production integration with slow external calls should renew the lease.
+- Human ticket workflow still has limited actions (complete/stall) and no comments/assignee management.
+- Pause/cancel hire lifecycle and manager approval undo are not implemented yet.
+
+### Gate and commit
+
+- **P4 gate: passed.** Stall rescue and subprocess restart recovery pass with the full suite.
+- **Tests:** 106 backend tests passed; TypeScript/Vite production build passed.
+- Conventional P4 commit follows this progress update.
+
+## Next phase — P5 Realtime and AI
+
+1. Add role-filtered SSE tickets/streams, email outbox views, notification events, and safe LLM features with deterministic fallbacks.
+2. Verify SSE ticket authorization and no-key fallback before committing P5.

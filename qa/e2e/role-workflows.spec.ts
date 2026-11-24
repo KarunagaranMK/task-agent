@@ -46,6 +46,7 @@ test('HR can preview and create a role-specific onboarding plan', async ({ page 
   await page.getByRole('link', { name: 'Open QA Example' }).click()
   await page.getByRole('button', { name: 'Pause' }).click()
   await expect(page.locator('.hire-hero .status-pill')).toHaveText(/Paused/i)
+  await expect(page.getByText('Work is paused. Resume the plan when teams are ready.')).toBeVisible()
   await page.getByRole('button', { name: 'Resume' }).click()
   await expect(page.locator('.hire-hero .status-pill')).toHaveText(/On track/i)
   await page.getByRole('button', { name: 'Cancel plan' }).click()
@@ -54,6 +55,7 @@ test('HR can preview and create a role-specific onboarding plan', async ({ page 
   await cancelDialog.getByLabel('Type QA Example to confirm').fill('QA Example')
   await cancelDialog.getByRole('button', { name: 'Cancel onboarding' }).click()
   await expect(page.locator('.hire-hero .status-pill')).toHaveText(/Cancelled/i)
+  await expect(page.getByText('This onboarding plan is closed.')).toBeVisible()
 })
 
 test('manager, IT, and new-hire interactions are keyboard reachable', async ({ page }) => {

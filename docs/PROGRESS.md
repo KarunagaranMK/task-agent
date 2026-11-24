@@ -319,6 +319,7 @@ This file records verified state against the phases in the product brief. A gate
 - Added a live remaining-work schedule with critical path, Day 1 marker, today marker, zoom, task inspection, and keyboard-accessible scrolling.
 - Added a selectable dependency graph with upstream/downstream highlighting, status/critical/stalled styling, zoom, fit view, and task details.
 - Added HR/Admin pause, resume, and typed-confirmation cancel actions. Pause/cancel reconcile mock ITSM tickets, preserve completed work, audit the action, and let partial failures be retried.
+- Suppressed stale critical-path actions and what-if task choices for paused/cancelled tasks; their overview now explains the closed state.
 - Added `/api/v1` aliases, Problem Details responses, request IDs, baseline security headers, and frontend routing through the versioned API.
 - Added API and UI coverage for task schedule positions and ticket-aware pause/resume/cancel; corrected generic-auth-error checks to ignore per-request IDs.
 - Refreshed the screenshot matrix to **198 images**, including graph and schedule tabs at all required role/viewport/theme combinations. Visual inspection covered mobile graph, mobile schedule, and desktop light/dark graph/schedule captures.

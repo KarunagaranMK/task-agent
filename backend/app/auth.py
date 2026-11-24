@@ -6,6 +6,7 @@ import json
 import secrets
 import time
 from datetime import datetime, timedelta, timezone
+from threading import Lock
 from typing import Callable
 
 import jwt
@@ -24,9 +25,44 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 users_router = APIRouter(prefix="/users", tags=["users"])
 mail_router = APIRouter(prefix="/dev", tags=["development"])
 _LOGIN_ATTEMPTS: dict[tuple[str, str], list[float]] = {}
+_LOGIN_IP_ATTEMPTS: dict[str, list[float]] = {}
+_LOGIN_ACCOUNT_ATTEMPTS: dict[str, list[float]] = {}
+_LOGIN_ATTEMPTS_LOCK = Lock()
+_LOGIN_ATTEMPTS_WINDOW = 900
+_LOGIN_PAIR_LIMIT = 20
+_LOGIN_IP_LIMIT = 100
+_LOGIN_ACCOUNT_LIMIT = 60
+_LOGIN_ATTEMPT_COUNT = 0
 password_hasher = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=2)
 dummy_password_hash = password_hasher.hash("not-a-real-user-password")
 bearer = HTTPBearer(auto_error=False)
+
+
+def _record_login_attempt(client_ip: str, email: str, now_seconds: float) -> None:
+    global _LOGIN_ATTEMPT_COUNT
+    account = email.strip().lower()
+    pair_key = (client_ip, account)
+    buckets = (
+        (_LOGIN_ATTEMPTS, pair_key, _LOGIN_PAIR_LIMIT),
+        (_LOGIN_IP_ATTEMPTS, client_ip, _LOGIN_IP_LIMIT),
+        (_LOGIN_ACCOUNT_ATTEMPTS, account, _LOGIN_ACCOUNT_LIMIT),
+    )
+    with _LOGIN_ATTEMPTS_LOCK:
+        current: list[tuple[dict, object, list[float], int]] = []
+        for bucket, key, limit in buckets:
+            recent = [stamp for stamp in bucket.get(key, []) if now_seconds - stamp < _LOGIN_ATTEMPTS_WINDOW]
+            if len(recent) >= limit:
+                raise HTTPException(status_code=429, detail="Too many sign-in attempts. Try again later.")
+            current.append((bucket, key, recent, limit))
+        for bucket, key, recent, _limit in current:
+            recent.append(now_seconds)
+            bucket[key] = recent
+        _LOGIN_ATTEMPT_COUNT += 1
+        if _LOGIN_ATTEMPT_COUNT % 128 == 0:
+            for bucket, _key, _limit in buckets:
+                expired = [key for key, values in bucket.items() if not values or now_seconds - values[-1] >= _LOGIN_ATTEMPTS_WINDOW]
+                for key in expired:
+                    bucket.pop(key, None)
 
 
 class LoginRequest(BaseModel):

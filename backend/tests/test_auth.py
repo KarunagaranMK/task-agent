@@ -2,9 +2,11 @@ from __future__ import annotations
 
 
 import pytest
+from fastapi import HTTPException
 from sqlmodel import select
+from uuid import uuid4
 
-from app.auth import get_current_user, hash_password
+from app.auth import get_current_user, hash_password, _record_login_attempt, _LOGIN_IP_LIMIT, _LOGIN_ACCOUNT_LIMIT
 from app.domain.models import MailOutbox, RefreshToken, SecurityAudit, User
 
 
@@ -49,6 +51,22 @@ def test_login_lockout_after_five_failures(anonymous_client, session):
     assert user.locked_until is not None
     assert user.failed_logins == 0
     assert anonymous_client.post("/auth/login", json={"email": user.email, "password": "Strong-Pass-123"}).status_code == 401
+
+
+def test_login_attempt_limits_are_aggregated_by_ip_and_account():
+    client_ip = f"rate-test-{uuid4()}"
+    for index in range(_LOGIN_IP_LIMIT):
+        _record_login_attempt(client_ip, f"person-{index}@example.local", 1_000 + index)
+    with pytest.raises(HTTPException) as ip_limited:
+        _record_login_attempt(client_ip, "another-person@example.local", 1_200)
+    assert ip_limited.value.status_code == 429
+
+    account = f"rate-account-{uuid4()}@example.local"
+    for index in range(_LOGIN_ACCOUNT_LIMIT):
+        _record_login_attempt(f"different-ip-{index}-{uuid4()}", account, 2_000 + index)
+    with pytest.raises(HTTPException) as account_limited:
+        _record_login_attempt(f"another-ip-{uuid4()}", account, 2_200)
+    assert account_limited.value.status_code == 429
 
 
 def test_password_change_requires_current_password_and_revokes_sessions(anonymous_client, session):

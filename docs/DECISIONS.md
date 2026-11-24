@@ -191,3 +191,9 @@
 - **Decision:** Keep `/health` as a process liveness response and add `/ready` aliases that execute `SELECT 1` against the configured database, returning 503 if the check fails.
 - **Why:** A running web process should not be advertised as ready to serve onboarding requests when its primary datastore is unavailable.
 - **Alternative considered:** Make `/health` perform the database query. That would turn a basic process check into a dependency check and could cause service managers to restart a healthy process during a transient database outage.
+
+## 2026-11-24 — Rate-limit login by pair, account, and client IP
+
+- **Decision:** Keep the 20-per-15-minute IP/email-pair bucket, add a 60-per-account bucket and a 100-per-IP bucket, and retain the five-failure account lockout. Guard the rolling windows with a thread lock and periodically prune expired entries.
+- **Why:** Pair-only throttling lets a client evade the limit by changing email addresses; account-only throttling lets a client evade it by rotating source IPs. Separate scopes close both gaps for the single-process local app.
+- **Alternative considered:** Add a distributed rate-limit store or middleware for every route. That adds infrastructure beyond the local-first MVP; password recovery and other public endpoints remain a separate rate-limit gap.

@@ -173,3 +173,9 @@
 - **Decision:** Persist a hire's organization-local joining date, derive projected-ready dates from the configured timezone, weekdays, and holiday list, and keep the integer `start_day` as the simulation index used by CPM and the demo clock. The hire API accepts a real `start_date`; the legacy `start_day` input remains supported.
 - **Why:** HR and new hires need an actual date, while the established deterministic demo, monitor, and CPM workflows depend on an indexed clock. The mapping now uses one server-side business calendar and accounts for the current demo-clock date.
 - **Alternative considered:** Replace every orchestration and CPM day counter with calendar date arithmetic. That would blur simulator offsets with wall-clock time and touch the already-tested monitor/experiment APIs; the new date field provides persistence and calendar-correct presentation without that ambiguity.
+
+## 2026-11-24 — Edit onboarding dependencies directly on a responsive graph
+
+- **Decision:** Lay out template tasks in dependency-depth columns, let users connect tasks by selecting a prerequisite then a downstream task, and keep a task inspector for details, approval, fallback and checkbox-based prerequisite editing. Validate cycles, unknown keys and duplicate keys live before publishing.
+- **Why:** HR/Admin can understand and adjust cross-team sequencing visually while keyboard access and mobile scrolling remain practical. Invalid plans are easier to fix before they become the template for new hires.
+- **Alternative considered:** Add React Flow and dagre to enable draggable edge handles. The current plan size is modest and the repository does not have those packages, so a native SVG canvas keeps the local-first dependency footprint small and gives the editor predictable accessible controls.

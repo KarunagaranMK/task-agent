@@ -318,6 +318,8 @@ This file records verified state against the phases in the product brief. A gate
 
 - Added a live remaining-work schedule with critical path, Day 1 marker, today marker, zoom, task inspection, and keyboard-accessible scrolling.
 - Added a selectable dependency graph with upstream/downstream highlighting, status/critical/stalled styling, zoom, fit view, and task details.
+- Replaced the comma-separated template row editor with a responsive task dependency canvas, keyboard-selectable nodes, click-to-connect mode, removable prerequisite arrows, a live task inspector, dependency checkboxes, manager approval and recovery fallback settings.
+- Added live key/dependency/cycle validation that disables publishing until the plan is valid; small-screen graph panning stays inside the canvas without widening the page.
 - Added HR/Admin pause, resume, and typed-confirmation cancel actions. Pause/cancel reconcile mock ITSM tickets, preserve completed work, audit the action, and let partial failures be retried.
 - Suppressed stale critical-path actions and what-if task choices for paused/cancelled tasks; their overview now explains the closed state.
 - Added `/api/v1` aliases, Problem Details responses, request IDs, baseline security headers, and frontend routing through the versioned API.
@@ -328,15 +330,19 @@ This file records verified state against the phases in the product brief. A gate
 
 ### Verification
 
+- Template canvas interaction test passed: live dependency changes, cycle warning/publish lockout, recovery, and fallback editing.
+- The **198-image** role/viewport/theme matrix passed after fixing a 390px page overflow; the graph now scrolls inside its canvas while settings remain within the viewport.
+- Inspected final template screenshots at 390px light and 1440px dark. The final full matrix includes the canvas at each required admin and HR viewport/theme combination.
+
 - Full backend suite passed: **130 tests**; this includes date/calendar mapping, active-ticket pause/resume/cancel, HR/Admin permission checks, API versioning, and Problem Details.
 - `python run.py --test` passed the backend suite and strict TypeScript/Vite production build; Ruff passed (`E4,E7,E9,F`).
-- Playwright passed **8/8**, including HR lifecycle controls, the Priya recovery-to-READY scenario, and the serious/critical axe audit.
+- Playwright passed **9/9**, including template dependency edits/cycle recovery, HR lifecycle controls, the Priya recovery-to-READY scenario, and the serious/critical axe audit.
 - Final visual matrix passed and was regenerated: **198 screenshots**; representative mobile and desktop light/dark hire graph/schedule captures were opened and inspected.
 
 ### Known gaps still open against the original brief
 
 - CPM and monitor internals still use a simulation-relative integer day index; real dates are persisted and mapped to that index at the API boundary.
-- The template editor remains a form/row editor; it does not provide an editable DAG canvas with drag connections and inline cycle feedback.
+- Template dependencies can be edited by click-to-connect and prerequisite controls; draggable edge handles are not implemented, and current templates remain below the 40-task API limit.
 - Hire list/API pagination and full server-side filtering/sorting, saved filters, bulk actions, and a full hire edit flow are incomplete.
 - SlowAPI/account-and-IP rate limits, a `GET /ready` health check, API UUID IDs, and request-wide transaction semantics remain open hardening work.
 - Vitest component tests and production performance/load profiling have not been added; GNU Make and a separate clean-clone gate have not been verified on this Windows machine.
@@ -345,4 +351,4 @@ This file records verified state against the phases in the product brief. A gate
 ### Gate
 
 - **P11 audit follow-up gate: passed** for the shipped visualization, lifecycle, API versioning, and hardening changes listed above. The original P10 clean-clone gate and the product gaps in this section remain open, so this does not certify the whole brief as complete.
-- **Implementation commit:** `42c228f feat: add hire schedule graph and lifecycle controls`.
+- **Implementation commits:** `2509f0f feat: persist joining dates with business calendar`; template-canvas commit to be recorded after its final gate.

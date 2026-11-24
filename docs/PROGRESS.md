@@ -342,4 +342,4 @@ This file records verified state against the phases in the product brief. A gate
 ### Gate
 
 - **P11 audit follow-up gate: passed** for the shipped visualization, lifecycle, API versioning, and hardening changes listed above. The original P10 clean-clone gate and the product gaps in this section remain open, so this does not certify the whole brief as complete.
-- **Commit:** pending.
+- **Implementation commit:** `42c228f feat: add hire schedule graph and lifecycle controls`.

@@ -1,30 +1,23 @@
 # Demo Script — Priya Sharma, Data Analyst
 
-**Setup time:** ~2 minutes | **Demo time:** ~10 minutes
+**Setup time:** one command | **Demo time:** ~10 minutes
 
 ---
 
 ## Prerequisites
 
-```bash
-# Terminal 1 — Backend
-cd backend
-pip install -r requirements.txt
-python seed.py          # loads Priya + 2 other hires, runs first monitor tick
-uvicorn app.main:app --reload --port 8000
-
-# Terminal 2 — Frontend
-cd frontend
-npm install && npm run dev
-# Open http://localhost:5173
+```powershell
+python run.py
 ```
+
+Open **http://localhost:5173**. On the sign-in page, choose a role chip (Admin, HR, Manager, IT, Facilities, or New hire) and sign in with `OnboardIQ-Demo!`. The seeded Priya Sharma plan is the shared starting scenario. Admin and HR can open **Demo controls** in the lower-right corner. Use `python run.py --reset` only when you intend to restore the demo scenario.
 
 ---
 
 ## Step-by-Step Demo
 
 ### 🟢 Step 1 — Show the Hire List (HR Page)
-- Navigate to the **HR** tab
+- Open **Overview** in the HR workspace
 - Three hires are already seeded: **Priya Sharma** (Data Analyst, Day 8), Alex Chen (SWE, Day 10), Maria Garcia (Marketing, Day 6)
 - Point out the **readiness bars** — all at ~10% (only root tasks dispatched so far)
 - Click **Priya Sharma** to open her detail
@@ -32,26 +25,26 @@ npm install && npm run dev
 ### 🔵 Step 2 — Inspect the Task Plan & Critical Path
 - Show the **task list** — 10 tasks across IT, HR, Facilities
 - Tasks highlighted in **red with ★ CRITICAL** are on the critical path
-- Explain: *"Laptop provisioning takes 3 days and blocks nothing else — it IS the critical path"*
+- Explain: *"High-RAM laptop provisioning takes 5 days and is the longest path to Day 1"*
 - Point to **slack values**: laptop has 0 slack, HR contracts have positive slack
 - Two tasks show `awaiting_approval` — Power BI License and Data Warehouse Access
 
 ### 🟡 Step 3 — Manager Approves Sensitive Access
-- Navigate to **Manager** tab
+- Sign in as Manager, then open **Approvals**
 - Show **Pending Approvals**: "Power BI License & Access" and "Data Warehouse Access" for Priya
 - Click **✓ Approve** for both
 - Navigate back to Priya's detail → click **Run Monitor** in Demo Panel
 - Both tasks now show `dispatched` with ticket IDs
 
 ### 🔴 Step 4 — IT Stalls the Laptop Ticket (Simulate Delay)
-- Navigate to **IT / Facilities Console**
+- Sign in as IT or Facilities, then open **Team queue**
 - Find ticket for "Provision Laptop (High RAM)" for Priya → click **⚠ Stall**
 - In Demo Panel: click **Advance Day** (day 1) → then **Advance Day** again (day 2)
 - This simulates 2 idle days on the critical path
 - Click **Run Monitor** (or Advance Day again which runs monitor automatically)
 
 ### 🚨 Step 5 — Observe Self-Healing: Escalation + Fallback
-- Navigate to Priya's **Hire Detail**
+- Sign in as HR, open **Overview**, then select Priya's row to see her **Hire detail**
 - **Audit timeline** shows (in red):
   > `🔴 ESCALATION: 'Provision Laptop' for Priya Sharma is stalled on the critical path. Slack=0.0d.`
   > `🟡 RESCHEDULED: 'Provision Laptop' → fallback 'Issue Loaner Laptop' (1d)`
@@ -62,7 +55,7 @@ npm install && npm run dev
 
 ### 💥 Step 6 — ITSM Outage → Outbox → Zero Duplicates
 - In Demo Panel: click **⚡ Toggle ITSM Offline** (button turns red "🔴 ITSM OFFLINE")
-- Click **Advance Day** → new tasks (from Maria's plan) attempt dispatch → they go to **outbox**
+- While offline, create another hire from HR's **New hire** wizard and run the monitor. Its dispatch attempts go to the **outbox**
 - Check metrics: `outbox_pending > 0`
 - Toggle ITSM back **online**
 - Click **Run Monitor** → outbox drains, tickets created

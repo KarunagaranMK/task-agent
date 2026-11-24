@@ -16,7 +16,7 @@ Run the same command in Windows PowerShell, macOS Terminal, or Linux:
 python run.py
 ```
 
-The launcher creates a virtual environment, installs dependencies, creates `.env`, applies SQLite migrations, seeds the demo once, starts the API and frontend, checks health, and opens the browser.
+The launcher creates a virtual environment, installs dependencies, creates `.env` with a generated signing secret, applies SQLite migrations, seeds the demo workspace, starts the API and frontend, checks health, and opens the browser. The API uses SQLite by default; Docker, an SMTP server, and an LLM key are optional.
 
 Useful options:
 
@@ -25,9 +25,11 @@ python run.py --reset          # restore a fresh demo database
 python run.py --test           # backend tests and frontend build
 python run.py --no-browser     # start without opening a browser
 python run.py --prod --no-browser  # serve the built UI and API on :8000
+make verify                    # backend tests, frontend build, browser E2E + axe
+npm --prefix frontend run qa:shots  # responsive screenshot matrix
 ```
 
-The current prototype uses a client-side role switcher; it does not yet provide login or backend-enforced RBAC. The demo has no passwords or real user accounts.
+In demo mode, use the account chips on `/login`. All six seeded accounts share `OnboardIQ-Demo!`: Admin, HR, Manager, IT, Facilities, and New hire. Role permissions are enforced by the API. Seeded people and ITSM/HRIS data are local demo records backed by deterministic MCP mock systems.
 
 | Issue | What to check |
 |-------|---------------|
@@ -45,8 +47,8 @@ No API key is required; unavailable LLM features use deterministic template text
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                   React Frontend (Vite + TS)                     │
-│  HR Page · Hire Detail · Manager Inbox · IT Console · Insights   │
-│                    Demo Panel (sim controls)                     │
+│ HR · Manager · IT/Facilities · New Hire · Admin · Insights       │
+│      Responsive role portals · audit · guided demo controls      │
 └───────────────────────────┬──────────────────────────────────────┘
                             │  REST / JSON
 ┌───────────────────────────▼──────────────────────────────────────┐
@@ -80,7 +82,7 @@ No API key is required; unavailable LLM features use deterministic template text
 | **U5 Governance** | Manager approval gate for sensitive access; full audit log (day, actor, level, message) |
 | **U6 Evidence** | 200-hire Monte Carlo: Orchestrator **~22 pp better** Day-1 readiness vs static checklist |
 
-**LLM boundary:** Gemini used only for (a) role-specific task extras, (b) risk explanations. All scheduling decisions are deterministic Python. Works with no API key.
+**LLM boundary:** Gemini is optional and used only for role-specific task suggestions, risk explanations, and escalation drafts. Validated deterministic fallbacks keep the product usable without a key. Scheduling, authorization, dispatch, and recovery decisions are code-driven.
 
 ---
 
@@ -96,40 +98,26 @@ No API key is required; unavailable LLM features use deterministic template text
 
 ---
 
-## 🔧 Tech Stack
+## 🧭 Workspaces and interactions
 
-- **Backend:** Python 3.11, FastAPI, Pydantic v2, SQLModel (SQLite / Postgres-ready)
-- **Frontend:** React 18, Vite, TypeScript, Tailwind CSS v4, TanStack Query, Recharts
-- **AI/LLM:** Google Gemini free tier (`gemini-2.5-flash`), template fallbacks
-- **MCP:** FastMCP stdio servers (ITSM mock, HRIS mock)
-- **DevOps:** Docker Compose, Makefile, GitHub Actions CI
+- **HR:** hire list and creation wizard, readiness and critical-path detail, audit, insights, and export.
+- **Manager:** assigned hires, access approvals and recent-action undo.
+- **IT and Facilities:** team-scoped ticket queues with start, block, stall, complete, and comment actions.
+- **New hire:** a privacy-scoped progress timeline and issue reporting.
+- **Admin:** users/invites, versioned role templates, service guardrails, audit search/export, demo clock, and outage controls.
+- **All roles:** responsive light/dark layouts, notification preferences, profile settings, keyboard navigation, and contextual demo controls.
 
----
+The API schema is available at **http://localhost:8000/docs** while the app is running. TypeScript API contracts are generated from FastAPI OpenAPI with `npm --prefix frontend run typegen:api`.
 
-## 📖 API Reference
+## 🧰 Stack and boundaries
 
-OpenAPI docs: **http://localhost:8000/docs**
+- **Backend:** Python 3.11+, FastAPI, Pydantic, SQLModel, Alembic, APScheduler, SQLite.
+- **Frontend:** React, Vite, strict TypeScript, Tailwind CSS, TanStack Query, Recharts.
+- **Integrations:** FastMCP stdio clients and persistent local mock ITSM/HRIS services.
+- **AI:** optional Gemini for validated suggestions and copy; deterministic rules own workflow decisions.
+- **Quality:** pytest, Ruff, Playwright, axe-core, coverage gate, and responsive screenshot matrix.
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/hires` | Register new hire + generate plan |
-| GET | `/hires` | List all hires |
-| GET | `/hires/{id}` | Hire detail |
-| GET | `/hires/{id}/tasks` | Task list with CPM data |
-| GET | `/hires/{id}/audit` | Audit timeline |
-| GET | `/hires/{id}/explain` | AI risk explanation |
-| POST | `/tasks/{id}/approve` | Manager approve |
-| POST | `/tasks/{id}/reject` | Manager reject |
-| GET | `/tickets` | All ITSM tickets |
-| POST | `/tickets/{id}/complete` | IT marks done |
-| POST | `/tickets/{id}/stall` | IT stalls ticket |
-| POST | `/sim/advance` | Advance sim day + run monitor |
-| POST | `/monitor/tick` | Manual monitor run |
-| POST | `/chaos/itsm?offline=true` | Toggle ITSM outage |
-| POST | `/experiments/run` | Run comparison experiment |
-| GET | `/metrics` | Dashboard KPIs |
-| GET | `/notifications` | Notifications (filter by role) |
-| POST | `/reset` | Reset all demo data |
+This is a local-first demonstration. The ITSM and HRIS services are mocks, outbound email is a local database outbox, and the experiment results are illustrative simulation data. Real vendor systems, SMTP delivery, production SSO, and production performance/security certification are not configured.
 
 ---
 
@@ -141,7 +129,11 @@ See [`docs/DEMO.md`](docs/DEMO.md) for the step-by-step Priya Sharma demo.
 
 ## 📸 Screenshots
 
-_[Add screenshots after first run — HR Page, Hire Detail with critical path, Manager Inbox, IT Console, Insights chart]_
+The full responsive matrix (role routes at 390/768/1440 px, light and dark) is in [`docs/screenshots/`](docs/screenshots/).
+
+![OnboardIQ overview at desktop width](docs/screenshots/admin-overview-1440-light.png)
+
+![New hire onboarding timeline in dark mode](docs/screenshots/new-hire-my-onboarding-1440-dark.png)
 
 ---
 
@@ -164,7 +156,8 @@ _[Add screenshots after first run — HR Page, Hire Detail with critical path, M
 │   ├── tests/                # pytest suite
 │   └── seed.py               # Demo data loader
 ├── frontend/                 # React + Vite app
-├── docs/                     # Architecture, demo, review
+├── docs/                     # Architecture, decisions, progress, demo, screenshots
+├── qa/                       # Browser acceptance, accessibility, visual QA
 ├── docker-compose.yml
 ├── Makefile
 └── .github/workflows/ci.yml

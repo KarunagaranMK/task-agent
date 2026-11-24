@@ -126,3 +126,26 @@
 - **Decision:** Check in a small standard-library generator that imports the FastAPI schema and emits `components` and `paths` TypeScript contracts, exposed through `npm run typegen:api`.
 - **Why:** This keeps API contracts reproducible and aligned with the source schema without adding a frontend runtime dependency or changing the user's already-dirty npm lockfile.
 - **Alternative considered:** Add an OpenAPI typegen package to the lockfile. That would mix generated dependency edits with unrelated pre-existing lockfile changes; the local generator needs no additional package.
+## 2026-11-24 — Persist personal settings separately from workspace guardrails
+
+- **Decision:** Store each user's profile and notification preferences separately from global service settings; keep preference updates scoped to the authenticated user and audited. A disabled in-app preference suppresses both notification polling results and SSE delivery.
+- **Why:** Workspace monitor policy is administrator-owned, while personal settings must not be editable by another user or role.
+- **Alternative considered:** Put notification preferences into the global settings map. That would allow accidental cross-user changes and conflate account behavior with organization policy.
+
+## 2026-11-24 — Give each browser QA run its own database and MCP mock store
+
+- **Decision:** Derive isolated SQLite and MCP mock paths from the Playwright process ID, use the regular migration/seed startup, and never pass `--reset` to the app's normal demo database.
+- **Why:** Browser runs need deterministic fresh seed data without touching a developer's existing demo database; unique paths also avoid SQLite file-lock races between consecutive runs.
+- **Alternative considered:** Delete a fixed QA database before each run. Windows may hold a SQLite handle briefly after a browser process exits, and a shared path makes concurrent runs unsafe.
+
+## 2026-11-24 — Keep hire tables useful at mobile width
+
+- **Decision:** Hide manager, Day 1 and readiness columns below 600 px, keep hire name, status and open action, and collapse the top-bar sign-out control at tablet widths.
+- **Why:** Preserve the tasks users need to recognize and act on while preventing a wide desktop table from expanding the page beyond the viewport.
+- **Alternative considered:** Force the entire table to scroll horizontally. That pushed the page canvas beyond the device width and obscured the status/action columns.
+
+## 2026-11-24 — Preserve the laptop as Priya's longest critical path
+
+- **Decision:** Give the Data Analyst laptop task a five-business-day estimate and reopen the existing ticket when the monitor applies its loaner fallback.
+- **Why:** The acceptance scenario needs a visible laptop critical path, a two-day stall rescue, and actionable follow-through to READY without creating a duplicate ITSM ticket.
+- **Alternative considered:** Leave the fallback ticket stalled or create a second ticket. The first would strand the scenario; the second would violate idempotency and could leave duplicate work.

@@ -5,12 +5,14 @@
 ```mermaid
 graph TD
     subgraph Frontend["React Frontend (Vite + TypeScript)"]
-        HR["HR Page\n(register, list hires)"]
+        HR["HR Workspace\n(hire wizard, portfolio)"]
         HD["Hire Detail\n(CPM, audit, explain)"]
         MGR["Manager Inbox\n(approvals, notifications)"]
-        IT["IT Console\n(ticket complete/stall)"]
-        INS["Insights\n(metrics, experiment chart)"]
-        DP["Demo Panel\n(advance day, chaos)"]
+        IT["Team Queue\n(ticket actions, work notes)"]
+        NEW["New Hire Portal\n(personal timeline, issue report)"]
+        ADMIN["Admin Workspaces\n(templates, users, audit, settings)"]
+        INS["Insights\n(metrics, experiments)"]
+        DP["Demo Panel\n(advance day, guided tour)"]
     end
 
     subgraph Backend["FastAPI Backend (Python 3.11)"]
@@ -47,6 +49,7 @@ graph TD
     Backend --> DB
     OB -->|drains to| ITSM
     SUPER --> HRIS
+    NEW -->|scoped API| Backend
 ```
 
 ---
@@ -173,4 +176,47 @@ flowchart LR
     E --> F{"min_slack < 0?"}
     F -- Yes --> G["hire.status = at_risk\nprojected_day = start_day + |min_slack|"]
     F -- No --> H["hire.status = on_track"]
+```
+
+---
+
+## Task State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> pending
+    pending --> awaiting_approval: sensitive task
+    awaiting_approval --> pending: manager approves
+    awaiting_approval --> blocked: manager rejects
+    pending --> dispatched: dependencies ready and MCP accepts
+    pending --> queued: ITSM unavailable
+    queued --> dispatched: outbox drains after recovery
+    dispatched --> in_progress: team starts work
+    dispatched --> done: team completes work
+    in_progress --> done: team completes work
+    dispatched --> blocked: team blocks request
+    in_progress --> blocked: team blocks request
+    dispatched --> stalled: demo or monitor flags no activity
+    stalled --> dispatched: critical fallback updates existing ticket
+    blocked --> pending: approved workflow retry
+```
+
+---
+
+## Login and Refresh Sequence
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant API as FastAPI Auth
+    participant DB as SQLite
+    Browser->>API: POST /auth/login (email, password)
+    API->>DB: Verify Argon2id hash, persist hashed refresh token
+    API-->>Browser: Access JWT in JSON + httpOnly refresh cookie + CSRF cookie
+    Browser->>API: API request with in-memory bearer JWT
+    API-->>Browser: Protected response
+    Browser->>API: POST /auth/refresh + CSRF header + Origin
+    API->>DB: Validate old refresh, rotate token, revoke old row
+    API-->>Browser: New access JWT + rotated cookies
+    Note over Browser,API: Reuse of revoked token revokes its token family
 ```

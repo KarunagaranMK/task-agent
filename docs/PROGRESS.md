@@ -224,3 +224,90 @@ This file records verified state against the phases in the product brief. A gate
 - **P6 gate: passed.** Strict TypeScript/Vite build passes; local login succeeds; SSE connection visibly reaches Live; login and admin shell visual review completed.
 - **Tests:** `python run.py --test` passed **111 backend tests** and the strict TypeScript/Vite production build. Pytest and Starlette emitted deprecation warnings only.
 - Conventional P6 commit follows this progress update.
+
+## P7 — Role portals
+
+### Done
+
+- Added role-specific HR hire creation, manager readiness/approval inbox, team ticket queue, and the privacy-scoped new-hire timeline and issue report.
+- Added ticket start, block, stall, and comment workflows, recent approval undo, scoped manager listing, mobile table behavior, notification controls, and explicit mobile sign-out labels.
+- Added responsive screenshots for every role route at 390, 768, and 1440 px in light and dark themes; the final matrix waits for seeded route data and rejects horizontal page overflow.
+- Browser workflow suite: **8/8 passed**, including role login, HR hire wizard, manager/IT/new-hire actions, the chained recovery-to-READY acceptance, and axe audits.
+- Manually inspected populated mobile, tablet, desktop, and dark-mode captures; corrected a 674 px mobile table overflow, a tablet topbar overflow, and footer overlap.
+
+### Mocked
+
+- ITSM and HRIS remain local MCP mock services; humans still perform the actual work.
+- Live SSE invalidates client queries, while full row-flash/action toasts and visual coachmarks remain simplified.
+
+### Known gaps
+
+- Live SSE refreshes query data; richer row-level action toasts and coachmark polish remain simplified.
+- No real vendor ITSM/HRIS or outbound email service is connected.
+
+### Gate and commit
+
+- **P7 gate: passed.** Role-specific browser flows, axe smoke checks, and responsive visual review passed.
+- **Tests:** 124 backend tests passed in `python run.py --test`; Playwright 8/8; axe found no serious/critical violations; the 162-image screenshot matrix passed.
+- P7 role portals and their shared route wiring are included in implementation commit `a63f3f5`.
+
+## P8 — Insights, administration, and guided demo
+
+### Done
+
+- Added persistent role templates with DAG validation/versioning, people and invite controls, global guardrails, audit search/CSV, development mail view, demo clock, and immediate scheduler interval updates.
+- Added saved experiment runs, operational insight metrics, hire what-if controls, demo auto-worker, and guided demo steps.
+- Added role-neutral profile editing, password change, and user-scoped notification preferences. Disabling in-app notifications suppresses API and SSE delivery.
+- Added migrations for ticket comments, settings/templates/experiments, and readiness/approval timestamps; fixed fresh-migration guards and verified clean isolated SQLite startup.
+
+### Mocked
+
+- The experiment is a deterministic illustrative simulation, not production outcome data.
+- Email preferences are saved locally; real email delivery is not configured. The development outbox is local-only.
+- Demo auto-worker changes mock ticket state for walkthroughs; it is not a real workforce agent.
+
+### Known gaps
+
+- No production vendor adapters or SMTP delivery are configured; the experiment remains illustrative simulation data.
+
+### Gate and commit
+
+- **P8 gate: passed.** The required end-to-end demo flow and supporting outage/restart recovery checks passed.
+- **Tests:** Backend suite: 124 passed; Playwright suite: 8/8 passed; responsive screenshot matrix and axe audit passed.
+- P8 administration and guided-demo support landed with the shared portal implementation in `a63f3f5`; the end-to-end browser gate is in `fce2068`.
+
+## P9 — Hardening
+
+### Done
+
+- Added an axe-core browser audit to Playwright and corrected contrast, label, keyboard scroll region, search naming, and loading-live-region findings.
+- Added scoped Ruff checks and a core backend coverage gate; final planner/clock/CPM/experiment coverage is **90.59%** (124 passed, above the 80% floor).
+- Added per-run isolated browser QA SQLite and MCP stores, avoiding changes to the main demo database.
+
+### Known gaps
+
+- GNU Make is unavailable in this Windows environment, so every `verify` component was run separately: backend tests, coverage, Ruff, strict TypeScript/Vite build, Playwright/axe, and screenshots. Production-like load/performance profiling was not run. Mypy still reports third-party SQLModel typing errors and is not part of the passing gate.
+
+### Gate and commit
+
+- **P9 gate: passed.** All constituent verification gates passed individually; no serious/critical axe findings remain.
+- **Lint/build:** Ruff passed; strict TypeScript and Vite production build passed.
+- **Commit:** `fce2068 test: harden onboarding workflows and visual QA`.
+
+## P10 — Docs and release
+
+### Done
+
+- Updated README quickstart, demo-account details, commands, and populated screenshot examples; the full 162-image responsive matrix is in `docs/screenshots/`.
+- Standardized the review brief to the requested six sections and recorded P7/P8 implementation decisions.
+- Rewrote outdated prototype sections to describe current role workspaces, generated API contracts, test tools, and local-service limitations.
+
+### Known gaps
+
+- A clean clone was not created in a separate checkout; first-run behavior was validated with isolated browser databases and a fresh app startup.
+
+### Gate and commit
+
+- Fresh isolated Playwright startup ran normal migrations and seeding on a unique SQLite database/MCP store; `python run.py --test` also completed successfully. No external production services are needed for the demo.
+- **P10 gate: passed.** Local clean-start path, demo workflow, documentation and responsive screenshots are verified.
+- Release risks and production gaps are called out in `docs/SECURITY.md`: mock external services, local mail delivery, and absence of production load/security certification.

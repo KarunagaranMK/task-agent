@@ -4,7 +4,7 @@
 
 ---
 
-## 1. Problem Statement
+## Problem
 
 When a new employee joins, three separate teams must act in parallel:
 - **IT** must provision laptop, accounts, VPN, and software licenses
@@ -15,7 +15,7 @@ Today these teams operate in silos using static checklists (Excel, Asana templat
 
 ---
 
-## 2. Existing Solutions
+## Existing Solutions
 
 > ⚠️ **Verify all vendor claims against their official product pages before presenting externally.**
 
@@ -32,7 +32,7 @@ Today these teams operate in silos using static checklists (Excel, Asana templat
 
 ---
 
-## 3. Our Solution (Workflow)
+## Our Solution
 
 ```
 HR registers hire → Plan Generator builds task DAG (role template + optional LLM extras)
@@ -66,7 +66,7 @@ All scheduling, dispatch, CPM, stall detection, and rescheduling decisions are *
 
 ---
 
-## 4. Uniqueness
+## Uniqueness
 
 ### U1 — Critical-Path Engine
 CPM forward/backward pass recomputed on **live remaining durations** (not original estimates) after every monitor tick. Outputs ES/EF/LS/LF/slack per task. **Negative min_slack means Day-1 is at risk** and projected_day is updated accordingly. Covered by 14 unit tests in `test_cpm.py`.
@@ -107,7 +107,7 @@ Every external system call (ITSM ticket creation, HRIS status update) goes throu
 
 ---
 
-## 5. Tech Stack
+## Tech Stack
 
 | Layer | Technology | Rationale |
 |-------|-----------|-----------|
@@ -126,7 +126,7 @@ Every external system call (ITSM ticket creation, HRIS status update) goes throu
 
 ---
 
-## 6. MVP Status
+## MVP/Product
 
 ### ✅ What Works (Demo-Ready)
 - **Backend core:** hire registration, role-based plan generation (DAG with 8–10 tasks), monitor tick

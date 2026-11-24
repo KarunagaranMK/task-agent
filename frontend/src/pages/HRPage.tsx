@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
-import { ArrowDownUp, ArrowRight, Check, ChevronLeft, ChevronRight, CircleAlert, Clock3, Plus, Search, Users, X } from 'lucide-react'
+import { ArrowDownUp, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, CircleAlert, Clock3, Download, Plus, Search, Users, X } from 'lucide-react'
 import {
   createHire, getHirePage, getManagers, getMetrics, planPreview,
   type Hire, type HireCreate, type HirePageResult,
@@ -12,6 +12,10 @@ const ROLES = ['Data Analyst', 'Software Engineer', 'Product Manager', 'Customer
 const DEPARTMENTS = ['Analytics', 'Engineering', 'Marketing', 'HR', 'Finance', 'Operations']
 type PlanTask = { key: string; title: string; team: string; duration_days: number; depends_on: string[]; needs_approval: boolean }
 type HireForm = { name: string; role: string; department: string; start_date: string; manager_id: number | null }
+type PortfolioState = { search: string; filter: string; sortNewest: boolean; page: number }
+type SavedView = Omit<PortfolioState, 'page'> & { id: string; label: string }
+const statusFilters = new Set(['all', 'on_track', 'at_risk', 'ready'])
+const savedViewsKey = 'onboardiq.hire-portfolio.views'
 
 function addBusinessDays(count: number, from?: string) {
   const date = from ? new Date(`${from}T12:00:00`) : new Date()
@@ -29,10 +33,21 @@ const statusLabel: Record<string, string> = { on_track: 'On track', at_risk: 'At
 
 export default function HRPage() {
   const queryClient = useQueryClient()
-  const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState('all')
-  const [sortNewest, setSortNewest] = useState(true)
-  const [page, setPage] = useState(1)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const search = searchParams.get('q') ?? ''
+  const requestedFilter = searchParams.get('status') ?? 'all'
+  const filter = statusFilters.has(requestedFilter) ? requestedFilter : 'all'
+  const sortNewest = searchParams.get('sort') !== 'name'
+  const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1)
+  const updatePortfolio = (next: Partial<PortfolioState>) => setSearchParams(current => {
+    const params = new URLSearchParams(current)
+    const values = { search, filter, sortNewest, page, ...next }
+    if (values.search) params.set('q', values.search); else params.delete('q')
+    if (values.filter !== 'all') params.set('status', values.filter); else params.delete('status')
+    if (!values.sortNewest) params.set('sort', 'name'); else params.delete('sort')
+    if (values.page > 1) params.set('page', String(values.page)); else params.delete('page')
+    return params
+  }, { replace: true })
   const pageSize = 10
   const hiresQuery = useQuery<HirePageResult>({
     queryKey: ['hires', { page, pageSize, search, filter, sortNewest }],
@@ -52,6 +67,57 @@ export default function HRPage() {
   const [showWizard, setShowWizard] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [portfolioError, setPortfolioError] = useState('')
+  const [exporting, setExporting] = useState(false)
+  const [savedViews, setSavedViews] = useState<SavedView[]>(() => {
+    try {
+      const stored: unknown = JSON.parse(localStorage.getItem(savedViewsKey) ?? '[]')
+      return Array.isArray(stored) ? stored.filter((item): item is SavedView => item && typeof item.id === 'string' && typeof item.label === 'string' && typeof item.search === 'string' && typeof item.filter === 'string' && typeof item.sortNewest === 'boolean') : []
+    } catch { return [] }
+  })
+
+  useEffect(() => { localStorage.setItem(savedViewsKey, JSON.stringify(savedViews)) }, [savedViews])
+
+  const saveCurrentView = () => {
+    const label = [filter === 'all' ? 'All hires' : filter === 'at_risk' ? 'At risk' : filter === 'on_track' ? 'On track' : 'Ready', search.trim()].filter(Boolean).join(' · ')
+    const signature = `${search.trim().toLowerCase()}|${filter}|${sortNewest}`
+    if (savedViews.some(view => `${view.search.trim().toLowerCase()}|${view.filter}|${view.sortNewest}` === signature)) {
+      setPortfolioError('That portfolio view is already saved.')
+      return
+    }
+    setSavedViews(current => [...current, { id: crypto.randomUUID(), label, search, filter, sortNewest }])
+    setPortfolioError('')
+    setNotice(`Saved “${label}” for your next visit.`)
+  }
+
+  const exportPortfolio = async () => {
+    setExporting(true)
+    setPortfolioError('')
+    try {
+      const rows: Hire[] = []
+      let currentPage = 1
+      let totalPages = 1
+      do {
+        const result = await getHirePage({ page: currentPage, page_size: 100, search, status: filter === 'all' ? undefined : filter, sort_by: sortNewest ? 'created_at' : 'name', sort_order: sortNewest ? 'desc' : 'asc' })
+        rows.push(...result.items)
+        totalPages = result.total_pages
+        currentPage += 1
+      } while (currentPage <= totalPages)
+      const cell = (value: unknown) => {
+        const safe = String(value ?? '').replace(/^[=+\-@]/, "'$&")
+        return `"${safe.replace(/"/g, '""')}"`
+      }
+      const lines = [['Name', 'Role', 'Department', 'Manager', 'Joining date', 'Status', 'Readiness'], ...rows.map(hire => [hire.name, hire.role, hire.department, managers.find(manager => manager.id === hire.manager_id)?.name ?? '', hire.start_date ?? `Day ${hire.start_day}`, hire.status, `${hire.readiness}%`])]
+      const blob = new Blob([`\uFEFF${lines.map(line => line.map(cell).join(',')).join('\r\n')}`], { type: 'text/csv;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url; link.download = 'onboardiq-hire-portfolio.csv'; link.click()
+      URL.revokeObjectURL(url)
+      setNotice(`Exported ${rows.length} matching ${rows.length === 1 ? 'hire' : 'hires'}.`)
+    } catch {
+      setPortfolioError('The portfolio export failed. Check your connection and try again.')
+    } finally { setExporting(false) }
+  }
 
   useEffect(() => {
     if (metrics?.default_joining_date && !form.name && !showWizard) {
@@ -119,13 +185,15 @@ export default function HRPage() {
         <span className="subtle-count">{totalHires === 0 ? 0 : Math.min((page - 1) * pageSize + 1, totalHires)}–{Math.min(page * pageSize, totalHires)} of {totalHires}</span>
       </div>
       <div className="table-toolbar">
-        <label className="table-search"><Search size={16} /><input aria-label="Search hires" placeholder="Search by name, role, department" value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} /></label>
+        <label className="table-search"><Search size={16} /><input aria-label="Search hires" placeholder="Search by name, role, department" value={search} onChange={event => updatePortfolio({ search: event.target.value, page: 1 })} /></label>
         <div className="filter-chips" aria-label="Filter hires by status">
           {[['all', 'All hires'], ['on_track', 'On track'], ['at_risk', 'At risk'], ['ready', 'Ready']].map(([value, label]) =>
-            <button key={value} className={`filter-chip ${filter === value ? 'selected' : ''}`} aria-pressed={filter === value} onClick={() => { setFilter(value); setPage(1) }}>{label}</button>)}
+            <button key={value} className={`filter-chip ${filter === value ? 'selected' : ''}`} aria-pressed={filter === value} onClick={() => updatePortfolio({ filter: value, page: 1 })}>{label}</button>)}
         </div>
-        <button className="button-secondary sort-button" onClick={() => { setSortNewest(value => !value); setPage(1) }}><ArrowDownUp size={15} />{sortNewest ? 'Newest' : 'Name A–Z'}</button>
+        <div className="hire-toolbar-actions"><button className="button-secondary sort-button" onClick={() => updatePortfolio({ sortNewest: !sortNewest, page: 1 })}><ArrowDownUp size={15} />{sortNewest ? 'Newest' : 'Name A–Z'}</button><button className="button-secondary sort-button" onClick={saveCurrentView}><Bookmark size={14} />Save view</button><button className="button-secondary sort-button" onClick={() => void exportPortfolio()} disabled={exporting}><Download size={14} />{exporting ? 'Exporting…' : 'Export CSV'}</button></div>
       </div>
+      {savedViews.length > 0 && <div className="saved-views" aria-label="Saved portfolio views"><span>Saved views</span>{savedViews.map(view => <span className="saved-view-item" key={view.id}><button className="filter-chip" onClick={() => updatePortfolio({ search: view.search, filter: view.filter, sortNewest: view.sortNewest, page: 1 })}>{view.label}</button><button className="saved-view-remove" aria-label={`Remove saved view ${view.label}`} onClick={() => setSavedViews(current => current.filter(item => item.id !== view.id))}><X size={12} /></button></span>)}</div>}
+      {portfolioError && <p className="form-error portfolio-error" role="alert">{portfolioError}</p>}
 
       {isLoading ? <div className="table-skeleton" aria-label="Loading hires"><span /><span /><span /></div> : isError ?
         <div className="empty-state compact"><CircleAlert size={23} /><h3>We couldn’t load hires</h3><p>Check the connection and refresh this page.</p></div> : visibleHires.length === 0 ?
@@ -138,7 +206,7 @@ export default function HRPage() {
               <td><div className="readiness-cell"><span className="readiness-track"><i className={hire.status === 'at_risk' ? 'risk' : hire.status === 'ready' ? 'ready' : ''} style={{ width: `${Math.max(0, Math.min(100, hire.readiness))}%` }} /></span><span>{hire.readiness}%</span></div></td>
               <td><span className={`status-pill ${hire.status}`}>{statusLabel[hire.status] ?? hire.status}</span></td>
               <td><Link className="table-open" aria-label={`Open ${hire.name}`} to={`/hire/${hire.id}`}><ArrowRight size={16} /></Link></td>
-            </tr>)}</tbody></table><div className="hire-pagination"><span>Showing {Math.min((page - 1) * pageSize + 1, totalHires)}–{Math.min(page * pageSize, totalHires)} of {totalHires} hires</span><div><button className="button-secondary" aria-label="Previous hire page" disabled={page <= 1 || hiresQuery.isFetching} onClick={() => setPage(current => current - 1)}><ChevronLeft size={15} /> Previous</button><span>Page {page} of {Math.max(1, totalPages)}</span><button className="button-secondary" aria-label="Next hire page" disabled={page >= totalPages || hiresQuery.isFetching} onClick={() => setPage(current => current + 1)}><span>Next</span><ChevronRight size={15} /></button></div></div></div>}
+            </tr>)}</tbody></table><div className="hire-pagination"><span>Showing {Math.min((page - 1) * pageSize + 1, totalHires)}–{Math.min(page * pageSize, totalHires)} of {totalHires} hires</span><div><button className="button-secondary" aria-label="Previous hire page" disabled={page <= 1 || hiresQuery.isFetching} onClick={() => updatePortfolio({ page: page - 1 })}><ChevronLeft size={15} /> Previous</button><span>Page {page} of {Math.max(1, totalPages)}</span><button className="button-secondary" aria-label="Next hire page" disabled={page >= totalPages || hiresQuery.isFetching} onClick={() => updatePortfolio({ page: page + 1 })}><span>Next</span><ChevronRight size={15} /></button></div></div></div>}
     </section>
 
     {showWizard && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) closeWizard() }}>

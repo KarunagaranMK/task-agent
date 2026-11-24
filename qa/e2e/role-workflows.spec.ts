@@ -67,6 +67,7 @@ test('HR can preview and create a role-specific onboarding plan', async ({ page 
 test('HR portfolio search and status filters are applied by the API', async ({ page }) => {
   await signIn(page, 'HR')
   await page.getByLabel('Search hires').fill('Priya')
+  await expect(page).toHaveURL(/q=Priya/)
   await expect(page.getByRole('link', { name: 'Open Priya Sharma' })).toBeVisible()
   await expect(page.locator('.subtle-count')).toHaveText('1–1 of 1')
   await page.getByLabel('Search hires').fill('no matching hire')
@@ -74,6 +75,15 @@ test('HR portfolio search and status filters are applied by the API', async ({ p
   await page.getByLabel('Search hires').fill('')
   await page.getByRole('button', { name: 'At risk' }).click()
   await expect(page.getByRole('button', { name: 'At risk' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page).toHaveURL(/status=at_risk/)
+  await page.getByRole('button', { name: 'Save view' }).click()
+  await expect(page.locator('.saved-views .filter-chip')).toHaveText('At risk')
+  await page.getByRole('button', { name: 'All hires' }).click()
+  await page.locator('.saved-views .filter-chip').click()
+  await expect(page.locator('.filter-chips .filter-chip').filter({ hasText: 'At risk' })).toHaveAttribute('aria-pressed', 'true')
+  const download = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Export CSV' }).click()
+  expect((await download).suggestedFilename()).toBe('onboardiq-hire-portfolio.csv')
 })
 
 test('manager, IT, and new-hire interactions are keyboard reachable', async ({ page }) => {

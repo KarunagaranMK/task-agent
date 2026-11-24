@@ -203,3 +203,9 @@
 - **Decision:** Limit password recovery requests to 10 per client IP per 15 minutes, and reset-token submission and invite acceptance to 30 each per client IP per 15 minutes. Keep independent endpoint buckets and a generic 429 response.
 - **Why:** Recovery links trigger costly password hashing and mail-outbox writes, while reset and invitation endpoints accept anonymous tokens. Per-endpoint IP limits slow abuse without adding infrastructure or changing generic account-enumeration behavior.
 - **Alternative considered:** Use one shared limit across all anonymous endpoints. Independent buckets prevent password recovery traffic from consuming the reset or invite allowance; a distributed store can be added if the app later runs multiple workers.
+
+## 2026-11-25 — Keep HR portfolio views bookmarkable and local-first
+
+- **Decision:** Store search, status, sort and page in the URL; persist saved views in browser local storage; build CSV downloads from all API pages matching the active search/status filters and escape spreadsheet formula prefixes.
+- **Why:** HR can share or bookmark a portfolio state and reuse personal views without adding server-side preference storage. The export remains complete beyond the current page and inherits the API's authorization filters.
+- **Alternative considered:** Persist named views in the backend and add a dedicated export endpoint. Browser-local saved views avoid another data model/migration; pagination over the already-authorized API preserves the no-new-endpoint local-first design.

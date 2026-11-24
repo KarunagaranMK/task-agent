@@ -1,93 +1,71 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getTickets, completeTicket, stallTicket, type Ticket } from '../api/client'
+import { useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { AlertCircle, Check, CheckCircle2, Circle, Clock3, LayoutGrid, List, MessageSquare, Play, Plus, Send, ShieldAlert, X } from 'lucide-react'
+import { addTicketComment, blockTicket, completeTicket, getTicketComments, getTickets, stallTicket, startTicket, type Ticket, type TicketComment } from '../api/client'
 
-const STATUS_STYLE: Record<string, string> = {
-  open: 'bg-blue-100 text-blue-700', in_progress: 'bg-yellow-100 text-yellow-700',
-  done: 'bg-green-100 text-green-700', stalled: 'bg-red-100 text-red-700',
-}
-const TEAM_STYLE: Record<string, string> = {
-  IT: 'bg-purple-100 text-purple-700', HR: 'bg-teal-100 text-teal-700', Facilities: 'bg-orange-100 text-orange-700',
-}
+type TicketStatus = 'open' | 'in_progress' | 'done' | 'blocked' | 'stalled'
+const columns: Array<{ key: string; label: string; icon: typeof Circle; statuses: TicketStatus[] }> = [
+  { key: 'open', label: 'Open', icon: Circle, statuses: ['open'] },
+  { key: 'in_progress', label: 'In progress', icon: Play, statuses: ['in_progress'] },
+  { key: 'blocked', label: 'Blocked / stalled', icon: AlertCircle, statuses: ['blocked', 'stalled'] },
+  { key: 'done', label: 'Done', icon: CheckCircle2, statuses: ['done'] },
+]
 
 export default function ITPage() {
-  const qc = useQueryClient()
-  const { data: tickets = [], isLoading } = useQuery<Ticket[]>({
-    queryKey: ['tickets'], queryFn: getTickets, refetchInterval: 3000,
+  const client = useQueryClient()
+  const [layout, setLayout] = useState<'board' | 'list'>('board')
+  const [teamFilter, setTeamFilter] = useState('all')
+  const [selected, setSelected] = useState<Ticket | null>(null)
+  const [comment, setComment] = useState('')
+  const [error, setError] = useState('')
+  const { data: tickets = [], isLoading, isError } = useQuery<Ticket[]>({ queryKey: ['tickets'], queryFn: getTickets, refetchInterval: 10_000 })
+  const commentsQuery = useQuery<TicketComment[]>({ queryKey: ['ticket-comments', selected?.ticket_id], queryFn: () => getTicketComments(selected!.ticket_id), enabled: Boolean(selected) })
+  const refresh = () => { void client.invalidateQueries({ queryKey: ['tickets'] }); if (selected) void client.invalidateQueries({ queryKey: ['ticket-comments', selected.ticket_id] }) }
+  const mutation = useMutation({
+    mutationFn: ({ id, action }: { id: string; action: 'start' | 'complete' | 'block' | 'stall' }) => ({ start: startTicket, complete: completeTicket, block: blockTicket, stall: stallTicket }[action])(id),
+    onSuccess: refresh,
+    onError: () => setError('The ticket could not be updated. The ITSM service may be unavailable.'),
   })
+  const commentMutation = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: string }) => addTicketComment(id, body),
+    onSuccess: () => { setComment(''); refresh() },
+    onError: () => setError('Your comment could not be saved. Try again.'),
+  })
+  const teamOptions = useMemo(() => [...new Set(tickets.map(ticket => ticket.team))].sort(), [tickets])
+  const visible = tickets.filter(ticket => teamFilter === 'all' || ticket.team === teamFilter)
+  const counts = {
+    active: tickets.filter(ticket => ticket.status !== 'done').length,
+    inProgress: tickets.filter(ticket => ticket.status === 'in_progress').length,
+    blocked: tickets.filter(ticket => ['blocked', 'stalled'].includes(ticket.status)).length,
+    done: tickets.filter(ticket => ticket.status === 'done').length,
+  }
 
-  const completeMut = useMutation({ mutationFn: completeTicket, onSuccess: () => qc.invalidateQueries({ queryKey: ['tickets'] }) })
-  const stallMut = useMutation({ mutationFn: stallTicket, onSuccess: () => qc.invalidateQueries({ queryKey: ['tickets'] }) })
+  const transition = (ticket: Ticket, action: 'start' | 'complete' | 'block' | 'stall') => {
+    if (action === 'complete' && !window.confirm(`Mark “${ticket.title}” complete?`)) return
+    setError(''); mutation.mutate({ id: ticket.ticket_id, action })
+  }
+  const ageDays = (ticket: Ticket) => Math.max(0, Math.floor((Date.now() - new Date(ticket.created_at).getTime()) / 86_400_000))
+  const statusTitle: Record<TicketStatus, string> = { open: 'Open', in_progress: 'In progress', blocked: 'Blocked', stalled: 'Stalled', done: 'Done' }
 
-  const open = tickets.filter(t => t.status !== 'done')
-  const done = tickets.filter(t => t.status === 'done')
+  return <div className="portal-page">
+    <div className="page-heading-row"><div><span className="eyebrow">TEAM OPERATIONS</span><h1>Work queue</h1><p>Complete the hands-on work. OnboardIQ keeps the plan and Day 1 status in sync.</p></div><div className="queue-view-toggle" role="group" aria-label="Ticket view"><button aria-pressed={layout === 'board'} className={layout === 'board' ? 'selected' : ''} onClick={() => setLayout('board')}><LayoutGrid size={15} />Board</button><button aria-pressed={layout === 'list'} className={layout === 'list' ? 'selected' : ''} onClick={() => setLayout('list')}><List size={15} />List</button></div></div>
+    <div className="queue-stats"><div><strong>{counts.active}</strong><span>Active</span></div><div><strong>{counts.inProgress}</strong><span>In progress</span></div><div className={counts.blocked ? 'warning' : ''}><strong>{counts.blocked}</strong><span>Blocked</span></div><div><strong>{counts.done}</strong><span>Completed</span></div><label>Team<select aria-label="Filter by team" value={teamFilter} onChange={event => setTeamFilter(event.target.value)}><option value="all">All teams</option>{teamOptions.map(team => <option key={team}>{team}</option>)}</select></label></div>
+    {error && <div className="action-error" role="alert"><AlertCircle size={16} />{error}<button aria-label="Dismiss" onClick={() => setError('')}><X size={14} /></button></div>}
+    {isLoading ? <div className="table-skeleton" aria-label="Loading team queue"><span /><span /><span /></div> : isError ? <div className="empty-state"><AlertCircle size={25} /><h1>Ticket queue unavailable</h1><p>Check your connection and retry.</p><button className="button-secondary" onClick={refresh}>Retry</button></div> : visible.length === 0 ? <div className="empty-state"><CheckCircle2 size={25} /><h1>Queue is clear</h1><p>New team requests appear here when an onboarding plan is dispatched.</p></div> : layout === 'board' ? <div className="ticket-board">{columns.map(column => {
+      const ColumnIcon = column.icon
+      const items = visible.filter(ticket => column.statuses.includes(ticket.status as TicketStatus))
+      return <section className={`ticket-column ${column.key}`} key={column.key} aria-label={`${column.label} tickets`}><div className="ticket-column-head"><h2><ColumnIcon size={15} />{column.label}</h2><span>{items.length}</span></div><div className="ticket-column-body">{items.map(ticket => <TicketCard key={ticket.ticket_id} ticket={ticket} onOpen={() => setSelected(ticket)} onAction={action => transition(ticket, action)} ageDays={ageDays(ticket)} busy={mutation.isPending} />)}{items.length === 0 && <div className="column-empty">No tickets</div>}</div></section>
+    })}</div> : <section className="content-card queue-list"><div className="section-heading"><div><h2>Team tickets</h2><p>{visible.length} requests in this queue</p></div></div><div className="queue-list-items">{visible.map(ticket => <div className="queue-list-row" key={ticket.ticket_id}><button className="queue-ticket-open" onClick={() => setSelected(ticket)}><span className="queue-team-dot" /><span><strong>{ticket.title}</strong><small>{ticket.ticket_id} · {ticket.team} · {ageDays(ticket)}d in queue</small></span></button><span className={`ticket-status ${ticket.status}`}><i />{statusTitle[ticket.status as TicketStatus] ?? ticket.status}</span><TicketActions ticket={ticket} onAction={action => transition(ticket, action)} busy={mutation.isPending} /></div>)}</div></section>}
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">IT / Facilities Console</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Humans complete the real work here. Agents only coordinate and escalate.
-        </p>
-      </div>
+    {selected && <div className="drawer-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setSelected(null) }}><aside className="ticket-drawer" role="dialog" aria-modal="true" aria-labelledby="ticket-drawer-title"><header><div><span className="eyebrow">{selected.team.toUpperCase()} TICKET</span><h2 id="ticket-drawer-title">Request details</h2></div><button className="icon-button" onClick={() => setSelected(null)} aria-label="Close ticket details"><X size={18} /></button></header><div className="drawer-ticket-title"><span className="ticket-id">{selected.ticket_id}</span><h3>{selected.title}</h3><div className="drawer-ticket-meta"><span>{selected.team}</span><span className={`ticket-status ${selected.status}`}><i />{statusTitle[selected.status as TicketStatus] ?? selected.status}</span><span><Clock3 size={12} />{ageDays(selected)}d in queue</span></div><div className="sla-box"><strong>SLA estimate</strong><span className={ageDays(selected) >= selected.estimate_days ? 'overdue' : ''}>{Math.max(0, selected.estimate_days - ageDays(selected))} days remaining</span></div><TicketActions ticket={selected} onAction={action => transition(selected, action)} busy={mutation.isPending} /></div><section className="ticket-comments"><div className="section-heading"><div><h2><MessageSquare size={15} />Work notes</h2><p>Keep the team updated on progress.</p></div></div>{commentsQuery.isLoading ? <div className="comment-skeleton" /> : commentsQuery.data?.length ? <div className="comment-list">{commentsQuery.data.map(item => <article key={item.id}><span className="comment-avatar">{item.author.split(' ').map(part => part[0]).join('').slice(0,2)}</span><div><div className="comment-meta"><strong>{item.author}</strong><small>{new Date(item.created_at).toLocaleString()}</small></div><p>{item.body}</p></div></article>)}</div> : <p className="comment-empty">No work notes yet. Add a comment to keep the handoff clear.</p>}<form onSubmit={event => { event.preventDefault(); if (comment.trim()) commentMutation.mutate({ id: selected.ticket_id, body: comment.trim() }) }} className="comment-form"><textarea value={comment} onChange={event => setComment(event.target.value)} rows={3} maxLength={1000} placeholder="Add a work note…" aria-label="Add a work note" /><button className="button-primary" disabled={comment.trim().length === 0 || commentMutation.isPending}><Send size={14} />{commentMutation.isPending ? 'Saving…' : 'Add note'}</button></form></section></aside></div>}
+  </div>
+}
 
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Open Tickets</h2>
-          <span className={`text-sm font-medium px-2 py-0.5 rounded-full ${open.length > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
-            {open.length}
-          </span>
-        </div>
+function TicketCard({ ticket, onOpen, onAction, ageDays, busy }: { ticket: Ticket; onOpen: () => void; onAction: (action: 'start' | 'complete' | 'block' | 'stall') => void; ageDays: number; busy: boolean }) {
+  return <article className={`ticket-card ${ticket.status === 'stalled' ? 'stalled' : ''}`}><button className="ticket-card-main" onClick={onOpen}><div className="ticket-card-top"><span className="ticket-id">{ticket.ticket_id}</span><span className={`ticket-status ${ticket.status}`}><i />{ticket.status.replace('_', ' ')}</span></div><h3>{ticket.title}</h3><div className="ticket-card-meta"><span>{ticket.team}</span><span><Clock3 size={12} />{ageDays}d / {ticket.estimate_days}d SLA</span></div></button><TicketActions ticket={ticket} onAction={onAction} busy={busy} /></article>
+}
 
-        {isLoading ? <p className="text-sm text-gray-400">Loading…</p> : open.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-6">No open tickets. Advance a day and run monitor to generate tickets.</p>
-        ) : (
-          <div className="space-y-3">
-            {open.map(t => (
-              <div key={t.ticket_id} className={`p-4 border rounded-lg ${t.status === 'stalled' ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10' : 'border-gray-200 dark:border-gray-700'}`}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                      <code className="text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded font-mono">{t.ticket_id}</code>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${TEAM_STYLE[t.team] || ''}`}>{t.team}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_STYLE[t.status] || ''}`}>{t.status}</span>
-                    </div>
-                    <p className="font-medium text-sm">{t.title}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Est: {t.estimate_days} day{t.estimate_days !== 1 ? 's' : ''}</p>
-                  </div>
-                  <div className="flex gap-2 shrink-0">
-                    <button onClick={() => completeMut.mutate(t.ticket_id)}
-                      disabled={completeMut.isPending}
-                      className="bg-green-600 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-green-700 font-medium">
-                      ✓ Complete
-                    </button>
-                    <button onClick={() => stallMut.mutate(t.ticket_id)}
-                      disabled={stallMut.isPending}
-                      className="bg-orange-500 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-orange-600 font-medium">
-                      ⚠ Stall
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {done.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold mb-3">Completed ({done.length})</h2>
-          <div className="space-y-1.5">
-            {done.map(t => (
-              <div key={t.ticket_id} className="flex items-center gap-3 text-sm text-gray-500 py-1">
-                <span className="text-green-500">✓</span>
-                <code className="text-xs font-mono">{t.ticket_id}</code>
-                <span className={`text-xs px-1.5 py-0.5 rounded ${TEAM_STYLE[t.team] || ''}`}>{t.team}</span>
-                <span className="truncate">{t.title}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  )
+function TicketActions({ ticket, onAction, busy }: { ticket: Ticket; onAction: (action: 'start' | 'complete' | 'block' | 'stall') => void; busy: boolean }) {
+  if (ticket.status === 'done') return <span className="ticket-done-note"><Check size={14} />Completed</span>
+  return <div className="ticket-actions">{ticket.status !== 'in_progress' && <button aria-label={`Start ${ticket.title}`} disabled={busy} onClick={() => onAction('start')}><Play size={13} />Start</button>}<button className="complete-ticket" disabled={busy} onClick={() => onAction('complete')}><Check size={13} />Complete</button>{ticket.status === 'stalled' ? <button disabled={busy} onClick={() => onAction('block')}><ShieldAlert size={13} />Blocked</button> : <button disabled={busy} onClick={() => onAction('block')}><AlertCircle size={13} />Block</button>}{ticket.status !== 'stalled' && <button disabled={busy} onClick={() => onAction('stall')}><Plus size={13} />Flag stalled</button>}</div>
 }

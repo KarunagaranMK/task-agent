@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import secrets
 import time
 from datetime import datetime, timedelta, timezone
@@ -17,7 +18,7 @@ from sqlmodel import Session, select, update
 
 from app.config import settings
 from app.db.database import get_session
-from app.domain.models import MailOutbox, OneTimeToken, RefreshToken, SecurityAudit, User
+from app.domain.models import AppSetting, MailOutbox, OneTimeToken, RefreshToken, SecurityAudit, User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 users_router = APIRouter(prefix="/users", tags=["users"])
@@ -66,8 +67,32 @@ class InviteRequest(BaseModel):
     team: str | None = None
 
 
+class ProfileUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+
+
+class PreferenceUpdate(BaseModel):
+    in_app: bool = True
+    email: bool = False
+
+
+class PasswordChange(BaseModel):
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=10, max_length=256)
+
+
 def _audit(session: Session, action: str, actor_id: int | None = None, target: str | None = None, detail: str = "") -> None:
     session.add(SecurityAudit(actor_id=actor_id, action=action, target=target, detail=detail[:500]))
+
+
+def in_app_notifications_enabled(session: Session, user: User) -> bool:
+    item = session.get(AppSetting, f"notification_preferences:{user.id}")
+    if item is None:
+        return True
+    try:
+        return bool(json.loads(item.value).get("in_app", True))
+    except (ValueError, AttributeError):
+        return True
 
 
 def _issue_one_time_token(session: Session, user: User, purpose: str) -> str:
@@ -222,6 +247,40 @@ def me(user: User = Depends(get_current_user)) -> UserOut:
     return UserOut.model_validate(user)
 
 
+@router.put("/profile", response_model=UserOut)
+def update_profile(data: ProfileUpdate, user: User = Depends(get_current_user), session: Session = Depends(get_session)) -> UserOut:
+    user.name = data.name.strip()
+    session.add(user)
+    _audit(session, "profile_updated", actor_id=user.id, target=user.email)
+    session.commit()
+    session.refresh(user)
+    return UserOut.model_validate(user)
+
+
+@router.get("/preferences")
+def get_preferences(user: User = Depends(get_current_user), session: Session = Depends(get_session)) -> dict[str, bool]:
+    item = session.get(AppSetting, f"notification_preferences:{user.id}")
+    if item is None:
+        return {"in_app": True, "email": False}
+    try:
+        values = json.loads(item.value)
+        return {"in_app": bool(values.get("in_app", True)), "email": bool(values.get("email", False))}
+    except (ValueError, AttributeError):
+        return {"in_app": True, "email": False}
+
+
+@router.put("/preferences")
+def update_preferences(data: PreferenceUpdate, user: User = Depends(get_current_user), session: Session = Depends(get_session)) -> dict[str, bool]:
+    key = f"notification_preferences:{user.id}"
+    item = session.get(AppSetting, key) or AppSetting(key=key, value="{}")
+    item.value = json.dumps(data.model_dump(), sort_keys=True)
+    item.updated_at = datetime.utcnow()
+    session.add(item)
+    _audit(session, "notification_preferences_updated", actor_id=user.id, target=user.email)
+    session.commit()
+    return data.model_dump()
+
+
 @router.post("/refresh", response_model=LoginOut)
 def refresh(
     request: Request,
@@ -330,11 +389,9 @@ def reset_password(data: TokenPasswordRequest, session: Session = Depends(get_se
 
 
 @router.post("/password/change")
-def change_password(data: dict, user: User = Depends(get_current_user), session: Session = Depends(get_session)) -> dict[str, str]:
-    old_password = str(data.get("current_password", ""))
-    new_password = str(data.get("new_password", ""))
-    if len(new_password) < 10:
-        raise HTTPException(status_code=422, detail="Password must contain at least 10 characters")
+def change_password(data: PasswordChange, user: User = Depends(get_current_user), session: Session = Depends(get_session)) -> dict[str, str]:
+    old_password = data.current_password
+    new_password = data.new_password
     try:
         password_hasher.verify(user.password_hash, old_password)
     except (VerifyMismatchError, InvalidHashError):
@@ -370,6 +427,12 @@ def accept_invite(data: TokenPasswordRequest, session: Session = Depends(get_ses
 @users_router.get("")
 def list_users(_admin: User = Depends(require_roles("ADMIN")), session: Session = Depends(get_session)) -> list[UserOut]:
     return [UserOut.model_validate(user) for user in session.exec(select(User).order_by(User.created_at.desc())).all()]
+
+
+@users_router.get("/managers")
+def list_managers(_viewer: User = Depends(require_roles("ADMIN", "HR")), session: Session = Depends(get_session)) -> list[UserOut]:
+    managers = session.exec(select(User).where(User.role == "MANAGER", User.is_active.is_(True)).order_by(User.name)).all()
+    return [UserOut.model_validate(user) for user in managers]
 
 
 @users_router.post("/invite", response_model=UserOut, status_code=201)

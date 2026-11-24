@@ -13,7 +13,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func, update
 from sqlmodel import Session, select
 
-from app.auth import get_current_user
+from app.auth import get_current_user, in_app_notifications_enabled
 from app.db.database import get_session
 from app.domain.models import Hire, Notification, StreamTicket, User
 
@@ -41,6 +41,8 @@ def create_stream_ticket(user: User = Depends(get_current_user), session: Sessio
 def _role_filter(session: Session, user: User, after_id: int) -> tuple[list[Notification], int]:
     query = select(Notification).where(Notification.id > after_id).order_by(Notification.id)
     notifications = session.exec(query).all()
+    if not in_app_notifications_enabled(session, user):
+        return [], max((item.id or after_id for item in notifications), default=after_id)
     visible: list[Notification] = []
     cursor = after_id
     for item in notifications:

@@ -7,10 +7,14 @@ export interface components {
     "HireCreate": { "name": string; "role": string; "department": string; "start_day": number; "manager_id"?: (number) | (null); }
     "HireOut": { "id": number; "name": string; "role": string; "department": string; "start_day": number; "status": string; "readiness": number; "projected_day": (number) | (null); "manager_id"?: (number) | (null); }
     "InviteRequest": { "email": string; "name": string; "role": string; "team"?: (string) | (null); }
+    "IssueRequest": { "message": string; }
     "LoginOut": { "access_token": string; "token_type"?: string; "user": components['schemas']["UserOut"]; }
     "LoginRequest": { "email": string; "password": string; }
     "PlanPreviewRequest": { "role": string; }
+    "SettingsUpdate": { "stall_after_days": number; "near_critical_margin": number; "monitor_interval_minutes": number; "auto_worker_enabled"?: boolean; "timezone"?: string; }
     "TaskOut": { "id": number; "key": string; "title": string; "team": string; "duration_days": number; "depends_on": Array<string>; "needs_approval": boolean; "approval_state": string; "status": string; "ticket_id": (string) | (null); "slack": (number) | (null); "critical": boolean; "flag": string; }
+    "TemplateSave": { "role_key": string; "tasks": Array<{ [key: string]: unknown; }>; }
+    "TicketCommentRequest": { "body": string; }
     "TokenPasswordRequest": { "token": string; "password": string; }
     "UserOut": { "id": number; "email": string; "name": string; "role": string; "team"?: (string) | (null); "must_change_password"?: boolean; "is_active"?: boolean; }
     "ValidationError": { "loc": Array<(string) | (number)>; "msg": string; "type": string; }
@@ -303,6 +307,22 @@ export interface paths {
       }
     }
   }
+  "/tasks/{task_id}/undo-approval": {
+    post: {
+      operationId: "undo_approval_tasks__task_id__undo_approval_post"
+      parameters: {
+        path: { "task_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
   "/tickets": {
     get: {
       operationId: "list_tickets_tickets_get"
@@ -321,6 +341,72 @@ export interface paths {
       }
       responses: {
         "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/tickets/{ticket_id}/start": {
+    post: {
+      operationId: "start_ticket_tickets__ticket_id__start_post"
+      parameters: {
+        path: { "ticket_id": string }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/tickets/{ticket_id}/block": {
+    post: {
+      operationId: "block_ticket_tickets__ticket_id__block_post"
+      parameters: {
+        path: { "ticket_id": string }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/tickets/{ticket_id}/comments": {
+    get: {
+      operationId: "list_ticket_comments_tickets__ticket_id__comments_get"
+      parameters: {
+        path: { "ticket_id": string }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+    post: {
+      operationId: "add_ticket_comment_tickets__ticket_id__comments_post"
+      parameters: {
+        path: { "ticket_id": string }
+      }
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["TicketCommentRequest"]; }
+      }
+      responses: {
+        "201": {
           content: { "application/json": unknown; }
         }
         "422": {
@@ -377,6 +463,22 @@ export interface paths {
       }
     }
   }
+  "/api/tasks/{task_id}/undo-approval": {
+    post: {
+      operationId: "undo_approval_api_tasks__task_id__undo_approval_post"
+      parameters: {
+        path: { "task_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
   "/api/tickets": {
     get: {
       operationId: "list_tickets_api_tickets_get"
@@ -395,6 +497,72 @@ export interface paths {
       }
       responses: {
         "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/tickets/{ticket_id}/start": {
+    post: {
+      operationId: "start_ticket_api_tickets__ticket_id__start_post"
+      parameters: {
+        path: { "ticket_id": string }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/tickets/{ticket_id}/block": {
+    post: {
+      operationId: "block_ticket_api_tickets__ticket_id__block_post"
+      parameters: {
+        path: { "ticket_id": string }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/tickets/{ticket_id}/comments": {
+    get: {
+      operationId: "list_ticket_comments_api_tickets__ticket_id__comments_get"
+      parameters: {
+        path: { "ticket_id": string }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+    post: {
+      operationId: "add_ticket_comment_api_tickets__ticket_id__comments_post"
+      parameters: {
+        path: { "ticket_id": string }
+      }
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["TicketCommentRequest"]; }
+      }
+      responses: {
+        "201": {
           content: { "application/json": unknown; }
         }
         "422": {
@@ -651,9 +819,273 @@ export interface paths {
       }
     }
   }
+  "/me/onboarding": {
+    get: {
+      operationId: "my_onboarding_me_onboarding_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/me/issues": {
+    post: {
+      operationId: "report_issue_me_issues_post"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["IssueRequest"]; }
+      }
+      responses: {
+        "201": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/me/onboarding": {
+    get: {
+      operationId: "my_onboarding_api_me_onboarding_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/api/me/issues": {
+    post: {
+      operationId: "report_issue_api_me_issues_post"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["IssueRequest"]; }
+      }
+      responses: {
+        "201": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/templates": {
+    get: {
+      operationId: "list_templates_templates_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+    post: {
+      operationId: "publish_template_templates_post"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["TemplateSave"]; }
+      }
+      responses: {
+        "201": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/settings": {
+    get: {
+      operationId: "get_settings_settings_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+    put: {
+      operationId: "update_settings_settings_put"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["SettingsUpdate"]; }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/audit": {
+    get: {
+      operationId: "get_audit_audit_get"
+      parameters: {
+        query: { "limit"?: number; "search"?: string }
+        __optional: true
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/experiments": {
+    get: {
+      operationId: "experiment_history_experiments_get"
+      parameters: {
+        query: { "limit"?: number }
+        __optional: true
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/admin/clock": {
+    post: {
+      operationId: "set_demo_clock_admin_clock_post"
+      parameters: {
+        query: { "day": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/templates": {
+    get: {
+      operationId: "list_templates_api_templates_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+    post: {
+      operationId: "publish_template_api_templates_post"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["TemplateSave"]; }
+      }
+      responses: {
+        "201": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/settings": {
+    get: {
+      operationId: "get_settings_api_settings_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+    put: {
+      operationId: "update_settings_api_settings_put"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["SettingsUpdate"]; }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/audit": {
+    get: {
+      operationId: "get_audit_api_audit_get"
+      parameters: {
+        query: { "limit"?: number; "search"?: string }
+        __optional: true
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/experiments": {
+    get: {
+      operationId: "experiment_history_api_experiments_get"
+      parameters: {
+        query: { "limit"?: number }
+        __optional: true
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/admin/clock": {
+    post: {
+      operationId: "set_demo_clock_api_admin_clock_post"
+      parameters: {
+        query: { "day": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
   "/users": {
     get: {
       operationId: "list_users_users_get"
+      responses: {
+        "200": {
+          content: { "application/json": Array<components['schemas']["UserOut"]>; }
+        }
+      }
+    }
+  }
+  "/users/managers": {
+    get: {
+      operationId: "list_managers_users_managers_get"
       responses: {
         "200": {
           content: { "application/json": Array<components['schemas']["UserOut"]>; }
@@ -715,6 +1147,16 @@ export interface paths {
   "/api/users": {
     get: {
       operationId: "list_users_api_users_get"
+      responses: {
+        "200": {
+          content: { "application/json": Array<components['schemas']["UserOut"]>; }
+        }
+      }
+    }
+  }
+  "/api/users/managers": {
+    get: {
+      operationId: "list_managers_api_users_managers_get"
       responses: {
         "200": {
           content: { "application/json": Array<components['schemas']["UserOut"]>; }

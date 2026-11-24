@@ -2,13 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select, delete
 from app.db.database import get_session
 from app.domain.models import (
-    SimState, Hire, Task, Ticket, OutboxItem, AuditEvent, Notification,
+    SimState, Hire, Task, Ticket, TicketComment, OutboxItem, AuditEvent, Notification, ExperimentRun, SecurityAudit,
 )
 from app.services.orchestrator import advance_day, monitor_tick, get_or_create_sim_state
 from app.services.experiment import run_experiment
-from app.auth import get_current_user, require_roles
+from app.auth import get_current_user, in_app_notifications_enabled, require_roles
+from app.config import settings
 from app.mcp_clients.tools import reset_mcp_services, set_itsm_offline
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+import json
 from typing import Optional
 
 
@@ -30,24 +32,33 @@ def manual_tick(session: Session = Depends(get_session), _user=Depends(require_r
 
 
 @router.post("/chaos/itsm")
-def toggle_itsm(offline: bool, session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "HR"))):
+def toggle_itsm(offline: bool, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR"))):
     state = get_or_create_sim_state(session)
+    previous = state.itsm_offline
     state.itsm_offline = offline
     session.add(state)
+    if previous != offline:
+        session.add(SecurityAudit(actor_id=user.id, action="itsm_outage_started" if offline else "itsm_recovered",
+                                  target="mock-itsm"))
     session.commit()
     set_itsm_offline(offline)
     return {"itsm_offline": offline}
 
 
 class ExperimentRequest(BaseModel):
-    n_hires: int = 200
-    stall_probability: float = 0.2
-    seed: int = 42
+    n_hires: int = Field(default=200, ge=10, le=1000)
+    stall_probability: float = Field(default=0.2, ge=0, le=1)
+    seed: int = Field(default=42, ge=0, le=999999)
 
 
 @router.post("/experiments/run")
-def run_exp(req: ExperimentRequest, _user=Depends(require_roles("ADMIN", "HR"))):
-    return run_experiment(req.n_hires, req.stall_probability, req.seed)
+def run_exp(req: ExperimentRequest, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR"))):
+    result = run_experiment(req.n_hires, req.stall_probability, req.seed)
+    session.add(ExperimentRun(parameters_json=json.dumps(req.model_dump()), result_json=json.dumps(result)))
+    session.add(AuditEvent(day=get_or_create_sim_state(session).current_day, hire_id=0,
+                           level="info", message="Readiness experiment completed", actor_agent=f"user:{user.id}"))
+    session.commit()
+    return result
 
 
 @router.get("/metrics")
@@ -64,6 +75,13 @@ def get_metrics(session: Session = Depends(get_session), _user=Depends(require_r
         select(Task).where(Task.flag == "rescheduled")
     ).all()
     outbox_count = len(session.exec(select(OutboxItem)).all())
+    ready_durations = [(hire.ready_at - hire.created_at).total_seconds() / 86400
+                       for hire in hires if hire.ready_at is not None]
+    approvals = session.exec(select(Task).where(Task.approval_requested_at.is_not(None),
+                                                Task.approval_decided_at.is_not(None))).all()
+    approval_minutes = [(task.approval_decided_at - task.approval_requested_at).total_seconds() / 60
+                        for task in approvals if task.approval_decided_at and task.approval_requested_at]
+    recoveries = session.exec(select(SecurityAudit).where(SecurityAudit.action == "itsm_recovered")).all()
 
     state = get_or_create_sim_state(session)
     return {
@@ -77,6 +95,9 @@ def get_metrics(session: Session = Depends(get_session), _user=Depends(require_r
         "escalations": len(escalations),
         "stalls_rescued": len(rescheduled),
         "outbox_pending": outbox_count,
+        "average_time_to_ready_days": round(sum(ready_durations) / len(ready_durations), 1) if ready_durations else None,
+        "approval_latency_minutes": round(sum(approval_minutes) / len(approval_minutes), 1) if approval_minutes else None,
+        "outages_recovered": len(recoveries),
     }
 
 
@@ -105,6 +126,8 @@ def _notifications_for_user(session: Session, user) -> list[Notification]:
 
 @router.get("/notifications")
 def get_notifications(role: Optional[str] = None, session: Session = Depends(get_session), user=Depends(get_current_user)):
+    if not in_app_notifications_enabled(session, user):
+        return []
     notifications = _notifications_for_user(session, user)
     return [
         {
@@ -153,8 +176,23 @@ def mark_all_read(session: Session = Depends(get_session), user=Depends(get_curr
 @router.post("/reset")
 def reset_all(session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN"))):
     """Reset all data for a clean demo."""
-    for model in (AuditEvent, Notification, OutboxItem, Ticket, Task, Hire, SimState):
+    for model in (AuditEvent, Notification, OutboxItem, TicketComment, Ticket, Task, Hire, SimState, ExperimentRun):
         session.exec(delete(model))
     session.commit()
     reset_mcp_services()
-    return {"message": "All data reset"}
+    if settings.DEMO_MODE:
+        from app.services.orchestrator import create_hire_with_plan, monitor_tick
+        from app.domain.models import User
+        manager = session.exec(select(User).where(User.email == "manager@demo.local")).first()
+        new_hire = session.exec(select(User).where(User.email == "newhire@demo.local")).first()
+        manager_id = manager.id if manager else None
+        priya = create_hire_with_plan(session, "Priya Sharma", "Data Analyst", "Analytics", 8, manager_id)
+        if new_hire:
+            priya.new_hire_user_id = new_hire.id
+            session.add(priya)
+            session.commit()
+        create_hire_with_plan(session, "Alex Chen", "Software Engineer", "Engineering", 10, manager_id)
+        create_hire_with_plan(session, "Maria Garcia", "default", "Marketing", 6, manager_id)
+        monitor_tick(session)
+        return {"message": "Demo reset to Priya scenario", "hire_id": priya.id}
+    return {"message": "Simulation data reset"}

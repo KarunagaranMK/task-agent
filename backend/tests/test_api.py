@@ -127,7 +127,9 @@ def test_reset(client):
     r = client.post("/reset")
     assert r.status_code == 200
     hires = client.get("/hires").json()
-    assert len(hires) == 0
+    assert len(hires) == 3
+    priya = next(hire for hire in hires if hire["name"] == "Priya Sharma")
+    assert priya["start_day"] == 8
 
 
 def test_approve_task(client):

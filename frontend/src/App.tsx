@@ -7,7 +7,7 @@ import {
   ShieldCheck, Sparkles, Sun, Workflow, X,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { clearAccessToken, getHires, getMe, logout, refreshAccessToken, type AuthUser, type Hire } from './api/client'
+import { clearAccessToken, getHires, getMe, getNotifications, logout, markAllNotificationsRead, markNotificationRead, refreshAccessToken, type AuthUser, type Hire, type Notification } from './api/client'
 import LoginPage from './pages/LoginPage'
 import { useLiveEvents } from './hooks/useLiveEvents'
 
@@ -18,6 +18,10 @@ const ITPage = lazy(() => import('./pages/ITPage'))
 const InsightsPage = lazy(() => import('./pages/InsightsPage'))
 const DemoPanel = lazy(() => import('./components/DemoPanel'))
 const AccountRecovery = lazy(() => import('./pages/AccountRecovery'))
+const MyOnboardingPage = lazy(() => import('./pages/MyOnboardingPage'))
+const ManagerDashboard = lazy(() => import('./pages/ManagerDashboard'))
+const AdminPage = lazy(() => import('./pages/AdminPage'))
+const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: true } } })
 
@@ -28,10 +32,15 @@ const useAuth = () => useContext(AuthContext)
 
 const navigation: Array<{ label: string; to: string; icon: LucideIcon; group: string; roles: string[]; badge?: string }> = [
   { label: 'Overview', to: '/', icon: LayoutDashboard, group: 'Workspace', roles: ['ADMIN', 'HR', 'MANAGER'] },
-  { label: 'Approvals', to: '/manager', icon: ShieldCheck, group: 'Workspace', roles: ['ADMIN', 'MANAGER'], badge: '2' },
+  { label: 'Approvals', to: '/manager', icon: ShieldCheck, group: 'Workspace', roles: ['ADMIN', 'MANAGER'] },
   { label: 'Team queue', to: '/it', icon: Workflow, group: 'Operations', roles: ['ADMIN', 'IT_STAFF'] },
   { label: 'Insights', to: '/insights', icon: Activity, group: 'Operations', roles: ['ADMIN', 'HR'] },
   { label: 'My onboarding', to: '/my-onboarding', icon: Workflow, group: 'Workspace', roles: ['NEW_HIRE'] },
+  { label: 'Profile & preferences', to: '/profile', icon: Gauge, group: 'Workspace', roles: ['ADMIN', 'HR', 'MANAGER', 'IT_STAFF', 'NEW_HIRE'] },
+  { label: 'Templates', to: '/templates', icon: Workflow, group: 'Administration', roles: ['ADMIN', 'HR'] },
+  { label: 'People', to: '/users', icon: ShieldCheck, group: 'Administration', roles: ['ADMIN'] },
+  { label: 'Audit trail', to: '/audit', icon: Activity, group: 'Administration', roles: ['ADMIN', 'HR'] },
+  { label: 'Settings', to: '/settings', icon: Gauge, group: 'Administration', roles: ['ADMIN'] },
 ]
 const routes: Array<{ label: string; to: string; description: string; roles: string[] }> = [
   { label: 'Overview dashboard', to: '/', description: 'Hire portfolio and readiness', roles: ['ADMIN', 'HR', 'MANAGER'] },
@@ -39,6 +48,11 @@ const routes: Array<{ label: string; to: string; description: string; roles: str
   { label: 'Team ticket queue', to: '/it', description: 'Work across IT and Facilities tasks', roles: ['ADMIN', 'IT_STAFF'] },
   { label: 'Insights and experiment', to: '/insights', description: 'Readiness metrics and policy comparison', roles: ['ADMIN', 'HR'] },
   { label: 'My onboarding', to: '/my-onboarding', description: 'Your personal first-day plan', roles: ['NEW_HIRE'] },
+  { label: 'Profile and preferences', to: '/profile', description: 'Update your account and notification settings', roles: ['ADMIN', 'HR', 'MANAGER', 'IT_STAFF', 'NEW_HIRE'] },
+  { label: 'Role templates', to: '/templates', description: 'Edit and publish task plans', roles: ['ADMIN', 'HR'] },
+  { label: 'People and access', to: '/users', description: 'Invite users and manage roles', roles: ['ADMIN'] },
+  { label: 'Audit trail', to: '/audit', description: 'Review activity and access events', roles: ['ADMIN', 'HR'] },
+  { label: 'Workspace settings', to: '/settings', description: 'Configure monitor guardrails', roles: ['ADMIN'] },
 ]
 
 function AppFrame() {
@@ -52,11 +66,22 @@ function AppFrame() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [demoOpen, setDemoOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [query, setQuery] = useState('')
   const location = useLocation()
   const navigate = useNavigate()
   const canViewHires = ['ADMIN', 'HR', 'MANAGER'].includes(role)
   const { data: hires = [] } = useQuery<Hire[]>({ queryKey: ['hires'], queryFn: getHires, staleTime: 30_000, enabled: canViewHires })
+  const { data: notifications = [] } = useQuery<Notification[]>({ queryKey: ['notifications', role], queryFn: () => getNotifications(), refetchInterval: connectionState === 'live' ? false : 15_000 })
+  const unreadNotifications = notifications.filter(item => !item.read)
+  const markAllRead = async () => { await markAllNotificationsRead(); void queryClient.invalidateQueries({ queryKey: ['notifications'] }) }
+  const openNotification = async (item: Notification) => {
+    if (!item.read) { await markNotificationRead(item.id); void queryClient.invalidateQueries({ queryKey: ['notifications'] }) }
+    setNotificationsOpen(false)
+    if (item.hire_id && canViewHires) navigate(`/hire/${item.hire_id}`)
+    else if (role === 'MANAGER') navigate('/manager')
+    else if (role === 'IT_STAFF') navigate('/it')
+  }
 
   useEffect(() => {
     localStorage.setItem('onboardiq-theme', theme)
@@ -143,26 +168,35 @@ function AppFrame() {
           </div>
           <div className="topbar-actions">
             <div className={`connection-status ${connectionState}`} aria-label={`Connection ${connectionState}`}><span className="live-dot" />{connectionState === 'live' ? 'Live' : connectionState === 'connecting' ? 'Connecting' : 'Reconnecting'}</div>
-            <button className="search-trigger" onClick={() => setPaletteOpen(true)} aria-label="Search or jump to">
+            <button className="search-trigger" onClick={() => setPaletteOpen(true)} aria-label="Search anything K">
               <Search size={16} /><span>Search anything</span><kbd><Command size={11} /> K</kbd>
             </button>
-            {['ADMIN', 'HR', 'MANAGER'].includes(role) && <button className="icon-button topbar-icon" aria-label="Notifications" onClick={() => go(role === 'MANAGER' ? '/manager' : '/')}><Bell size={18} /><i className="notification-dot" /></button>}
+            <div className="notification-anchor"><button className="icon-button topbar-icon" aria-label={`Notifications${unreadNotifications.length ? `, ${unreadNotifications.length} unread` : ''}`} aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen(value => !value)}><Bell size={18} />{unreadNotifications.length > 0 && <i className="notification-dot" />}</button>
+              {notificationsOpen && <section className="notification-popover" aria-label="Notifications"><div className="notification-popover-head"><div><strong>Notifications</strong><small>{unreadNotifications.length ? `${unreadNotifications.length} unread` : 'You’re all caught up'}</small></div>{unreadNotifications.length > 0 && <button onClick={() => void markAllRead()}>Mark all read</button>}</div><div className="notification-popover-list">{notifications.slice(0, 6).map(item => <button key={item.id} className={`notification-row ${item.read ? '' : 'unread'}`} onClick={() => void openNotification(item)}><span className="notification-row-dot" /><span><strong>{item.message}</strong><small>{new Date(item.created_at).toLocaleString()}</small></span></button>)}{notifications.length === 0 && <div className="notification-empty"><Bell size={20} /><span>No updates yet</span><small>Onboarding activity will show here.</small></div>}</div></section>}
+            </div>
             <button className="icon-button topbar-icon theme-toggle" onClick={() => setTheme(theme === 'system' ? 'light' : theme === 'light' ? 'dark' : 'system')} aria-label={`Theme: ${theme}. Change theme`} title={`Theme: ${theme}`}>
               {resolvedTheme === 'dark' ? <Sun size={18} /> : <Moon size={17} />}
             </button>
-            <button className="role-select" onClick={signOut} title="Sign out"><span className="role-avatar">{user.name.slice(0, 1).toUpperCase()}</span><span className="role-name">Sign out</span><LogOut size={14} /></button>
+            <button className="role-select" onClick={signOut} title="Sign out"><span className="role-avatar" aria-hidden="true">{user.name.slice(0, 1).toUpperCase()}</span><span className="role-name">Sign out</span><LogOut size={14} aria-hidden="true" /></button>
           </div>
         </header>
 
         <main className="page-content" key={location.pathname}>
-          <Suspense fallback={<div className="page-skeleton" aria-label="Loading page"><span /></div>}><Routes>
+          <Suspense fallback={<div className="page-skeleton" role="status" aria-label="Loading page"><span /></div>}><Routes>
             {['ADMIN', 'HR'].includes(role) && <Route path="/" element={<HRPage />} />}
             {['ADMIN', 'HR', 'MANAGER'].includes(role) && <Route path="/hire/:id" element={<HireDetail />} />}
             {['ADMIN', 'MANAGER'].includes(role) && <Route path="/manager" element={<ManagerPage />} />}
             {['ADMIN', 'IT_STAFF'].includes(role) && <Route path="/it" element={<ITPage />} />}
             {['ADMIN', 'HR'].includes(role) && <Route path="/insights" element={<InsightsPage />} />}
-            {role === 'NEW_HIRE' && <Route path="/my-onboarding" element={<div className="empty-state"><Workflow size={30} /><h1>Your onboarding plan</h1><p>Your personal task timeline will appear here once HR links your hire record.</p></div>} />}
-            <Route path="*" element={<div className="empty-state"><Compass size={30} /><h1>That page is not here yet</h1><p>Choose a workspace page from the navigation.</p><button className="button-primary" onClick={() => go('/')}>Back to overview</button></div>} />
+            {role === 'NEW_HIRE' && <Route path="/my-onboarding" element={<MyOnboardingPage />} />}
+            <Route path="/profile" element={<ProfilePage />} />
+            {['ADMIN', 'HR'].includes(role) && <Route path="/templates" element={<AdminPage />} />}
+            {role === 'ADMIN' && <Route path="/users" element={<AdminPage />} />}
+            {['ADMIN', 'HR'].includes(role) && <Route path="/audit" element={<AdminPage />} />}
+            {role === 'ADMIN' && <Route path="/settings" element={<AdminPage />} />}
+            {role === 'ADMIN' && <Route path="/app/dev/mail" element={<AdminPage />} />}
+            {role === 'MANAGER' && <Route path="/" element={<ManagerDashboard />} />}
+            <Route path="*" element={<div className="empty-state"><Compass size={30} /><h1>That page is not here yet</h1><p>Choose a workspace page from the navigation.</p><button className="button-primary" onClick={() => go(role === 'IT_STAFF' ? '/it' : role === 'NEW_HIRE' ? '/my-onboarding' : '/')}>Back to overview</button></div>} />
           </Routes></Suspense>
         </main>
         <footer className="app-footer"><span>OnboardIQ <span className="footer-separator">·</span> Workforce onboarding, in sync.</span><span><Sparkles size={13} /> AI off <span className="footer-muted">(templates)</span></span></footer>
@@ -213,12 +247,17 @@ function AuthCoordinator() {
     setUser(null)
     navigate('/login', { replace: true })
   }
-  const onAuthenticated = (nextUser: AuthUser) => { setUser(nextUser); navigate('/', { replace: true }) }
+  const onAuthenticated = (nextUser: AuthUser) => {
+    setUser(nextUser)
+    navigate(nextUser.role === 'IT_STAFF' ? '/it' : nextUser.role === 'NEW_HIRE' ? '/my-onboarding' : '/', { replace: true })
+  }
 
   if (checking) return <div className="auth-loading"><span className="brand-mark"><Workflow size={19} /></span><strong>Restoring your session…</strong></div>
   if (!user && ['/forgot-password', '/reset-password', '/accept-invite'].includes(location.pathname)) return <Suspense fallback={<div className="auth-loading">Loading secure page…</div>}><AccountRecovery /></Suspense>
   if (!user) return <LoginPage onAuthenticated={onAuthenticated} />
   if (location.pathname === '/login') return <Navigate to="/" replace />
+  if (location.pathname === '/' && user.role === 'IT_STAFF') return <Navigate to="/it" replace />
+  if (location.pathname === '/' && user.role === 'NEW_HIRE') return <Navigate to="/my-onboarding" replace />
   const role = user.role
   return <AuthContext.Provider value={{ user, signOut }}><RoleContext.Provider value={{ role, setRole: () => {} }}><AppFrame /></RoleContext.Provider></AuthContext.Provider>
 }

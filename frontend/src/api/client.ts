@@ -55,6 +55,10 @@ export async function refreshAccessToken(): Promise<string> {
   return refreshFlight
 }
 export const getMe = () => api.get('/auth/me').then(response => response.data as AuthUser)
+export const updateProfile = (name: string) => api.put<AuthUser>('/auth/profile', { name }).then(response => response.data)
+export const getPreferences = () => api.get<{ in_app: boolean; email: boolean }>('/auth/preferences').then(response => response.data)
+export const savePreferences = (data: { in_app: boolean; email: boolean }) => api.put('/auth/preferences', data).then(response => response.data)
+export const changePassword = (current_password: string, new_password: string) => api.post('/auth/password/change', { current_password, new_password }).then(response => response.data)
 export const createStreamTicket = () => api.post('/events/ticket').then(response => response.data as { ticket: string; expires_in: number })
 export function eventStreamUrl(ticket: string) { return `${BASE}/events/stream?ticket=${encodeURIComponent(ticket)}` }
 export const requestPasswordReset = (email: string) => api.post('/auth/password/forgot', { email }).then(response => response.data)
@@ -67,15 +71,21 @@ export async function logout() {
 
 export const getHires = () => api.get<Hire[]>('/hires').then(r => r.data)
 export const createHire = (data: HireCreate) => api.post<Hire>('/hires', data).then(r => r.data)
+export const planPreview = (role: string) => api.post('/hires/plan-preview', { role }).then(r => r.data)
 export const getHire = (id: number) => api.get<Hire>(`/hires/${id}`).then(r => r.data)
 export const getHireTasks = (id: number) => api.get<Task[]>(`/hires/${id}/tasks`).then(r => r.data)
 export const getHireAudit = (id: number) => api.get(`/hires/${id}/audit`).then(r => r.data)
 export const explainRisk = (id: number) => api.get(`/hires/${id}/explain`).then(r => r.data)
 export const approveTask = (id: number) => api.post(`/tasks/${id}/approve`).then(r => r.data)
 export const rejectTask = (id: number) => api.post(`/tasks/${id}/reject`).then(r => r.data)
+export const undoApproval = (id: number) => api.post(`/tasks/${id}/undo-approval`).then(r => r.data)
 export const getTickets = () => api.get('/tickets').then(r => r.data)
+export const startTicket = (id: string) => api.post(`/tickets/${id}/start`).then(r => r.data)
 export const completeTicket = (id: string) => api.post(`/tickets/${id}/complete`).then(r => r.data)
+export const blockTicket = (id: string) => api.post(`/tickets/${id}/block`).then(r => r.data)
 export const stallTicket = (id: string) => api.post(`/tickets/${id}/stall`).then(r => r.data)
+export const getTicketComments = (id: string) => api.get(`/tickets/${id}/comments`).then(r => r.data as TicketComment[])
+export const addTicketComment = (id: string, body: string) => api.post(`/tickets/${id}/comments`, { body }).then(r => r.data as TicketComment)
 export const advanceDay = () => api.post('/sim/advance').then(r => r.data)
 export const monitorTick = () => api.post('/monitor/tick').then(r => r.data)
 export const toggleITSM = (offline: boolean) => api.post(`/chaos/itsm?offline=${offline}`).then(r => r.data)
@@ -84,7 +94,23 @@ export const getMetrics = () => api.get('/metrics').then(r => r.data)
 export const getNotifications = (role?: string) =>
   api.get(`/notifications${role ? `?role=${role}` : ''}`).then(r => r.data)
 export const markNotificationRead = (id: number) => api.post(`/notifications/${id}/read`).then(r => r.data)
+export const markAllNotificationsRead = () => api.post('/notifications/read-all').then(r => r.data)
 export const resetAll = () => api.post('/reset').then(r => r.data)
+export const getManagers = () => api.get<AuthUser[]>('/users/managers').then(r => r.data)
+export const getMyOnboarding = () => api.get<MyOnboarding>('/me/onboarding').then(r => r.data)
+export const reportOnboardingIssue = (message: string) => api.post('/me/issues', { message }).then(r => r.data)
+export const runWhatIf = (hireId: number, task_key: string, delay_days: number) => api.post(`/hires/${hireId}/what-if`, { task_key, delay_days }).then(r => r.data as WhatIfResult)
+export const listUsers = () => api.get<AuthUser[]>('/users').then(r => r.data)
+export const inviteUser = (data: { email: string; name: string; role: string; team?: string }) => api.post<AuthUser>('/users/invite', data).then(r => r.data)
+export const updateUser = (id: number, data: Partial<Pick<AuthUser, 'role' | 'team' | 'is_active'>>) => api.patch<AuthUser>(`/users/${id}`, data).then(r => r.data)
+export const getTemplates = () => api.get<OnboardingTemplate[]>('/templates').then(r => r.data)
+export const publishTemplate = (data: { role_key: string; tasks: TemplateTask[] }) => api.post<OnboardingTemplate>('/templates', data).then(r => r.data)
+export const getSettings = () => api.get<Record<string, string>>('/settings').then(r => r.data)
+export const saveSettings = (data: { stall_after_days: number; near_critical_margin: number; monitor_interval_minutes: number; auto_worker_enabled: boolean; timezone: string }) => api.put('/settings', data).then(r => r.data)
+export const getAudit = (search = '') => api.get<AuditRecord[]>('/audit', { params: { search } }).then(r => r.data)
+export const getExperimentHistory = () => api.get<ExperimentRecord[]>('/experiments').then(r => r.data)
+export const getDevMail = () => api.get<MailRecord[]>('/dev/mail').then(r => r.data)
+export const setDemoClock = (day: number) => api.post(`/admin/clock?day=${day}`).then(r => r.data)
 
 export interface ExperimentParams { n_hires: number; stall_probability: number; seed: number }
 export interface Ticket {
@@ -93,3 +119,14 @@ export interface Ticket {
 }
 export interface AuditEvent { id: number; day: number; level: string; message: string; actor: string; created_at: string }
 export interface Notification { id: number; for_role: string; message: string; hire_id: number | null; task_id: number | null; read: boolean; created_at: string }
+export interface TicketComment { id: number; author: string; body: string; created_at: string }
+export interface MyOnboarding {
+  hire: { name: string; role: string; department: string; start_day: number; status: string; readiness: number; projected_day: number | null } | null
+  tasks: Array<{ title: string; status: string; eta_day: number | null }>
+}
+export interface TemplateTask { key: string; title: string; team: string; duration_days: number; depends_on: string[]; needs_approval: boolean; fallback_title?: string | null; fallback_days?: number | null }
+export interface OnboardingTemplate { id: number | null; role_key: string; version: number; tasks: TemplateTask[]; active: boolean; created_at: string | null }
+export interface AuditRecord { id: string; kind: string; actor: string; target: string; detail: string; created_at: string; source: string }
+export interface ExperimentRecord { id: number; parameters: ExperimentParams; result: { static_checklist_readiness_pct: number; orchestrator_readiness_pct: number; improvement_pct: number }; created_at: string }
+export interface MailRecord { id: number; recipient: string; subject: string; body: string; created_at: string }
+export interface WhatIfResult { baseline_ready_day: number; projected_ready_day: number; delta_days: number; critical_path: string[]; tasks: Array<{ key: string; es: number; ef: number; slack: number; critical: boolean }> }

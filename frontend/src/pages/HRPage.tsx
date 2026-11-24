@@ -1,113 +1,138 @@
-import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { getHires, createHire, type Hire } from '../api/client'
+import type { LucideIcon } from 'lucide-react'
+import { ArrowDownUp, ArrowRight, Check, ChevronLeft, ChevronRight, CircleAlert, Clock3, Plus, Search, Users, X } from 'lucide-react'
+import {
+  createHire, getHires, getManagers, getMetrics, planPreview,
+  type Hire, type HireCreate,
+} from '../api/client'
 
-const ROLES = ['Data Analyst', 'Software Engineer', 'default']
-const DEPTS = ['Analytics', 'Engineering', 'Marketing', 'HR', 'Finance', 'Operations']
+const ROLES = ['Data Analyst', 'Software Engineer', 'Product Manager', 'Customer Success Manager', 'default']
+const DEPARTMENTS = ['Analytics', 'Engineering', 'Marketing', 'HR', 'Finance', 'Operations']
+type PlanTask = { key: string; title: string; team: string; duration_days: number; depends_on: string[]; needs_approval: boolean }
+type HireForm = { name: string; role: string; department: string; start_day: number; manager_id: number | null }
 
-const STATUS_STYLES: Record<string, string> = {
-  on_track: 'text-green-700 bg-green-100 dark:bg-green-900/30 dark:text-green-400',
-  at_risk: 'text-red-700 bg-red-100 dark:bg-red-900/30 dark:text-red-400',
-  ready: 'text-blue-700 bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400',
-}
-const BAR_COLORS: Record<string, string> = {
-  on_track: 'bg-green-500', at_risk: 'bg-red-500', ready: 'bg-blue-500',
-}
+const initialForm: HireForm = { name: '', role: ROLES[0], department: DEPARTMENTS[0], start_day: 8, manager_id: null }
+const statusLabel: Record<string, string> = { on_track: 'On track', at_risk: 'At risk', ready: 'Ready' }
 
 export default function HRPage() {
-  const qc = useQueryClient()
-  const { data: hires = [], isLoading } = useQuery<Hire[]>({ queryKey: ['hires'], queryFn: getHires, refetchInterval: 5000 })
-  const [form, setForm] = useState({ name: '', role: 'Data Analyst', department: 'Analytics', start_day: 8 })
-  const [err, setErr] = useState('')
+  const queryClient = useQueryClient()
+  const { data: hires = [], isLoading, isError } = useQuery<Hire[]>({ queryKey: ['hires'], queryFn: getHires })
+  const { data: metrics } = useQuery({ queryKey: ['metrics'], queryFn: getMetrics, refetchInterval: 15_000 })
+  const { data: managers = [] } = useQuery({ queryKey: ['managers'], queryFn: getManagers })
+  const [form, setForm] = useState<HireForm>(initialForm)
+  const [step, setStep] = useState(0)
+  const [preview, setPreview] = useState<PlanTask[]>([])
+  const [previewBusy, setPreviewBusy] = useState(false)
+  const [showWizard, setShowWizard] = useState(false)
+  const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState('all')
+  const [sortNewest, setSortNewest] = useState(true)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
 
-  const mutation = useMutation({
-    mutationFn: createHire,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['hires'] }); setForm(f => ({ ...f, name: '' })); setErr('') },
-    onError: () => setErr('Failed to create hire. Is the backend running?'),
+  const createMutation = useMutation({
+    mutationFn: (data: HireCreate) => createHire(data),
+    onSuccess: hire => {
+      void queryClient.invalidateQueries({ queryKey: ['hires'] })
+      void queryClient.invalidateQueries({ queryKey: ['metrics'] })
+      setNotice(`${hire.name}’s onboarding plan is ready to coordinate.`)
+      setShowWizard(false); setForm(initialForm); setStep(0); setPreview([]); setError('')
+    },
+    onError: () => setError('We couldn’t create the plan. Check the details and try again.'),
   })
 
-  return (
-    <div className="space-y-6">
-      {/* Register form */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <h2 className="text-lg font-semibold mb-4">Register New Hire</h2>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2 sm:col-span-1">
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Full Name</label>
-            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-              placeholder="e.g. Priya Sharma" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Role</label>
-            <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
-              {ROLES.map(r => <option key={r}>{r}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Department</label>
-            <select value={form.department} onChange={e => setForm({ ...form, department: e.target.value })}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700">
-              {DEPTS.map(d => <option key={d}>{d}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Start Day (days from now)</label>
-            <input type="number" min={1} max={30} value={form.start_day}
-              onChange={e => setForm({ ...form, start_day: Number(e.target.value) })}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700" />
-          </div>
+  const visibleHires = useMemo(() => hires
+    .filter(hire => filter === 'all' || hire.status === filter)
+    .filter(hire => `${hire.name} ${hire.role} ${hire.department}`.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => sortNewest ? b.id - a.id : a.name.localeCompare(b.name)), [hires, filter, search, sortNewest])
+
+  const closeWizard = () => { setShowWizard(false); setStep(0); setError('') }
+  const nextStep = async () => {
+    setError('')
+    if (step === 0) {
+      if (form.name.trim().length < 2) { setError('Enter the new hire’s full name to continue.'); return }
+      setPreviewBusy(true)
+      try {
+        const result = await planPreview(form.role) as { tasks?: PlanTask[] }
+        setPreview(result.tasks ?? [])
+        setStep(1)
+      } catch { setError('The plan preview is unavailable. Try again in a moment.') }
+      finally { setPreviewBusy(false) }
+      return
+    }
+    if (step === 1) { setStep(2); return }
+    const payload: HireCreate = { name: form.name.trim(), role: form.role, department: form.department, start_day: form.start_day, ...(form.manager_id ? { manager_id: form.manager_id } : {}) }
+    createMutation.mutate(payload)
+  }
+
+  const onTrack = hires.filter(hire => hire.status === 'on_track').length
+  const atRisk = hires.filter(hire => hire.status === 'at_risk').length
+  const readySoon = hires.filter(hire => hire.status === 'ready' && hire.start_day <= 7).length
+
+  return <div className="portal-page">
+    <div className="page-heading-row">
+      <div><span className="eyebrow">PEOPLE OPERATIONS</span><h1>Onboarding overview</h1><p>Keep every team moving toward a ready first day.</p></div>
+      <button className="button-primary" onClick={() => { setShowWizard(true); setNotice('') }}><Plus size={17} /> Create hire</button>
+    </div>
+
+    {notice && <div className="inline-success" role="status"><Check size={16} />{notice}<button aria-label="Dismiss" onClick={() => setNotice('')}><X size={15} /></button></div>}
+
+    <div className="metric-grid">
+      <Metric label="Active hires" value={hires.length} detail="Across all teams" icon={Users} tone="navy" />
+      <Metric label="On track" value={onTrack} detail="Moving to Day 1" icon={Check} tone="green" />
+      <Metric label="Need attention" value={atRisk} detail="Critical-path risk" icon={CircleAlert} tone="amber" />
+      <Metric label="Ready this week" value={readySoon} detail={`${metrics?.escalations ?? 0} open escalations`} icon={Clock3} tone="teal" />
+    </div>
+
+    <section className="content-card hires-card">
+      <div className="section-heading">
+        <div><h2>Hire portfolio</h2><p>Search and open a hire to review their plan.</p></div>
+        <span className="subtle-count">{visibleHires.length} of {hires.length}</span>
+      </div>
+      <div className="table-toolbar">
+        <label className="table-search"><Search size={16} /><input aria-label="Search hires" placeholder="Search by name, role, department" value={search} onChange={event => setSearch(event.target.value)} /></label>
+        <div className="filter-chips" aria-label="Filter hires by status">
+          {[['all', 'All hires'], ['on_track', 'On track'], ['at_risk', 'At risk'], ['ready', 'Ready']].map(([value, label]) =>
+            <button key={value} className={`filter-chip ${filter === value ? 'selected' : ''}`} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}
         </div>
-        {err && <p className="mt-2 text-sm text-red-600">{err}</p>}
-        <button onClick={() => form.name && mutation.mutate(form)}
-          disabled={!form.name || mutation.isPending}
-          className="mt-4 bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
-          {mutation.isPending ? 'Creating…' : '+ Onboard Hire'}
-        </button>
+        <button className="button-secondary sort-button" onClick={() => setSortNewest(value => !value)}><ArrowDownUp size={15} />{sortNewest ? 'Newest' : 'Name A–Z'}</button>
       </div>
 
-      {/* Hire list */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Active Hires</h2>
-          <span className="text-sm text-gray-500">{hires.length} total</span>
-        </div>
-        {isLoading ? <p className="text-gray-400 text-sm">Loading…</p> : (
-          <div className="space-y-3">
-            {hires.map(h => (
-              <Link key={h.id} to={`/hire/${h.id}`}
-                className="block p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-400 dark:hover:border-blue-500 transition-colors group">
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <span className="font-medium group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{h.name}</span>
-                    <span className="ml-2 text-xs text-gray-500">{h.role} · {h.department}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLES[h.status] || ''}`}>
-                      {h.status.replace('_', ' ')}
-                    </span>
-                    <span className="text-xs text-gray-400">Day {h.start_day}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                    <div className={`h-2 rounded-full transition-all ${BAR_COLORS[h.status] || 'bg-gray-400'}`}
-                      style={{ width: `${h.readiness}%` }} />
-                  </div>
-                  <span className="text-xs text-gray-500 w-8 text-right">{h.readiness}%</span>
-                </div>
-              </Link>
-            ))}
-            {hires.length === 0 && (
-              <p className="text-gray-400 text-sm text-center py-8">
-                No hires yet. Register one above, or run <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">python seed.py</code> for demo data.
-              </p>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  )
+      {isLoading ? <div className="table-skeleton" aria-label="Loading hires"><span /><span /><span /></div> : isError ?
+        <div className="empty-state compact"><CircleAlert size={23} /><h3>We couldn’t load hires</h3><p>Check the connection and refresh this page.</p></div> : visibleHires.length === 0 ?
+          <div className="empty-state compact"><Users size={25} /><h3>{search || filter !== 'all' ? 'No matching hires' : 'Your portfolio is ready to begin'}</h3><p>{search || filter !== 'all' ? 'Try another search or status filter.' : 'Create a hire to build a team-ready onboarding plan.'}</p>{!search && filter === 'all' && <button className="button-secondary" onClick={() => setShowWizard(true)}>Create first hire</button>}</div> :
+          <div className="hire-table-wrap"><table className="hire-table"><thead><tr><th>New hire</th><th>Manager</th><th>Day 1</th><th>Readiness</th><th>Status</th><th><span className="sr-only">Open hire</span></th></tr></thead>
+            <tbody>{visibleHires.map(hire => <tr key={hire.id}>
+              <td><Link className="hire-name-link" to={`/hire/${hire.id}`}><span className="hire-avatar">{hire.name.split(' ').map(part => part[0]).join('').slice(0, 2)}</span><span><strong>{hire.name}</strong><small>{hire.role} · {hire.department}</small></span></Link></td>
+              <td>{managers.find(manager => manager.id === hire.manager_id)?.name ?? <span className="table-muted">Unassigned</span>}</td>
+              <td>Day {hire.start_day}</td>
+              <td><div className="readiness-cell"><span className="readiness-track"><i className={hire.status === 'at_risk' ? 'risk' : hire.status === 'ready' ? 'ready' : ''} style={{ width: `${Math.max(0, Math.min(100, hire.readiness))}%` }} /></span><span>{hire.readiness}%</span></div></td>
+              <td><span className={`status-pill ${hire.status}`}>{statusLabel[hire.status] ?? hire.status}</span></td>
+              <td><Link className="table-open" aria-label={`Open ${hire.name}`} to={`/hire/${hire.id}`}><ArrowRight size={16} /></Link></td>
+            </tr>)}</tbody></table></div>}
+    </section>
+
+    {showWizard && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) closeWizard() }}>
+      <section className="hire-wizard" role="dialog" aria-modal="true" aria-labelledby="wizard-title">
+        <div className="wizard-top"><div><span className="eyebrow">NEW ONBOARDING PLAN</span><h2 id="wizard-title">{step === 0 ? 'Hire details' : step === 1 ? 'Plan preview' : 'Review and create'}</h2></div><button className="icon-button wizard-close" onClick={closeWizard} aria-label="Close create hire"><X size={18} /></button></div>
+        <div className="wizard-progress" aria-label={`Step ${step + 1} of 3`}><i style={{ width: `${((step + 1) / 3) * 100}%` }} /></div>
+        <p className="wizard-step-label">STEP {step + 1} OF 3 <span>·</span> {['Set up the new hire', 'Review role-specific work', 'Confirm the plan'][step]}</p>
+        {step === 0 && <div className="wizard-fields">
+          <label>Full name<input autoFocus value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} placeholder="e.g. Priya Sharma" maxLength={120} /></label>
+          <div className="wizard-field-grid"><label>Role<select value={form.role} onChange={event => setForm({ ...form, role: event.target.value })}>{ROLES.map(role => <option key={role}>{role}</option>)}</select></label><label>Department<select value={form.department} onChange={event => setForm({ ...form, department: event.target.value })}>{DEPARTMENTS.map(department => <option key={department}>{department}</option>)}</select></label></div>
+          <div className="wizard-field-grid"><label>Manager<select value={form.manager_id ?? ''} onChange={event => setForm({ ...form, manager_id: event.target.value ? Number(event.target.value) : null })}><option value="">Choose later</option>{managers.map(manager => <option key={manager.id} value={manager.id}>{manager.name}</option>)}</select></label><label>Day 1 in<input type="number" min={1} max={365} value={form.start_day} onChange={event => setForm({ ...form, start_day: Math.max(1, Number(event.target.value)) })} /><small>Business days from today</small></label></div>
+        </div>}
+        {step === 1 && <div className="plan-preview"><div className="preview-summary"><span>{preview.length} planned tasks</span><span>Day 1 protected</span></div>{preview.map((task, index) => <div className="preview-task" key={task.key}><span className="preview-step">{String(index + 1).padStart(2, '0')}</span><span className="preview-task-copy"><strong>{task.title}</strong><small>{task.team} · {task.duration_days} day{task.duration_days === 1 ? '' : 's'}{task.needs_approval ? ' · approval required' : ''}</small></span>{task.depends_on.length > 0 && <span className="dependency-label">After {task.depends_on.length}</span>}</div>)}<p className="preview-note">Teams complete the work in their own systems. OnboardIQ coordinates dependencies and readiness.</p></div>}
+        {step === 2 && <div className="review-summary"><div className="review-person"><span className="hire-avatar large">{form.name.split(' ').map(part => part[0]).join('').slice(0, 2) || 'NH'}</span><span><strong>{form.name}</strong><small>{form.role} · {form.department}</small></span></div><div className="review-lines"><p><span>Manager</span><strong>{managers.find(manager => manager.id === form.manager_id)?.name ?? 'Assign later'}</strong></p><p><span>Day 1</span><strong>In {form.start_day} business days</strong></p><p><span>Task plan</span><strong>{preview.length} coordinated tasks</strong></p></div><div className="amber-callout">The hire’s task plan and critical path will be created together.</div></div>}
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <div className="wizard-actions"><button className="button-secondary" onClick={() => step === 0 ? closeWizard() : setStep(step - 1)}>{step === 0 ? 'Cancel' : <><ChevronLeft size={16} /> Back</>}</button><button className="button-primary" onClick={() => void nextStep()} disabled={previewBusy || createMutation.isPending}>{previewBusy ? 'Building preview…' : createMutation.isPending ? 'Creating plan…' : step === 2 ? 'Create onboarding plan' : <>Continue <ChevronRight size={16} /></>}</button></div>
+      </section>
+    </div>}
+  </div>
+}
+
+function Metric({ label, value, detail, icon: Icon, tone }: { label: string; value: number; detail: string; icon: LucideIcon; tone: string }) {
+  return <article className={`metric-card metric-${tone}`}><div className="metric-card-top"><span>{label}</span><i><Icon size={17} /></i></div><strong>{value}</strong><small>{detail}</small></article>
 }

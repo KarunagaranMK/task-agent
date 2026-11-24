@@ -1,12 +1,29 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
-import { advanceDay, monitorTick, toggleITSM, resetAll } from '../api/client'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { advanceDay, getMetrics, monitorTick, toggleITSM, resetAll } from '../api/client'
 
 export default function DemoPanel() {
+  const navigate = useNavigate()
   const qc = useQueryClient()
   const [itsmOffline, setItsmOffline] = useState(false)
   const [log, setLog] = useState<string[]>([])
   const [day, setDay] = useState<number | null>(null)
+  const [guidedStep, setGuidedStep] = useState<number | null>(null)
+  const { data: metrics } = useQuery({ queryKey: ['metrics'], queryFn: getMetrics })
+  useEffect(() => {
+    if (metrics) {
+      setItsmOffline(metrics.itsm_offline)
+      setDay(metrics.current_day)
+    }
+  }, [metrics])
+  const guide = [
+    { title: 'Start with Priya’s plan', detail: 'Review the laptop critical path and the work shared across HR, IT, and Facilities.', route: '/' },
+    { title: 'Review the access gate', detail: 'See how manager approval holds sensitive access until a person makes the decision.', route: '/hire/1' },
+    { title: 'Coordinate the team queue', detail: 'Open a ticket to see its owner, service timer, comments, and safe workflow actions.', route: '/it' },
+    { title: 'Simulate a recovery', detail: 'Advance the business day and run the monitor to see deterministic stall handling.', route: '/it' },
+    { title: 'Compare the outcome', detail: 'Run a reproducible experiment and compare Day-1 readiness policies.', route: '/insights' },
+  ]
 
   const addLog = (msg: string) => setLog(l => [`${new Date().toLocaleTimeString()} ${msg}`, ...l.slice(0, 11)])
 
@@ -38,7 +55,7 @@ export default function DemoPanel() {
       <div className="space-y-2">
         <button onClick={() => advMut.mutate()} disabled={advMut.isPending}
           className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
-          {advMut.isPending ? <span className="animate-spin">⏳</span> : '⏭'} Advance Day
+          {advMut.isPending ? <span className="animate-spin">⏳</span> : '⏭'} Advance 1 business day
         </button>
 
         <button onClick={() => tickMut.mutate()} disabled={tickMut.isPending}
@@ -61,6 +78,10 @@ export default function DemoPanel() {
           className="w-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 py-2 rounded-lg text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
           🗑 Reset Demo
         </button>
+      </div>
+
+      <div className="mt-3 border-t border-gray-100 dark:border-gray-700 pt-3">
+        {guidedStep === null ? <button className="w-full border border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-300 py-2 rounded-lg text-xs font-semibold hover:bg-teal-50 dark:hover:bg-teal-900/20" onClick={() => { setGuidedStep(0); navigate(guide[0].route) }}>▶ Play guided demo</button> : <div className="rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-900/15 p-3" role="status" aria-live="polite"><div className="flex items-center justify-between text-[10px] font-bold text-teal-800 dark:text-teal-200"><span>GUIDED WALKTHROUGH · {guidedStep + 1} / {guide.length}</span><button onClick={() => setGuidedStep(null)} aria-label="End guided walkthrough">×</button></div><strong className="block mt-2 text-xs text-gray-800 dark:text-gray-100">{guide[guidedStep].title}</strong><p className="mt-1 text-[10px] leading-relaxed text-gray-600 dark:text-gray-300">{guide[guidedStep].detail}</p><button className="mt-3 w-full bg-teal-700 text-white py-2 rounded-md text-[10px] font-semibold" onClick={() => { const next = guidedStep + 1; if (next >= guide.length) setGuidedStep(null); else { setGuidedStep(next); navigate(guide[next].route) } }}>{guidedStep === guide.length - 1 ? 'Finish walkthrough' : 'Continue to next step'}</button></div>}
       </div>
 
       {log.length > 0 && (

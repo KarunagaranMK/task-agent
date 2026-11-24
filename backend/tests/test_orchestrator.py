@@ -6,8 +6,8 @@ from pathlib import Path
 from sqlmodel import Session, create_engine, SQLModel, select
 from sqlmodel.pool import StaticPool
 from app.domain.models import (
-    Hire, Task, TaskStatus, Ticket, OutboxItem, SimState, ApprovalState,
-    AuditEvent, Notification, SchedulerLease,
+    Task, TaskStatus, Ticket, OutboxItem, SimState, ApprovalState,
+    AuditEvent, Notification,
 )
 from app.services.orchestrator import (
     create_hire_with_plan,
@@ -227,6 +227,7 @@ def test_stalled_critical_laptop_uses_loaner_without_duplicate_ticket(session):
     assert laptop.title == "Issue Loaner Laptop"
     assert laptop.ticket_id == original_ticket_id
     assert ticket.title == "Issue Loaner Laptop"
+    assert ticket.status == "open"
     escalations = session.exec(select(AuditEvent).where(AuditEvent.hire_id == hire.id, AuditEvent.level == "critical", AuditEvent.message.contains("Provision Laptop"))).all()
     assert len(escalations) == 1
     assert len(session.exec(select(Notification).where(Notification.hire_id == hire.id)).all()) >= 2

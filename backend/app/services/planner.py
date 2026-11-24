@@ -95,7 +95,7 @@ ROLE_TEMPLATES: Dict[str, List[Dict[str, Any]]] = {
     ],
     "Data Analyst": [
         {"key": "it:laptop", "title": "Provision Laptop (High RAM)", "team": "IT",
-         "duration_days": 3, "depends_on": [], "needs_approval": False,
+         "duration_days": 5, "depends_on": [], "needs_approval": False,
          "fallback_title": "Issue Loaner Laptop", "fallback_days": 1},
         {"key": "it:accounts", "title": "Create AD/Email Accounts", "team": "IT",
          "duration_days": 1, "depends_on": [], "needs_approval": False},

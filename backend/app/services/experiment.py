@@ -17,8 +17,6 @@ def run_experiment(
     Returns Day-1 readiness % for each policy and improvement.
     """
     rng = random.Random(seed)
-    roles = ["Data Analyst", "Software Engineer", "default", "default", "default"]
-
     static_ready = 0
     orchestrator_ready = 0
 

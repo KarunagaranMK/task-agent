@@ -7,6 +7,8 @@ import os
 from contextlib import asynccontextmanager
 from app.api import hires, tasks, sim
 from app.api import events
+from app.api import me
+from app.api import admin
 from app import auth
 from app.config import settings
 from app.services.scheduler import start_scheduler, stop_scheduler
@@ -35,7 +37,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for api_router in (hires.router, tasks.router, sim.router, auth.users_router, auth.mail_router):
+for api_router in (hires.router, tasks.router, sim.router, me.router, admin.router, auth.users_router, auth.mail_router):
     app.include_router(api_router, dependencies=[Depends(auth.get_current_user)])
     app.include_router(api_router, prefix="/api", dependencies=[Depends(auth.get_current_user)])
 # The ticket endpoint authenticates itself with a JWT. The stream endpoint must

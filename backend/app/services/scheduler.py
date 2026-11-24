@@ -8,6 +8,7 @@ from sqlmodel import Session
 
 from app.config import settings
 from app.db.database import engine
+from app.domain.models import AppSetting
 from app.services.orchestrator import monitor_tick
 
 logger = logging.getLogger(__name__)
@@ -26,11 +27,14 @@ def start_scheduler() -> None:
     global _scheduler
     if _scheduler is not None and _scheduler.running:
         return
+    with Session(engine) as session:
+        saved = session.get(AppSetting, "monitor_interval_minutes")
+        interval = int(saved.value) if saved else settings.MONITOR_INTERVAL_MINUTES
     scheduler = BackgroundScheduler(timezone="UTC")
     scheduler.add_job(
         _run_monitor,
         "interval",
-        minutes=max(1, settings.MONITOR_INTERVAL_MINUTES),
+        minutes=max(1, interval),
         id="onboardiq-monitor",
         replace_existing=True,
         coalesce=True,
@@ -38,6 +42,11 @@ def start_scheduler() -> None:
     )
     scheduler.start()
     _scheduler = scheduler
+
+
+def update_monitor_interval(minutes: int) -> None:
+    if _scheduler is not None and _scheduler.running:
+        _scheduler.reschedule_job("onboardiq-monitor", trigger="interval", minutes=max(1, minutes))
 
 
 def stop_scheduler() -> None:

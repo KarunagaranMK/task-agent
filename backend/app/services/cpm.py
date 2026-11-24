@@ -73,8 +73,6 @@ def compute_cpm(tasks: List[CPMTask], deadline: float) -> List[CPMTask]:
             )
         t.ef = t.es + t.remaining_days
 
-    # Effective project end
-    project_ef = max(t.ef for t in tasks)
     # A zero or negative deadline is meaningful: it means the hire's Day-1
     # deadline has arrived or passed, and must produce negative slack.
     effective_deadline = deadline

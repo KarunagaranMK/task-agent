@@ -8,19 +8,19 @@ from datetime import datetime, timedelta
 import uuid
 from sqlmodel import Session, select
 from app.domain.models import (
-    Hire, Task, TaskStatus, HireStatus, OutboxItem, AuditEvent,
+    Hire, Task, TaskStatus, HireStatus, OutboxItem, AuditEvent, AppSetting,
     Notification, Ticket, SimState, ApprovalState, TaskFlag, SchedulerLease,
 )
 from app.services.cpm import CPMTask, compute_cpm, get_remaining_days, is_stalled
 from app.services.llm import draft_escalation_message
 import logging
 from app.mcp_clients.tools import (
-    cancel_ticket as mcp_cancel_ticket,
     create_ticket as mcp_create_ticket,
     set_itsm_offline,
     update_onboarding_status as mcp_update_onboarding_status,
     upsert_new_hire as mcp_upsert_new_hire,
     update_ticket_details as mcp_update_ticket_details,
+    update_ticket_status as mcp_update_ticket_status,
 )
 
 logger = logging.getLogger(__name__)
@@ -276,6 +276,7 @@ def run_cpm_for_hire(
 def handle_stalls(
     session: Session, hire: Hire,
     cpm_tasks: List[CPMTask], min_slack: float,
+    stall_after_days: int = 2, near_critical_margin: int = 1,
 ) -> None:
     """Detect stalled tasks on critical/near-critical path; escalate + reschedule."""
     current_day = get_current_day(session)
@@ -284,14 +285,14 @@ def handle_stalls(
     cpm_map = {ct.key: ct for ct in cpm_tasks}
 
     for key, task in task_map.items():
-        if not is_stalled(task, current_day):
+        if not is_stalled(task, current_day, stall_after_days):
             continue
         ct = cpm_map.get(key)
         if ct is None:
             continue
 
         # Only act on critical or near-critical tasks (avoid alert fatigue)
-        if ct.slack > min_slack + 1:
+        if ct.slack > min_slack + near_critical_margin:
             if task.flag == TaskFlag.none:
                 task.flag = TaskFlag.watch
                 session.add(task)
@@ -318,10 +319,15 @@ def handle_stalls(
                 if result.get("error"):
                     logger.warning("Fallback update for ticket %s deferred: %s", task.ticket_id, result.get("error"))
                     continue
+                reopened = mcp_update_ticket_status(task.ticket_id, "open")
+                if reopened.get("error"):
+                    logger.warning("Fallback reopen for ticket %s deferred: %s", task.ticket_id, reopened.get("error"))
+                    continue
                 ticket = session.exec(select(Ticket).where(Ticket.ticket_id == task.ticket_id)).first()
                 if ticket:
                     ticket.title = fallback_title
                     ticket.estimate_days = fallback_days
+                    ticket.status = "open"
                     ticket.updated_at = datetime.utcnow()
                     session.add(ticket)
             else:
@@ -364,12 +370,13 @@ def update_hire_status(
 
     if all_done or readiness >= 100:
         hire.status = HireStatus.ready
+        if hire.ready_at is None:
+            hire.ready_at = datetime.utcnow()
     elif min_slack < 0:
         hire.status = HireStatus.at_risk
     else:
         hire.status = HireStatus.on_track
 
-    current_day = get_current_day(session)
     hire.projected_day = (
         hire.start_day + max(0, int(-min_slack)) if min_slack < 0 else hire.start_day
     )
@@ -391,10 +398,30 @@ def _monitor_tick_body(session: Session) -> None:
     sim_state = get_or_create_sim_state(session)
     current_day = sim_state.current_day
     itsm_offline = sim_state.itsm_offline
+    saved_settings = {row.key: row.value for row in session.exec(select(AppSetting)).all()}
+    stall_after_days = int(saved_settings.get("stall_after_days", "2"))
+    near_critical_margin = int(saved_settings.get("near_critical_margin", "1"))
+    auto_worker_enabled = saved_settings.get("auto_worker_enabled", "false").lower() == "true"
     set_itsm_offline(itsm_offline)
 
     if not itsm_offline:
         drain_outbox(session, current_day, commit=False)
+
+    if auto_worker_enabled and not itsm_offline:
+        for ticket in session.exec(select(Ticket).where(Ticket.status.in_(["open", "in_progress"]))).all():
+            task = session.get(Task, ticket.task_id) if ticket.task_id else None
+            if task is None or task.dispatched_day is None or current_day - task.dispatched_day < ticket.estimate_days:
+                continue
+            result = mcp_update_ticket_status(ticket.ticket_id, "done")
+            if result.get("error"):
+                continue
+            ticket.status = "done"
+            ticket.updated_at = datetime.utcnow()
+            task.status = TaskStatus.done
+            task.last_activity_day = current_day
+            session.add(ticket)
+            session.add(task)
+            audit(session, ticket.hire_id or 0, f"Demo auto-worker completed '{ticket.title}'", "info", "demo_auto_worker")
 
     hires = session.exec(select(Hire)).all()
     for hire in hires:
@@ -413,6 +440,7 @@ def _monitor_tick_body(session: Session) -> None:
                 if task.approval_state == ApprovalState.none:
                     task.status = TaskStatus.awaiting_approval
                     task.approval_state = ApprovalState.pending
+                    task.approval_requested_at = task.approval_requested_at or datetime.utcnow()
                     session.add(task)
                     notify(session, "Manager",
                            f"Approval needed: '{task.title}' for {hire.name}",
@@ -434,7 +462,7 @@ def _monitor_tick_body(session: Session) -> None:
         cpm_tasks, min_slack = run_cpm_for_hire(session, hire)
 
         # Stall detection & self-healing
-        handle_stalls(session, hire, cpm_tasks, min_slack)
+        handle_stalls(session, hire, cpm_tasks, min_slack, stall_after_days, near_critical_margin)
 
         # Update readiness + status
         readiness = compute_readiness(session, hire)
@@ -503,8 +531,10 @@ def create_hire_with_plan(
     manager_id: Optional[int] = None,
 ) -> Hire:
     """Create a hire and generate their task plan from role template (+ optional LLM)."""
-    from app.services.planner import try_llm_plan
+    import json
+    from app.services.planner import PlanSpec, try_llm_plan
     from app.config import settings
+    from app.domain.models import OnboardingTemplate
 
     hire = Hire(name=name, role=role, department=department, start_day=start_day, manager_id=manager_id)
     session.add(hire)
@@ -513,7 +543,14 @@ def create_hire_with_plan(
 
     mcp_upsert_new_hire(hire.id, hire.name, hire.role, hire.department, hire.start_day)
 
-    plan = try_llm_plan(role, hire.id, settings.GEMINI_API_KEY)
+    saved_template = session.exec(
+        select(OnboardingTemplate).where(OnboardingTemplate.role_key == role, OnboardingTemplate.active.is_(True))
+        .order_by(OnboardingTemplate.version.desc())
+    ).first()
+    if saved_template:
+        plan = PlanSpec.model_validate({"tasks": json.loads(saved_template.tasks_json)})
+    else:
+        plan = try_llm_plan(role, hire.id, settings.GEMINI_API_KEY)
 
     for ts in plan.tasks:
         task = Task(

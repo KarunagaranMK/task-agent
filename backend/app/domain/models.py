@@ -53,6 +53,7 @@ class Hire(SQLModel, table=True):
     manager_id: Optional[int] = Field(default=None, foreign_key="users.id")
     new_hire_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    ready_at: Optional[datetime] = None
     tasks: List["Task"] = Relationship(back_populates="hire")
 
 
@@ -76,6 +77,8 @@ class Task(SQLModel, table=True):
     slack: Optional[float] = None
     critical: bool = False
     flag: TaskFlag = TaskFlag.none
+    approval_requested_at: Optional[datetime] = None
+    approval_decided_at: Optional[datetime] = None
     hire: Optional[Hire] = Relationship(back_populates="tasks")
 
     @property
@@ -134,6 +137,15 @@ class Ticket(SQLModel, table=True):
     task_id: Optional[int] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class TicketComment(SQLModel, table=True):
+    __tablename__ = "ticket_comments"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    ticket_id: int = Field(foreign_key="tickets.id", index=True)
+    author_id: int = Field(foreign_key="users.id", index=True)
+    body: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class SimState(SQLModel, table=True):
@@ -207,6 +219,31 @@ class SchedulerLease(SQLModel, table=True):
     owner_id: str = ""
     lease_until: datetime = Field(default_factory=lambda: datetime(1970, 1, 1))
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class OnboardingTemplate(SQLModel, table=True):
+    __tablename__ = "onboarding_templates"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    role_key: str = Field(index=True)
+    version: int = 1
+    tasks_json: str = "[]"
+    active: bool = True
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class AppSetting(SQLModel, table=True):
+    __tablename__ = "app_settings"
+    key: str = Field(primary_key=True)
+    value: str
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ExperimentRun(SQLModel, table=True):
+    __tablename__ = "experiment_runs"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    parameters_json: str
+    result_json: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class StreamTicket(SQLModel, table=True):

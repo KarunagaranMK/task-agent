@@ -27,7 +27,7 @@ This file records verified state against the phases in the product brief. A gate
 - The demo panel still exposes the prototype simulator controls.
 - Product data pages are the original prototype; hires, approvals, tasks, and experiment results come from the existing API.
 
-### Known gaps
+### Status
 
 - Authentication/RBAC, the first-admin flow, full local mail outbox, and the expanded route-level product pages are not implemented yet.
 - The full 390/768/1440 light/dark Playwright screenshot matrix and accessibility audit have not been run.
@@ -304,12 +304,14 @@ This file records verified state against the phases in the product brief. A gate
 
 ### Known gaps
 
-- A separate clean clone was not created. Isolated browser starts exercise migrations and seeding, but do not fully satisfy the clean-clone release gate.
+- P10 clean-copy startup has now been verified from a fresh `git archive HEAD` extraction using only Python and Node/npm prerequisites; the temporary environment was removed after the run.
 
 ### Gate and commit
 
-- Fresh isolated Playwright startup ran normal migrations and seeding on a unique SQLite database/MCP store; `python run.py --test` also completed successfully. No external production services are needed for the demo.
-- **P10 gate: partially verified.** Local start, demo workflow, documentation, and the original responsive screenshots were verified; the clean-clone acceptance condition remains open.
+- A fresh archive extraction completed `python run.py` and `python run.py --no-browser`; first run installed backend/frontend dependencies, applied migrations and seeded the Priya scenario. The default command printed all URLs and demo credentials and launched the app.
+- Clean-copy smoke checks returned 200 for `/health`, `/api/v1/health` through the Vite proxy, and the frontend shell; seeded admin login and authenticated template listing also passed through the proxy.
+- `python run.py --test` passed 130 backend tests and the strict TypeScript/Vite production build in the main workspace; no external production services are needed for the demo.
+- **P10 gate: passed** for clean-copy first start, seeded demo login, frontend/API proxy, docs, and the 198-image responsive visual matrix.
 - Release risks and production gaps are called out in `docs/SECURITY.md`: mock external services, local mail delivery, and absence of production load/security certification.
 
 ## P11 — Product brief audit follow-up
@@ -345,10 +347,10 @@ This file records verified state against the phases in the product brief. A gate
 - Template dependencies can be edited by click-to-connect and prerequisite controls; draggable edge handles are not implemented, and current templates remain below the 40-task API limit.
 - Hire list/API pagination and full server-side filtering/sorting, saved filters, bulk actions, and a full hire edit flow are incomplete.
 - SlowAPI/account-and-IP rate limits, a `GET /ready` health check, API UUID IDs, and request-wide transaction semantics remain open hardening work.
-- Vitest component tests and production performance/load profiling have not been added; GNU Make and a separate clean-clone gate have not been verified on this Windows machine.
+- Vitest component tests and production performance/load profiling have not been added; the GNU Make target mirror has not been independently exercised on this Windows machine.
 - The app uses local/mock ITSM and HRIS, local development mail, and an in-process deterministic layout/orchestrator; no LangGraph adapter or production vendor integration is claimed.
 
 ### Gate
 
-- **P11 audit follow-up gate: passed** for the shipped visualization, lifecycle, API versioning, and hardening changes listed above. The original P10 clean-clone gate and the product gaps in this section remain open, so this does not certify the whole brief as complete.
+- **P11 audit follow-up gate: passed** for the shipped visualization, lifecycle, API versioning, template editor, and hardening changes listed above. The P10 clean-copy gate now passes; the remaining product gaps in this section mean the overall brief is still in progress.
 - **Implementation commits:** `2509f0f feat: persist joining dates with business calendar`; `42243e0 feat: add interactive onboarding template canvas`.

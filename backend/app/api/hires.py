@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session, select
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from sqlmodel import Session, select, func
 from app.db.database import get_session
 from app.domain.models import Hire, Task, TaskStatus, HireStatus, AuditEvent, User, Ticket, OutboxItem
 from app.services.orchestrator import audit, create_hire_with_plan, get_current_day
@@ -8,7 +8,7 @@ from app.services.cpm import CPMTask, compute_cpm, compute_what_if, get_remainin
 from app.services.planner import try_llm_plan
 from app.mcp_clients.tools import cancel_ticket as mcp_cancel_ticket, update_ticket_status as mcp_update_ticket_status
 from pydantic import BaseModel, Field, model_validator
-from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import date, datetime
 from app.services.clock import load_clock
 
@@ -129,11 +129,42 @@ def create_hire(data: HireCreate, session: Session = Depends(get_session), _user
 
 
 @router.get("", response_model=List[HireOut])
-def list_hires(session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR", "MANAGER"))):
-    query = select(Hire)
+def list_hires(
+    response: Response,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    search: str = Query(default="", max_length=120),
+    status: Optional[Literal["on_track", "at_risk", "ready", "started", "paused", "cancelled"]] = None,
+    sort_by: Literal["created_at", "name", "start_date", "readiness", "status"] = "created_at",
+    sort_order: Literal["asc", "desc"] = "desc",
+    session: Session = Depends(get_session),
+    user=Depends(require_roles("ADMIN", "HR", "MANAGER")),
+):
+    filters = []
     if user.role == "MANAGER":
-        query = query.where(Hire.manager_id == user.id)
+        filters.append(Hire.manager_id == user.id)
+    if status:
+        filters.append(Hire.status == status)
+    if search.strip():
+        term = f"%{search.strip()}%"
+        filters.append((Hire.name.ilike(term)) | (Hire.role.ilike(term)) | (Hire.department.ilike(term)))
+    count_query = select(func.count()).select_from(Hire).where(*filters)
+    total = session.exec(count_query).one()
+    sort_column = {
+        "created_at": Hire.created_at,
+        "name": Hire.name,
+        "start_date": Hire.start_date,
+        "readiness": Hire.readiness,
+        "status": Hire.status,
+    }[sort_by]
+    ordering = sort_column.asc() if sort_order == "asc" else sort_column.desc()
+    query = select(Hire).where(*filters).order_by(ordering, Hire.id.asc()).offset((page - 1) * page_size).limit(page_size)
     hires = session.exec(query).all()
+    total_pages = (total + page_size - 1) // page_size
+    response.headers["X-Total-Count"] = str(total)
+    response.headers["X-Total-Pages"] = str(total_pages)
+    response.headers["X-Page"] = str(page)
+    response.headers["X-Page-Size"] = str(page_size)
     return [_hire_out(h, session) for h in hires]
 
 

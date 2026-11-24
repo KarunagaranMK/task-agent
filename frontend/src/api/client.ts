@@ -69,7 +69,16 @@ export async function logout() {
   accessToken = null
 }
 
+export interface HirePageResult { items: Hire[]; total: number; page: number; page_size: number; total_pages: number }
 export const getHires = () => api.get<Hire[]>('/hires').then(r => r.data)
+export const getHirePage = (params: { page: number; page_size: number; search?: string; status?: string; sort_by: string; sort_order: 'asc' | 'desc' }): Promise<HirePageResult> =>
+  api.get<Hire[]>('/hires', { params }).then(r => ({
+    items: r.data,
+    total: Number(r.headers['x-total-count'] ?? r.data.length),
+    page: Number(r.headers['x-page'] ?? params.page),
+    page_size: Number(r.headers['x-page-size'] ?? params.page_size),
+    total_pages: Number(r.headers['x-total-pages'] ?? 1),
+  }))
 export const createHire = (data: HireCreate) => api.post<Hire>('/hires', data).then(r => r.data)
 export const planPreview = (role: string) => api.post('/hires/plan-preview', { role }).then(r => r.data)
 export const getHire = (id: number) => api.get<Hire>(`/hires/${id}`).then(r => r.data)

@@ -85,6 +85,7 @@ def get_metrics(session: Session = Depends(get_session), _user=Depends(require_r
     recoveries = session.exec(select(SecurityAudit).where(SecurityAudit.action == "itsm_recovered")).all()
 
     state = get_or_create_sim_state(session)
+    ready_starting_soon = sum(1 for hire in hires if hire.status == "ready" and 0 <= hire.start_day - state.current_day <= 7)
     clock = load_clock(session, state.current_day)
     organization_today = clock.today()
     return {
@@ -97,6 +98,7 @@ def get_metrics(session: Session = Depends(get_session), _user=Depends(require_r
         "ready_hires": ready,
         "at_risk_hires": at_risk,
         "on_track_hires": total - ready - at_risk,
+        "ready_starting_soon": ready_starting_soon,
         "day1_readiness_pct": round(ready / total * 100, 1) if total else 0.0,
         "escalations": len(escalations),
         "stalls_rescued": len(rescheduled),

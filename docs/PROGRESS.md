@@ -302,7 +302,7 @@ This file records verified state against the phases in the product brief. A gate
 - Standardized the review brief to the requested six sections and recorded P7/P8 implementation decisions.
 - Rewrote outdated prototype sections to describe current role workspaces, generated API contracts, test tools, and local-service limitations.
 
-### Known gaps
+### Status
 
 - P10 clean-copy startup has now been verified from a fresh `git archive HEAD` extraction using only Python and Node/npm prerequisites; the temporary environment was removed after the run.
 
@@ -322,30 +322,32 @@ This file records verified state against the phases in the product brief. A gate
 - Added a selectable dependency graph with upstream/downstream highlighting, status/critical/stalled styling, zoom, fit view, and task details.
 - Replaced the comma-separated template row editor with a responsive task dependency canvas, keyboard-selectable nodes, click-to-connect mode, removable prerequisite arrows, a live task inspector, dependency checkboxes, manager approval and recovery fallback settings.
 - Added live key/dependency/cycle validation that disables publishing until the plan is valid; small-screen graph panning stays inside the canvas without widening the page.
+- Added server-side hire search, status filtering, stable sorting and bounded pagination with total/page response headers. HR’s portfolio query state is reflected in the URL-independent React Query key; summary metrics are server-wide, not page-local.
 - Added HR/Admin pause, resume, and typed-confirmation cancel actions. Pause/cancel reconcile mock ITSM tickets, preserve completed work, audit the action, and let partial failures be retried.
 - Suppressed stale critical-path actions and what-if task choices for paused/cancelled tasks; their overview now explains the closed state.
 - Added `/api/v1` aliases, Problem Details responses, request IDs, baseline security headers, and frontend routing through the versioned API.
 - Persisted real joining dates with an Alembic backfill, accepted date-based hire creation, and calculated current/earliest/default joining dates from the organization timezone and configurable holiday calendar. The internal simulation-day index remains for deterministic CPM/demo behavior.
 - HR hire creation and the new-hire portal now show joining/projected-ready dates. Admin can edit the ISO-date holiday list; invalid weekends and past dates are rejected by the API.
 - Added API and UI coverage for task schedule positions and ticket-aware pause/resume/cancel; corrected generic-auth-error checks to ignore per-request IDs.
-- Refreshed the screenshot matrix to **198 images**, including graph and schedule tabs at all required role/viewport/theme combinations. Visual inspection covered mobile graph, mobile schedule, and desktop light/dark graph/schedule captures.
+- Refreshed the screenshot matrix to **198 images**, including graph/schedule tabs and the template canvas at all required role/viewport/theme combinations. Visual inspection covered the HR portfolio at 390px light and 1440px dark, the template canvas at 390px light and 1440px dark, mobile graph/schedule, and desktop light/dark hire graph/schedule captures.
 
 ### Verification
 
 - Template canvas interaction test passed: live dependency changes, cycle warning/publish lockout, recovery, and fallback editing.
+- Hire API search/sort/status/pagination tests passed; HR browser test confirms server-filtered search, result counts and status filter state.
 - The **198-image** role/viewport/theme matrix passed after fixing a 390px page overflow; the graph now scrolls inside its canvas while settings remain within the viewport.
 - Inspected final template screenshots at 390px light and 1440px dark. The final full matrix includes the canvas at each required admin and HR viewport/theme combination.
 
-- Full backend suite passed: **130 tests**; this includes date/calendar mapping, active-ticket pause/resume/cancel, HR/Admin permission checks, API versioning, and Problem Details.
+- Full backend suite passed: **131 tests**; this includes date/calendar mapping, active-ticket pause/resume/cancel, HR/Admin permission checks, API versioning, Problem Details, and hire list query/pagination behavior.
 - `python run.py --test` passed the backend suite and strict TypeScript/Vite production build; Ruff passed (`E4,E7,E9,F`).
-- Playwright passed **9/9**, including template dependency edits/cycle recovery, HR lifecycle controls, the Priya recovery-to-READY scenario, and the serious/critical axe audit.
-- Final visual matrix passed and was regenerated: **198 screenshots**; representative mobile and desktop light/dark hire graph/schedule captures were opened and inspected.
+- Playwright passed **10/10**, including hire search/status filters, template dependency edits/cycle recovery, HR lifecycle controls, the Priya recovery-to-READY scenario, and the serious/critical axe audit.
+- Final visual matrix passed and was regenerated: **198 screenshots**; representative mobile/desktop template and HR portfolio captures plus hire graph/schedule views were opened and inspected.
 
 ### Known gaps still open against the original brief
 
 - CPM and monitor internals still use a simulation-relative integer day index; real dates are persisted and mapped to that index at the API boundary.
 - Template dependencies can be edited by click-to-connect and prerequisite controls; draggable edge handles are not implemented, and current templates remain below the 40-task API limit.
-- Hire list/API pagination and full server-side filtering/sorting, saved filters, bulk actions, and a full hire edit flow are incomplete.
+- Saved hire filters, bulk actions, and a full hire edit flow are incomplete; basic server-side search/status filtering/sorting and page navigation are implemented.
 - SlowAPI/account-and-IP rate limits, a `GET /ready` health check, API UUID IDs, and request-wide transaction semantics remain open hardening work.
 - Vitest component tests and production performance/load profiling have not been added; the GNU Make target mirror has not been independently exercised on this Windows machine.
 - The app uses local/mock ITSM and HRIS, local development mail, and an in-process deterministic layout/orchestrator; no LangGraph adapter or production vendor integration is claimed.

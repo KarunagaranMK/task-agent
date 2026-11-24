@@ -44,14 +44,6 @@ export interface paths {
     }
   }
   "/hires": {
-    get: {
-      operationId: "list_hires_hires_get"
-      responses: {
-        "200": {
-          content: { "application/json": Array<components['schemas']["HireOut"]>; }
-        }
-      }
-    }
     post: {
       operationId: "create_hire_hires_post"
       requestBody: {
@@ -61,6 +53,21 @@ export interface paths {
       responses: {
         "200": {
           content: { "application/json": components['schemas']["HireOut"]; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+    get: {
+      operationId: "list_hires_hires_get"
+      parameters: {
+        query: { "page"?: number; "page_size"?: number; "search"?: string; "status"?: ("on_track" | "at_risk" | "ready" | "started" | "paused" | "cancelled") | (null); "sort_by"?: "created_at" | "name" | "start_date" | "readiness" | "status"; "sort_order"?: "asc" | "desc" }
+        __optional: true
+      }
+      responses: {
+        "200": {
+          content: { "application/json": Array<components['schemas']["HireOut"]>; }
         }
         "422": {
           content: { "application/json": components['schemas']["HTTPValidationError"]; }
@@ -218,14 +225,6 @@ export interface paths {
     }
   }
   "/api/hires": {
-    get: {
-      operationId: "list_hires_api_hires_get"
-      responses: {
-        "200": {
-          content: { "application/json": Array<components['schemas']["HireOut"]>; }
-        }
-      }
-    }
     post: {
       operationId: "create_hire_api_hires_post"
       requestBody: {
@@ -235,6 +234,21 @@ export interface paths {
       responses: {
         "200": {
           content: { "application/json": components['schemas']["HireOut"]; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+    get: {
+      operationId: "list_hires_api_hires_get"
+      parameters: {
+        query: { "page"?: number; "page_size"?: number; "search"?: string; "status"?: ("on_track" | "at_risk" | "ready" | "started" | "paused" | "cancelled") | (null); "sort_by"?: "created_at" | "name" | "start_date" | "readiness" | "status"; "sort_order"?: "asc" | "desc" }
+        __optional: true
+      }
+      responses: {
+        "200": {
+          content: { "application/json": Array<components['schemas']["HireOut"]>; }
         }
         "422": {
           content: { "application/json": components['schemas']["HTTPValidationError"]; }
@@ -392,14 +406,6 @@ export interface paths {
     }
   }
   "/api/v1/hires": {
-    get: {
-      operationId: "list_hires_api_v1_hires_get"
-      responses: {
-        "200": {
-          content: { "application/json": Array<components['schemas']["HireOut"]>; }
-        }
-      }
-    }
     post: {
       operationId: "create_hire_api_v1_hires_post"
       requestBody: {
@@ -409,6 +415,21 @@ export interface paths {
       responses: {
         "200": {
           content: { "application/json": components['schemas']["HireOut"]; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+    get: {
+      operationId: "list_hires_api_v1_hires_get"
+      parameters: {
+        query: { "page"?: number; "page_size"?: number; "search"?: string; "status"?: ("on_track" | "at_risk" | "ready" | "started" | "paused" | "cancelled") | (null); "sort_by"?: "created_at" | "name" | "start_date" | "readiness" | "status"; "sort_order"?: "asc" | "desc" }
+        __optional: true
+      }
+      responses: {
+        "200": {
+          content: { "application/json": Array<components['schemas']["HireOut"]>; }
         }
         "422": {
           content: { "application/json": components['schemas']["HTTPValidationError"]; }

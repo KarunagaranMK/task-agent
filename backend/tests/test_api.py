@@ -93,6 +93,28 @@ def test_list_hires_after_create(client):
     assert len(r.json()) == 1
 
 
+def test_hire_list_server_search_sort_filter_and_pagination(client):
+    for name in ["Charlie", "Alpha", "Bravo"]:
+        response = client.post("/hires", json={"name": name, "role": "default", "department": "Analytics", "start_day": 5})
+        assert response.status_code == 200
+
+    first = client.get("/hires", params={"page": 1, "page_size": 2, "sort_by": "name", "sort_order": "asc"})
+    assert first.status_code == 200
+    assert [hire["name"] for hire in first.json()] == ["Alpha", "Bravo"]
+    assert first.headers["x-total-count"] == "3"
+    assert first.headers["x-total-pages"] == "2"
+    assert first.headers["x-page"] == "1"
+
+    second = client.get("/hires", params={"page": 2, "page_size": 2, "sort_by": "name", "sort_order": "asc"})
+    assert [hire["name"] for hire in second.json()] == ["Charlie"]
+    assert second.headers["x-page"] == "2"
+
+    filtered = client.get("/hires", params={"search": "brav", "status": "on_track"})
+    assert [hire["name"] for hire in filtered.json()] == ["Bravo"]
+    assert filtered.headers["x-total-count"] == "1"
+    assert client.get("/hires", params={"page_size": 101}).status_code == 422
+
+
 def test_get_hire_tasks(client):
     r = client.post(
         "/hires",

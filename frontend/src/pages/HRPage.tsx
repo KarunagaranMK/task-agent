@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 import { ArrowDownUp, ArrowRight, Check, ChevronLeft, ChevronRight, CircleAlert, Clock3, Plus, Search, Users, X } from 'lucide-react'
 import {
-  createHire, getHires, getManagers, getMetrics, planPreview,
-  type Hire, type HireCreate,
+  createHire, getHirePage, getManagers, getMetrics, planPreview,
+  type Hire, type HireCreate, type HirePageResult,
 } from '../api/client'
 
 const ROLES = ['Data Analyst', 'Software Engineer', 'Product Manager', 'Customer Success Manager', 'default']
@@ -29,7 +29,20 @@ const statusLabel: Record<string, string> = { on_track: 'On track', at_risk: 'At
 
 export default function HRPage() {
   const queryClient = useQueryClient()
-  const { data: hires = [], isLoading, isError } = useQuery<Hire[]>({ queryKey: ['hires'], queryFn: getHires })
+  const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState('all')
+  const [sortNewest, setSortNewest] = useState(true)
+  const [page, setPage] = useState(1)
+  const pageSize = 10
+  const hiresQuery = useQuery<HirePageResult>({
+    queryKey: ['hires', { page, pageSize, search, filter, sortNewest }],
+    queryFn: () => getHirePage({ page, page_size: pageSize, search, status: filter === 'all' ? undefined : filter, sort_by: sortNewest ? 'created_at' : 'name', sort_order: sortNewest ? 'desc' : 'asc' }),
+  })
+  const hires = hiresQuery.data?.items ?? []
+  const totalHires = hiresQuery.data?.total ?? 0
+  const totalPages = hiresQuery.data?.total_pages ?? 0
+  const isLoading = hiresQuery.isLoading
+  const isError = hiresQuery.isError
   const { data: metrics } = useQuery({ queryKey: ['metrics'], queryFn: getMetrics, refetchInterval: 15_000 })
   const { data: managers = [] } = useQuery({ queryKey: ['managers'], queryFn: getManagers })
   const [form, setForm] = useState<HireForm>(initialForm)
@@ -37,9 +50,6 @@ export default function HRPage() {
   const [preview, setPreview] = useState<PlanTask[]>([])
   const [previewBusy, setPreviewBusy] = useState(false)
   const [showWizard, setShowWizard] = useState(false)
-  const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState('all')
-  const [sortNewest, setSortNewest] = useState(true)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
@@ -63,10 +73,7 @@ export default function HRPage() {
     },
   })
 
-  const visibleHires = useMemo(() => hires
-    .filter(hire => filter === 'all' || hire.status === filter)
-    .filter(hire => `${hire.name} ${hire.role} ${hire.department}`.toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => sortNewest ? b.id - a.id : a.name.localeCompare(b.name)), [hires, filter, search, sortNewest])
+  const visibleHires = hires
 
   const closeWizard = () => { setShowWizard(false); setStep(0); setError('') }
   const nextStep = async () => {
@@ -87,9 +94,9 @@ export default function HRPage() {
     createMutation.mutate(payload)
   }
 
-  const onTrack = hires.filter(hire => hire.status === 'on_track').length
-  const atRisk = hires.filter(hire => hire.status === 'at_risk').length
-  const readySoon = hires.filter(hire => hire.status === 'ready' && hire.start_day <= 7).length
+  const onTrack = metrics?.on_track_hires ?? 0
+  const atRisk = metrics?.at_risk_hires ?? 0
+  const readySoon = metrics?.ready_starting_soon ?? 0
 
   return <div className="portal-page">
     <div className="page-heading-row">
@@ -100,7 +107,7 @@ export default function HRPage() {
     {notice && <div className="inline-success" role="status"><Check size={16} />{notice}<button aria-label="Dismiss" onClick={() => setNotice('')}><X size={15} /></button></div>}
 
     <div className="metric-grid">
-      <Metric label="Active hires" value={hires.length} detail="Across all teams" icon={Users} tone="navy" />
+      <Metric label="Active hires" value={metrics?.total_hires ?? totalHires} detail="Across all teams" icon={Users} tone="navy" />
       <Metric label="On track" value={onTrack} detail="Moving to Day 1" icon={Check} tone="green" />
       <Metric label="Need attention" value={atRisk} detail="Critical-path risk" icon={CircleAlert} tone="amber" />
       <Metric label="Ready this week" value={readySoon} detail={`${metrics?.escalations ?? 0} open escalations`} icon={Clock3} tone="teal" />
@@ -109,15 +116,15 @@ export default function HRPage() {
     <section className="content-card hires-card">
       <div className="section-heading">
         <div><h2>Hire portfolio</h2><p>Search and open a hire to review their plan.</p></div>
-        <span className="subtle-count">{visibleHires.length} of {hires.length}</span>
+        <span className="subtle-count">{totalHires === 0 ? 0 : Math.min((page - 1) * pageSize + 1, totalHires)}–{Math.min(page * pageSize, totalHires)} of {totalHires}</span>
       </div>
       <div className="table-toolbar">
-        <label className="table-search"><Search size={16} /><input aria-label="Search hires" placeholder="Search by name, role, department" value={search} onChange={event => setSearch(event.target.value)} /></label>
+        <label className="table-search"><Search size={16} /><input aria-label="Search hires" placeholder="Search by name, role, department" value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} /></label>
         <div className="filter-chips" aria-label="Filter hires by status">
           {[['all', 'All hires'], ['on_track', 'On track'], ['at_risk', 'At risk'], ['ready', 'Ready']].map(([value, label]) =>
-            <button key={value} className={`filter-chip ${filter === value ? 'selected' : ''}`} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}
+            <button key={value} className={`filter-chip ${filter === value ? 'selected' : ''}`} aria-pressed={filter === value} onClick={() => { setFilter(value); setPage(1) }}>{label}</button>)}
         </div>
-        <button className="button-secondary sort-button" onClick={() => setSortNewest(value => !value)}><ArrowDownUp size={15} />{sortNewest ? 'Newest' : 'Name A–Z'}</button>
+        <button className="button-secondary sort-button" onClick={() => { setSortNewest(value => !value); setPage(1) }}><ArrowDownUp size={15} />{sortNewest ? 'Newest' : 'Name A–Z'}</button>
       </div>
 
       {isLoading ? <div className="table-skeleton" aria-label="Loading hires"><span /><span /><span /></div> : isError ?
@@ -131,7 +138,7 @@ export default function HRPage() {
               <td><div className="readiness-cell"><span className="readiness-track"><i className={hire.status === 'at_risk' ? 'risk' : hire.status === 'ready' ? 'ready' : ''} style={{ width: `${Math.max(0, Math.min(100, hire.readiness))}%` }} /></span><span>{hire.readiness}%</span></div></td>
               <td><span className={`status-pill ${hire.status}`}>{statusLabel[hire.status] ?? hire.status}</span></td>
               <td><Link className="table-open" aria-label={`Open ${hire.name}`} to={`/hire/${hire.id}`}><ArrowRight size={16} /></Link></td>
-            </tr>)}</tbody></table></div>}
+            </tr>)}</tbody></table><div className="hire-pagination"><span>Showing {Math.min((page - 1) * pageSize + 1, totalHires)}–{Math.min(page * pageSize, totalHires)} of {totalHires} hires</span><div><button className="button-secondary" aria-label="Previous hire page" disabled={page <= 1 || hiresQuery.isFetching} onClick={() => setPage(current => current - 1)}><ChevronLeft size={15} /> Previous</button><span>Page {page} of {Math.max(1, totalPages)}</span><button className="button-secondary" aria-label="Next hire page" disabled={page >= totalPages || hiresQuery.isFetching} onClick={() => setPage(current => current + 1)}><span>Next</span><ChevronRight size={15} /></button></div></div></div>}
     </section>
 
     {showWizard && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) closeWizard() }}>

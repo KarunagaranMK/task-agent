@@ -64,6 +64,18 @@ test('HR can preview and create a role-specific onboarding plan', async ({ page 
   await expect(page.getByText('This onboarding plan is closed.')).toBeVisible()
 })
 
+test('HR portfolio search and status filters are applied by the API', async ({ page }) => {
+  await signIn(page, 'HR')
+  await page.getByLabel('Search hires').fill('Priya')
+  await expect(page.getByRole('link', { name: 'Open Priya Sharma' })).toBeVisible()
+  await expect(page.locator('.subtle-count')).toHaveText('1–1 of 1')
+  await page.getByLabel('Search hires').fill('no matching hire')
+  await expect(page.getByRole('heading', { name: 'No matching hires' })).toBeVisible()
+  await page.getByLabel('Search hires').fill('')
+  await page.getByRole('button', { name: 'At risk' }).click()
+  await expect(page.getByRole('button', { name: 'At risk' })).toHaveAttribute('aria-pressed', 'true')
+})
+
 test('manager, IT, and new-hire interactions are keyboard reachable', async ({ page }) => {
   await signIn(page, 'Manager')
   await page.getByRole('link', { name: 'Approvals', exact: true }).click()

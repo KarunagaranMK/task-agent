@@ -179,3 +179,9 @@
 - **Decision:** Lay out template tasks in dependency-depth columns, let users connect tasks by selecting a prerequisite then a downstream task, and keep a task inspector for details, approval, fallback and checkbox-based prerequisite editing. Validate cycles, unknown keys and duplicate keys live before publishing.
 - **Why:** HR/Admin can understand and adjust cross-team sequencing visually while keyboard access and mobile scrolling remain practical. Invalid plans are easier to fix before they become the template for new hires.
 - **Alternative considered:** Add React Flow and dagre to enable draggable edge handles. The current plan size is modest and the repository does not have those packages, so a native SVG canvas keeps the local-first dependency footprint small and gives the editor predictable accessible controls.
+
+## 2026-11-24 — Keep the hire collection shape while adding server pagination
+
+- **Decision:** Apply hire search, status, sort, and page parameters in the API; keep the existing JSON array response and add total/page metadata as response headers. The HR portfolio reads those headers for its pager and still shares the array contract with manager dashboards.
+- **Why:** The HR page needs server-side behavior once hires outgrow one client payload, while current role views and API callers already expect `/hires` to return an array.
+- **Alternative considered:** Replace the response with an `{items, total, page}` object. That would require changing every existing role consumer and generated contract for a UI-only pagination improvement.

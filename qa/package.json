@@ -1,0 +1,14 @@
+{
+  "name": "onboardiq-qa",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "qa:shots": "playwright test --config=playwright.shots.config.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "axe-core": "^4.14.1"
+  }
+}

@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "typegen:api": "python ../scripts/generate_api_types.py"
+    "typegen:api": "python ../scripts/generate_api_types.py",
+    "qa:shots": "npm --prefix ../qa run qa:shots"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.5",

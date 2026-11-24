@@ -4,6 +4,10 @@ __pycache__/
 *.db
 *.db-shm
 *.db-wal
+backend/qa_e2e_mcp*/
+backend/.coverage*
+qa/test-results/
+qa/playwright-report/
 .venv/
 venv/
 .env

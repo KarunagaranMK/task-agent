@@ -33,6 +33,11 @@ _LOGIN_PAIR_LIMIT = 20
 _LOGIN_IP_LIMIT = 100
 _LOGIN_ACCOUNT_LIMIT = 60
 _LOGIN_ATTEMPT_COUNT = 0
+_PUBLIC_ATTEMPTS: dict[tuple[str, str], list[float]] = {}
+_PUBLIC_ATTEMPTS_LOCK = Lock()
+_PUBLIC_ATTEMPTS_WINDOW = 900
+_PUBLIC_ENDPOINT_LIMITS = {"password_forgot": 10, "password_reset": 30, "accept_invite": 30}
+_PUBLIC_ATTEMPT_COUNT = 0
 password_hasher = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=2)
 dummy_password_hash = password_hasher.hash("not-a-real-user-password")
 bearer = HTTPBearer(auto_error=False)
@@ -63,6 +68,25 @@ def _record_login_attempt(client_ip: str, email: str, now_seconds: float) -> Non
                 expired = [key for key, values in bucket.items() if not values or now_seconds - values[-1] >= _LOGIN_ATTEMPTS_WINDOW]
                 for key in expired:
                     bucket.pop(key, None)
+
+
+def _record_public_attempt(endpoint: str, client_ip: str, now_seconds: float) -> None:
+    """Bound anonymous recovery and invite traffic per endpoint and client IP."""
+    global _PUBLIC_ATTEMPT_COUNT
+    limit = _PUBLIC_ENDPOINT_LIMITS[endpoint]
+    key = (endpoint, client_ip)
+    with _PUBLIC_ATTEMPTS_LOCK:
+        recent = [stamp for stamp in _PUBLIC_ATTEMPTS.get(key, []) if now_seconds - stamp < _PUBLIC_ATTEMPTS_WINDOW]
+        if len(recent) >= limit:
+            raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
+        recent.append(now_seconds)
+        _PUBLIC_ATTEMPTS[key] = recent
+        _PUBLIC_ATTEMPT_COUNT += 1
+        if _PUBLIC_ATTEMPT_COUNT % 128 == 0:
+            expired = [bucket_key for bucket_key, values in _PUBLIC_ATTEMPTS.items()
+                       if not values or now_seconds - values[-1] >= _PUBLIC_ATTEMPTS_WINDOW]
+            for bucket_key in expired:
+                _PUBLIC_ATTEMPTS.pop(bucket_key, None)
 
 
 class LoginRequest(BaseModel):
@@ -395,7 +419,8 @@ def logout_all(
 
 
 @router.post("/password/forgot")
-def forgot_password(data: ForgotRequest, session: Session = Depends(get_session)) -> dict[str, str]:
+def forgot_password(request: Request, data: ForgotRequest, session: Session = Depends(get_session)) -> dict[str, str]:
+    _record_public_attempt("password_forgot", request.client.host if request.client else "unknown", time.time())
     user = session.exec(select(User).where(User.email == data.email.strip().lower(), User.is_active == True)).first()  # noqa: E712
     if user is not None:
         _issue_one_time_token(session, user, "password_reset")
@@ -405,7 +430,8 @@ def forgot_password(data: ForgotRequest, session: Session = Depends(get_session)
 
 
 @router.post("/password/reset")
-def reset_password(data: TokenPasswordRequest, session: Session = Depends(get_session)) -> dict[str, str]:
+def reset_password(request: Request, data: TokenPasswordRequest, session: Session = Depends(get_session)) -> dict[str, str]:
+    _record_public_attempt("password_reset", request.client.host if request.client else "unknown", time.time())
     token = session.exec(select(OneTimeToken).where(OneTimeToken.token_hash == _token_digest(data.token), OneTimeToken.purpose == "password_reset")).first()
     now = datetime.utcnow()
     if token is None or token.used_at is not None or token.expires_at <= now:
@@ -442,7 +468,8 @@ def change_password(data: PasswordChange, user: User = Depends(get_current_user)
 
 
 @router.post("/accept-invite")
-def accept_invite(data: TokenPasswordRequest, session: Session = Depends(get_session)) -> dict[str, str]:
+def accept_invite(request: Request, data: TokenPasswordRequest, session: Session = Depends(get_session)) -> dict[str, str]:
+    _record_public_attempt("accept_invite", request.client.host if request.client else "unknown", time.time())
     token = session.exec(select(OneTimeToken).where(OneTimeToken.token_hash == _token_digest(data.token), OneTimeToken.purpose == "invite")).first()
     now = datetime.utcnow()
     if token is None or token.used_at is not None or token.expires_at <= now:

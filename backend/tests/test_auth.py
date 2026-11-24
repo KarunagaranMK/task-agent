@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from sqlmodel import select
 from uuid import uuid4
 
-from app.auth import get_current_user, hash_password, _record_login_attempt, _LOGIN_IP_LIMIT, _LOGIN_ACCOUNT_LIMIT
+from app.auth import get_current_user, hash_password, _record_login_attempt, _record_public_attempt, _LOGIN_IP_LIMIT, _LOGIN_ACCOUNT_LIMIT
 from app.domain.models import MailOutbox, RefreshToken, SecurityAudit, User
 
 
@@ -67,6 +67,19 @@ def test_login_attempt_limits_are_aggregated_by_ip_and_account():
     with pytest.raises(HTTPException) as account_limited:
         _record_login_attempt(f"another-ip-{uuid4()}", account, 2_200)
     assert account_limited.value.status_code == 429
+
+
+def test_public_auth_routes_have_independent_ip_limits():
+    from app.auth import _PUBLIC_ENDPOINT_LIMITS
+
+    ip = f"public-rate-test-{uuid4()}"
+    for index in range(_PUBLIC_ENDPOINT_LIMITS["password_forgot"]):
+        _record_public_attempt("password_forgot", ip, 3_000 + index)
+    with pytest.raises(HTTPException) as limited:
+        _record_public_attempt("password_forgot", ip, 3_100)
+    assert limited.value.status_code == 429
+    # A separate endpoint has its own allowance for the same IP.
+    _record_public_attempt("password_reset", ip, 3_100)
 
 
 def test_password_change_requires_current_password_and_revokes_sessions(anonymous_client, session):

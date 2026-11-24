@@ -196,4 +196,10 @@
 
 - **Decision:** Keep the 20-per-15-minute IP/email-pair bucket, add a 60-per-account bucket and a 100-per-IP bucket, and retain the five-failure account lockout. Guard the rolling windows with a thread lock and periodically prune expired entries.
 - **Why:** Pair-only throttling lets a client evade the limit by changing email addresses; account-only throttling lets a client evade it by rotating source IPs. Separate scopes close both gaps for the single-process local app.
-- **Alternative considered:** Add a distributed rate-limit store or middleware for every route. That adds infrastructure beyond the local-first MVP; password recovery and other public endpoints remain a separate rate-limit gap.
+- **Alternative considered:** Add a distributed rate-limit store or middleware for every route. That adds infrastructure beyond the local-first MVP; this increment protects authentication and recovery endpoints in the single-process local app.
+
+## 2026-11-24 — Bound public recovery endpoints by client IP
+
+- **Decision:** Limit password recovery requests to 10 per client IP per 15 minutes, and reset-token submission and invite acceptance to 30 each per client IP per 15 minutes. Keep independent endpoint buckets and a generic 429 response.
+- **Why:** Recovery links trigger costly password hashing and mail-outbox writes, while reset and invitation endpoints accept anonymous tokens. Per-endpoint IP limits slow abuse without adding infrastructure or changing generic account-enumeration behavior.
+- **Alternative considered:** Use one shared limit across all anonymous endpoints. Independent buckets prevent password recovery traffic from consuming the reset or invite allowance; a distributed store can be added if the app later runs multiple workers.

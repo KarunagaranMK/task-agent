@@ -1,9 +1,13 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from pathlib import Path
 import os
+from uuid import uuid4
 from contextlib import asynccontextmanager
 from app.api import hires, tasks, sim
 from app.api import events
@@ -38,17 +42,64 @@ app.add_middleware(
 )
 
 for api_router in (hires.router, tasks.router, sim.router, me.router, admin.router, auth.users_router, auth.mail_router):
-    app.include_router(api_router, dependencies=[Depends(auth.get_current_user)])
-    app.include_router(api_router, prefix="/api", dependencies=[Depends(auth.get_current_user)])
+    for prefix in ("", "/api", "/api/v1"):
+        app.include_router(api_router, prefix=prefix, dependencies=[Depends(auth.get_current_user)])
 # The ticket endpoint authenticates itself with a JWT. The stream endpoint must
 # accept the single-use ticket because native EventSource cannot send headers.
-app.include_router(events.router)
-app.include_router(events.router, prefix="/api")
-app.include_router(auth.router)
-app.include_router(auth.router, prefix="/api")
+for prefix in ("", "/api", "/api/v1"):
+    app.include_router(events.router, prefix=prefix)
+    app.include_router(auth.router, prefix=prefix)
+
+
+@app.middleware("http")
+async def add_request_context(request: Request, call_next):
+    request.state.request_id = str(uuid4())
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request.state.request_id
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    return response
+
+
+@app.exception_handler(StarletteHTTPException)
+async def problem_http_exception(request: Request, exc: StarletteHTTPException):
+    message = exc.detail if isinstance(exc.detail, str) else "Request could not be completed"
+    body = {
+        "type": "about:blank",
+        "title": "Request failed",
+        "status": exc.status_code,
+        "code": f"http_{exc.status_code}",
+        "message": message,
+        "detail": exc.detail,
+        "field_errors": [],
+        "request_id": getattr(request.state, "request_id", None),
+    }
+    return JSONResponse(body, status_code=exc.status_code, headers=exc.headers, media_type="application/problem+json")
+
+
+@app.exception_handler(RequestValidationError)
+async def problem_validation_exception(request: Request, exc: RequestValidationError):
+    field_errors = [
+        {"field": ".".join(str(part) for part in error["loc"][1:]), "message": error["msg"]}
+        for error in exc.errors()
+    ]
+    body = {
+        "type": "about:blank",
+        "title": "Request validation failed",
+        "status": 422,
+        "code": "validation_error",
+        "message": "Some request fields are invalid.",
+        "detail": "Request validation failed",
+        "field_errors": field_errors,
+        "request_id": getattr(request.state, "request_id", None),
+    }
+    return JSONResponse(body, status_code=422, media_type="application/problem+json")
 
 @app.get("/health")
 @app.get("/api/health")
+@app.get("/api/v1/health")
 def health():
     return {"status": "ok", "service": "onboarding-orchestrator"}
 

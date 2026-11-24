@@ -2,6 +2,15 @@ def test_health(client):
     r = client.get("/health")
     assert r.status_code == 200
     assert r.json()["status"] == "ok"
+    assert r.headers["X-Content-Type-Options"] == "nosniff"
+    assert r.headers["X-Frame-Options"] == "DENY"
+    assert r.headers["X-Request-ID"]
+
+
+def test_versioned_api_health(client):
+    response = client.get("/api/v1/health")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
 
 
 def test_create_hire(client):
@@ -66,9 +75,87 @@ def test_get_hire_tasks(client):
     assert len(tasks) >= 8  # Data Analyst has 10 tasks
 
 
+def test_hire_tasks_include_live_schedule_positions(client):
+    hire = client.post(
+        "/hires",
+        json={"name": "Schedule QA", "role": "Data Analyst", "department": "Analytics", "start_day": 8},
+    ).json()
+    response = client.get(f"/hires/{hire['id']}/tasks")
+    assert response.status_code == 200
+    tasks = {task["key"]: task for task in response.json()}
+    laptop = tasks["it:laptop"]
+    assert laptop["current_day"] == 0
+    assert laptop["remaining_days"] == 5
+    assert laptop["schedule_start_day"] == 0
+    assert laptop["schedule_finish_day"] == 5
+    assert tasks["it:accounts"]["schedule_start_day"] == 0
+    assert tasks["it:vpn"]["schedule_start_day"] == 1
+
+
+def test_hire_lifecycle_pause_resume_cancel(client):
+    hire = client.post(
+        "/hires",
+        json={"name": "Lifecycle QA", "role": "default", "department": "Ops", "start_day": 8},
+    ).json()
+    hire_id = hire["id"]
+    assert client.post("/monitor/tick").status_code == 200
+    active_before_pause = client.get(f"/hires/{hire_id}/tasks").json()
+    ticket_ids = [task["ticket_id"] for task in active_before_pause if task["ticket_id"]]
+    assert ticket_ids
+
+    paused = client.post(f"/hires/{hire_id}/pause")
+    assert paused.status_code == 200
+    assert client.get(f"/hires/{hire_id}").json()["status"] == "paused"
+    paused_tasks = client.get(f"/hires/{hire_id}/tasks").json()
+    assert {task["status"] for task in paused_tasks} == {"paused"}
+    assert all(task["status"] == "cancelled" for task in client.get("/tickets").json() if task["ticket_id"] in ticket_ids)
+
+    assert client.post("/monitor/tick").status_code == 200
+    assert {task["status"] for task in client.get(f"/hires/{hire_id}/tasks").json()} == {"paused"}
+
+    resumed = client.post(f"/hires/{hire_id}/resume")
+    assert resumed.status_code == 200
+    assert client.get(f"/hires/{hire_id}").json()["status"] == "on_track"
+    assert {task["status"] for task in client.get(f"/hires/{hire_id}/tasks").json()} <= {"pending", "awaiting_approval", "dispatched"}
+
+    cancelled = client.post(f"/hires/{hire_id}/cancel")
+    assert cancelled.status_code == 200
+    assert client.get(f"/hires/{hire_id}").json()["status"] == "cancelled"
+    assert {task["status"] for task in client.get(f"/hires/{hire_id}/tasks").json()} == {"cancelled"}
+    assert client.post(f"/hires/{hire_id}/resume").status_code == 409
+
+
+def test_only_hr_and_admin_can_change_hire_lifecycle(client):
+    from app.auth import get_current_user
+    from app.domain.models import User
+    from app.main import app
+
+    hire = client.post(
+        "/hires",
+        json={"name": "Role Guard QA", "role": "default", "department": "Ops", "start_day": 8},
+    ).json()
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id=2, email="manager@example.local", name="Manager", role="MANAGER", password_hash="unused"
+    )
+    for action in ("pause", "resume", "cancel"):
+        response = client.post(f"/hires/{hire['id']}/{action}")
+        assert response.status_code == 403
+
+
 def test_hire_not_found(client):
     r = client.get("/hires/9999")
     assert r.status_code == 404
+    assert r.headers["content-type"].startswith("application/problem+json")
+    assert r.json()["code"] == "http_404"
+    assert r.json()["request_id"]
+
+
+def test_validation_errors_use_problem_details(client):
+    response = client.post("/hires", json={"name": "", "role": "", "department": ""})
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/problem+json")
+    assert response.json()["code"] == "validation_error"
+    assert response.json()["field_errors"]
 
 
 def test_sim_advance(client):

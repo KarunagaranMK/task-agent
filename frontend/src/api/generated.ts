@@ -10,9 +10,12 @@ export interface components {
     "IssueRequest": { "message": string; }
     "LoginOut": { "access_token": string; "token_type"?: string; "user": components['schemas']["UserOut"]; }
     "LoginRequest": { "email": string; "password": string; }
+    "PasswordChange": { "current_password": string; "new_password": string; }
     "PlanPreviewRequest": { "role": string; }
+    "PreferenceUpdate": { "in_app"?: boolean; "email"?: boolean; }
+    "ProfileUpdate": { "name": string; }
     "SettingsUpdate": { "stall_after_days": number; "near_critical_margin": number; "monitor_interval_minutes": number; "auto_worker_enabled"?: boolean; "timezone"?: string; }
-    "TaskOut": { "id": number; "key": string; "title": string; "team": string; "duration_days": number; "depends_on": Array<string>; "needs_approval": boolean; "approval_state": string; "status": string; "ticket_id": (string) | (null); "slack": (number) | (null); "critical": boolean; "flag": string; }
+    "TaskOut": { "id": number; "key": string; "title": string; "team": string; "duration_days": number; "depends_on": Array<string>; "needs_approval": boolean; "approval_state": string; "status": string; "ticket_id": (string) | (null); "slack": (number) | (null); "critical": boolean; "flag": string; "dispatched_day"?: (number) | (null); "remaining_days": number; "schedule_start_day"?: (number) | (null); "schedule_finish_day"?: (number) | (null); "current_day": number; }
     "TemplateSave": { "role_key": string; "tasks": Array<{ [key: string]: unknown; }>; }
     "TicketCommentRequest": { "body": string; }
     "TokenPasswordRequest": { "token": string; "password": string; }
@@ -90,6 +93,54 @@ export interface paths {
       responses: {
         "200": {
           content: { "application/json": Array<components['schemas']["TaskOut"]>; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/hires/{hire_id}/pause": {
+    post: {
+      operationId: "pause_hire_hires__hire_id__pause_post"
+      parameters: {
+        path: { "hire_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/hires/{hire_id}/resume": {
+    post: {
+      operationId: "resume_hire_hires__hire_id__resume_post"
+      parameters: {
+        path: { "hire_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/hires/{hire_id}/cancel": {
+    post: {
+      operationId: "cancel_hire_hires__hire_id__cancel_post"
+      parameters: {
+        path: { "hire_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
         }
         "422": {
           content: { "application/json": components['schemas']["HTTPValidationError"]; }
@@ -223,6 +274,54 @@ export interface paths {
       }
     }
   }
+  "/api/hires/{hire_id}/pause": {
+    post: {
+      operationId: "pause_hire_api_hires__hire_id__pause_post"
+      parameters: {
+        path: { "hire_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/hires/{hire_id}/resume": {
+    post: {
+      operationId: "resume_hire_api_hires__hire_id__resume_post"
+      parameters: {
+        path: { "hire_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/hires/{hire_id}/cancel": {
+    post: {
+      operationId: "cancel_hire_api_hires__hire_id__cancel_post"
+      parameters: {
+        path: { "hire_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
   "/api/hires/{hire_id}/audit": {
     get: {
       operationId: "get_hire_audit_api_hires__hire_id__audit_get"
@@ -262,6 +361,180 @@ export interface paths {
   "/api/hires/{hire_id}/explain": {
     get: {
       operationId: "explain_risk_api_hires__hire_id__explain_get"
+      parameters: {
+        path: { "hire_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/hires/plan-preview": {
+    post: {
+      operationId: "plan_preview_api_v1_hires_plan_preview_post"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["PlanPreviewRequest"]; }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/hires": {
+    get: {
+      operationId: "list_hires_api_v1_hires_get"
+      responses: {
+        "200": {
+          content: { "application/json": Array<components['schemas']["HireOut"]>; }
+        }
+      }
+    }
+    post: {
+      operationId: "create_hire_api_v1_hires_post"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["HireCreate"]; }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": components['schemas']["HireOut"]; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/hires/{hire_id}": {
+    get: {
+      operationId: "get_hire_api_v1_hires__hire_id__get"
+      parameters: {
+        path: { "hire_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": components['schemas']["HireOut"]; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/hires/{hire_id}/tasks": {
+    get: {
+      operationId: "get_hire_tasks_api_v1_hires__hire_id__tasks_get"
+      parameters: {
+        path: { "hire_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": Array<components['schemas']["TaskOut"]>; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/hires/{hire_id}/pause": {
+    post: {
+      operationId: "pause_hire_api_v1_hires__hire_id__pause_post"
+      parameters: {
+        path: { "hire_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/hires/{hire_id}/resume": {
+    post: {
+      operationId: "resume_hire_api_v1_hires__hire_id__resume_post"
+      parameters: {
+        path: { "hire_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/hires/{hire_id}/cancel": {
+    post: {
+      operationId: "cancel_hire_api_v1_hires__hire_id__cancel_post"
+      parameters: {
+        path: { "hire_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/hires/{hire_id}/audit": {
+    get: {
+      operationId: "get_hire_audit_api_v1_hires__hire_id__audit_get"
+      parameters: {
+        path: { "hire_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/hires/{hire_id}/what-if": {
+    post: {
+      operationId: "what_if_api_v1_hires__hire_id__what_if_post"
+      parameters: {
+        path: { "hire_id": number }
+      }
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["WhatIfRequest"]; }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/hires/{hire_id}/explain": {
+    get: {
+      operationId: "explain_risk_api_v1_hires__hire_id__explain_get"
       parameters: {
         path: { "hire_id": number }
       }
@@ -587,6 +860,162 @@ export interface paths {
       }
     }
   }
+  "/api/v1/tasks/{task_id}/approve": {
+    post: {
+      operationId: "approve_task_api_v1_tasks__task_id__approve_post"
+      parameters: {
+        path: { "task_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/tasks/{task_id}/reject": {
+    post: {
+      operationId: "reject_task_api_v1_tasks__task_id__reject_post"
+      parameters: {
+        path: { "task_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/tasks/{task_id}/undo-approval": {
+    post: {
+      operationId: "undo_approval_api_v1_tasks__task_id__undo_approval_post"
+      parameters: {
+        path: { "task_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/tickets": {
+    get: {
+      operationId: "list_tickets_api_v1_tickets_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/api/v1/tickets/{ticket_id}/complete": {
+    post: {
+      operationId: "complete_ticket_api_v1_tickets__ticket_id__complete_post"
+      parameters: {
+        path: { "ticket_id": string }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/tickets/{ticket_id}/start": {
+    post: {
+      operationId: "start_ticket_api_v1_tickets__ticket_id__start_post"
+      parameters: {
+        path: { "ticket_id": string }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/tickets/{ticket_id}/block": {
+    post: {
+      operationId: "block_ticket_api_v1_tickets__ticket_id__block_post"
+      parameters: {
+        path: { "ticket_id": string }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/tickets/{ticket_id}/comments": {
+    get: {
+      operationId: "list_ticket_comments_api_v1_tickets__ticket_id__comments_get"
+      parameters: {
+        path: { "ticket_id": string }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+    post: {
+      operationId: "add_ticket_comment_api_v1_tickets__ticket_id__comments_post"
+      parameters: {
+        path: { "ticket_id": string }
+      }
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["TicketCommentRequest"]; }
+      }
+      responses: {
+        "201": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/tickets/{ticket_id}/stall": {
+    post: {
+      operationId: "stall_ticket_api_v1_tickets__ticket_id__stall_post"
+      parameters: {
+        path: { "ticket_id": string }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
   "/sim/advance": {
     post: {
       operationId: "sim_advance_sim_advance_post"
@@ -819,6 +1248,122 @@ export interface paths {
       }
     }
   }
+  "/api/v1/sim/advance": {
+    post: {
+      operationId: "sim_advance_api_v1_sim_advance_post"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/api/v1/monitor/tick": {
+    post: {
+      operationId: "manual_tick_api_v1_monitor_tick_post"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/api/v1/chaos/itsm": {
+    post: {
+      operationId: "toggle_itsm_api_v1_chaos_itsm_post"
+      parameters: {
+        query: { "offline": boolean }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/experiments/run": {
+    post: {
+      operationId: "run_exp_api_v1_experiments_run_post"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["ExperimentRequest"]; }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/metrics": {
+    get: {
+      operationId: "get_metrics_api_v1_metrics_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/api/v1/notifications": {
+    get: {
+      operationId: "get_notifications_api_v1_notifications_get"
+      parameters: {
+        query: { "role"?: (string) | (null) }
+        __optional: true
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/notifications/{nid}/read": {
+    post: {
+      operationId: "mark_read_api_v1_notifications__nid__read_post"
+      parameters: {
+        path: { "nid": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/notifications/read-all": {
+    post: {
+      operationId: "mark_all_read_api_v1_notifications_read_all_post"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/api/v1/reset": {
+    post: {
+      operationId: "reset_all_api_v1_reset_post"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
   "/me/onboarding": {
     get: {
       operationId: "my_onboarding_me_onboarding_get"
@@ -859,6 +1404,33 @@ export interface paths {
   "/api/me/issues": {
     post: {
       operationId: "report_issue_api_me_issues_post"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["IssueRequest"]; }
+      }
+      responses: {
+        "201": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/me/onboarding": {
+    get: {
+      operationId: "my_onboarding_api_v1_me_onboarding_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/api/v1/me/issues": {
+    post: {
+      operationId: "report_issue_api_v1_me_issues_post"
       requestBody: {
         required: true
         content: { "application/json": components['schemas']["IssueRequest"]; }
@@ -1073,6 +1645,106 @@ export interface paths {
       }
     }
   }
+  "/api/v1/templates": {
+    get: {
+      operationId: "list_templates_api_v1_templates_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+    post: {
+      operationId: "publish_template_api_v1_templates_post"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["TemplateSave"]; }
+      }
+      responses: {
+        "201": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/settings": {
+    get: {
+      operationId: "get_settings_api_v1_settings_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+    put: {
+      operationId: "update_settings_api_v1_settings_put"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["SettingsUpdate"]; }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/audit": {
+    get: {
+      operationId: "get_audit_api_v1_audit_get"
+      parameters: {
+        query: { "limit"?: number; "search"?: string }
+        __optional: true
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/experiments": {
+    get: {
+      operationId: "experiment_history_api_v1_experiments_get"
+      parameters: {
+        query: { "limit"?: number }
+        __optional: true
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/admin/clock": {
+    post: {
+      operationId: "set_demo_clock_api_v1_admin_clock_post"
+      parameters: {
+        query: { "day": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
   "/users": {
     get: {
       operationId: "list_users_users_get"
@@ -1215,6 +1887,77 @@ export interface paths {
       }
     }
   }
+  "/api/v1/users": {
+    get: {
+      operationId: "list_users_api_v1_users_get"
+      responses: {
+        "200": {
+          content: { "application/json": Array<components['schemas']["UserOut"]>; }
+        }
+      }
+    }
+  }
+  "/api/v1/users/managers": {
+    get: {
+      operationId: "list_managers_api_v1_users_managers_get"
+      responses: {
+        "200": {
+          content: { "application/json": Array<components['schemas']["UserOut"]>; }
+        }
+      }
+    }
+  }
+  "/api/v1/users/invite": {
+    post: {
+      operationId: "invite_user_api_v1_users_invite_post"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["InviteRequest"]; }
+      }
+      responses: {
+        "201": {
+          content: { "application/json": components['schemas']["UserOut"]; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/users/{user_id}": {
+    patch: {
+      operationId: "update_user_api_v1_users__user_id__patch"
+      parameters: {
+        path: { "user_id": number }
+      }
+      requestBody: {
+        required: true
+        content: { "application/json": { [key: string]: unknown; }; }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": components['schemas']["UserOut"]; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+    delete: {
+      operationId: "deactivate_user_api_v1_users__user_id__delete"
+      parameters: {
+        path: { "user_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": components['schemas']["UserOut"]; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
   "/dev/mail": {
     get: {
       operationId: "get_dev_mail_dev_mail_get"
@@ -1235,6 +1978,16 @@ export interface paths {
       }
     }
   }
+  "/api/v1/dev/mail": {
+    get: {
+      operationId: "get_dev_mail_api_v1_dev_mail_get"
+      responses: {
+        "200": {
+          content: { "application/json": Array<{ [key: string]: (string) | (number); }>; }
+        }
+      }
+    }
+  }
   "/events/ticket": {
     post: {
       operationId: "create_stream_ticket_events_ticket_post"
@@ -1248,33 +2001,6 @@ export interface paths {
   "/events/stream": {
     get: {
       operationId: "event_stream_events_stream_get"
-      parameters: {
-        query: { "ticket": string; "max_events"?: number }
-        __optional: true
-      }
-      responses: {
-        "200": {
-          content: { "application/json": unknown; }
-        }
-        "422": {
-          content: { "application/json": components['schemas']["HTTPValidationError"]; }
-        }
-      }
-    }
-  }
-  "/api/events/ticket": {
-    post: {
-      operationId: "create_stream_ticket_api_events_ticket_post"
-      responses: {
-        "200": {
-          content: { "application/json": { [key: string]: (string) | (number); }; }
-        }
-      }
-    }
-  }
-  "/api/events/stream": {
-    get: {
-      operationId: "event_stream_api_events_stream_get"
       parameters: {
         query: { "ticket": string; "max_events"?: number }
         __optional: true
@@ -1312,6 +2038,48 @@ export interface paths {
       responses: {
         "200": {
           content: { "application/json": components['schemas']["UserOut"]; }
+        }
+      }
+    }
+  }
+  "/auth/profile": {
+    put: {
+      operationId: "update_profile_auth_profile_put"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["ProfileUpdate"]; }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": components['schemas']["UserOut"]; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/auth/preferences": {
+    get: {
+      operationId: "get_preferences_auth_preferences_get"
+      responses: {
+        "200": {
+          content: { "application/json": { [key: string]: boolean; }; }
+        }
+      }
+    }
+    put: {
+      operationId: "update_preferences_auth_preferences_put"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["PreferenceUpdate"]; }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": { [key: string]: boolean; }; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
         }
       }
     }
@@ -1406,7 +2174,7 @@ export interface paths {
       operationId: "change_password_auth_password_change_post"
       requestBody: {
         required: true
-        content: { "application/json": { [key: string]: unknown; }; }
+        content: { "application/json": components['schemas']["PasswordChange"]; }
       }
       responses: {
         "200": {
@@ -1428,6 +2196,33 @@ export interface paths {
       responses: {
         "200": {
           content: { "application/json": { [key: string]: string; }; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/events/ticket": {
+    post: {
+      operationId: "create_stream_ticket_api_events_ticket_post"
+      responses: {
+        "200": {
+          content: { "application/json": { [key: string]: (string) | (number); }; }
+        }
+      }
+    }
+  }
+  "/api/events/stream": {
+    get: {
+      operationId: "event_stream_api_events_stream_get"
+      parameters: {
+        query: { "ticket": string; "max_events"?: number }
+        __optional: true
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
         }
         "422": {
           content: { "application/json": components['schemas']["HTTPValidationError"]; }
@@ -1458,6 +2253,48 @@ export interface paths {
       responses: {
         "200": {
           content: { "application/json": components['schemas']["UserOut"]; }
+        }
+      }
+    }
+  }
+  "/api/auth/profile": {
+    put: {
+      operationId: "update_profile_api_auth_profile_put"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["ProfileUpdate"]; }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": components['schemas']["UserOut"]; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/auth/preferences": {
+    get: {
+      operationId: "get_preferences_api_auth_preferences_get"
+      responses: {
+        "200": {
+          content: { "application/json": { [key: string]: boolean; }; }
+        }
+      }
+    }
+    put: {
+      operationId: "update_preferences_api_auth_preferences_put"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["PreferenceUpdate"]; }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": { [key: string]: boolean; }; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
         }
       }
     }
@@ -1552,7 +2389,7 @@ export interface paths {
       operationId: "change_password_api_auth_password_change_post"
       requestBody: {
         required: true
-        content: { "application/json": { [key: string]: unknown; }; }
+        content: { "application/json": components['schemas']["PasswordChange"]; }
       }
       responses: {
         "200": {
@@ -1577,6 +2414,231 @@ export interface paths {
         }
         "422": {
           content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/events/ticket": {
+    post: {
+      operationId: "create_stream_ticket_api_v1_events_ticket_post"
+      responses: {
+        "200": {
+          content: { "application/json": { [key: string]: (string) | (number); }; }
+        }
+      }
+    }
+  }
+  "/api/v1/events/stream": {
+    get: {
+      operationId: "event_stream_api_v1_events_stream_get"
+      parameters: {
+        query: { "ticket": string; "max_events"?: number }
+        __optional: true
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/auth/login": {
+    post: {
+      operationId: "login_api_v1_auth_login_post"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["LoginRequest"]; }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": components['schemas']["LoginOut"]; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/auth/me": {
+    get: {
+      operationId: "me_api_v1_auth_me_get"
+      responses: {
+        "200": {
+          content: { "application/json": components['schemas']["UserOut"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/auth/profile": {
+    put: {
+      operationId: "update_profile_api_v1_auth_profile_put"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["ProfileUpdate"]; }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": components['schemas']["UserOut"]; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/auth/preferences": {
+    get: {
+      operationId: "get_preferences_api_v1_auth_preferences_get"
+      responses: {
+        "200": {
+          content: { "application/json": { [key: string]: boolean; }; }
+        }
+      }
+    }
+    put: {
+      operationId: "update_preferences_api_v1_auth_preferences_put"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["PreferenceUpdate"]; }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": { [key: string]: boolean; }; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/auth/refresh": {
+    post: {
+      operationId: "refresh_api_v1_auth_refresh_post"
+      parameters: {
+        header: { "x-csrf-token"?: (string) | (null) }
+        __optional: true
+      }
+      responses: {
+        "200": {
+          content: { "application/json": components['schemas']["LoginOut"]; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/auth/logout": {
+    post: {
+      operationId: "logout_api_v1_auth_logout_post"
+      parameters: {
+        header: { "x-csrf-token"?: (string) | (null) }
+        __optional: true
+      }
+      responses: {
+        "200": {
+          content: { "application/json": { [key: string]: string; }; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/auth/logout-all": {
+    post: {
+      operationId: "logout_all_api_v1_auth_logout_all_post"
+      parameters: {
+        header: { "x-csrf-token"?: (string) | (null) }
+        __optional: true
+      }
+      responses: {
+        "200": {
+          content: { "application/json": { [key: string]: string; }; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/auth/password/forgot": {
+    post: {
+      operationId: "forgot_password_api_v1_auth_password_forgot_post"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["ForgotRequest"]; }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": { [key: string]: string; }; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/auth/password/reset": {
+    post: {
+      operationId: "reset_password_api_v1_auth_password_reset_post"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["TokenPasswordRequest"]; }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": { [key: string]: string; }; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/auth/password/change": {
+    post: {
+      operationId: "change_password_api_v1_auth_password_change_post"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["PasswordChange"]; }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": { [key: string]: string; }; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/auth/accept-invite": {
+    post: {
+      operationId: "accept_invite_api_v1_auth_accept_invite_post"
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["TokenPasswordRequest"]; }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": { [key: string]: string; }; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/health": {
+    get: {
+      operationId: "health_api_v1_health_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
         }
       }
     }

@@ -34,7 +34,10 @@ def test_login_has_generic_error(anonymous_client, session):
     known = anonymous_client.post("/auth/login", json={"email": "person@example.local", "password": "bad"})
     unknown = anonymous_client.post("/auth/login", json={"email": "missing@example.local", "password": "bad"})
     assert known.status_code == unknown.status_code == 401
-    assert known.json() == unknown.json()
+    known_body = {key: value for key, value in known.json().items() if key != "request_id"}
+    unknown_body = {key: value for key, value in unknown.json().items() if key != "request_id"}
+    assert known_body == unknown_body
+    assert known.json()["request_id"] != unknown.json()["request_id"]
 
 
 def test_login_lockout_after_five_failures(anonymous_client, session):

@@ -1,6 +1,6 @@
 # Cross-Team Employee Onboarding Orchestrator
 
-> **CAT2-029** · MVP Demo-Ready · November 2026
+> **CAT2-029** · Local onboarding orchestration demo · November 2026
 
 A multi-agent AI system that orchestrates cross-team (IT, HR, Facilities) employee onboarding with **critical-path scheduling**, **automatic stall detection**, **self-healing fallbacks**, and a governance layer — all vendor-neutral via MCP tools.
 
@@ -129,7 +129,7 @@ See [`docs/DEMO.md`](docs/DEMO.md) for the step-by-step Priya Sharma demo.
 
 ## 📸 Screenshots
 
-The full responsive matrix (role routes at 390/768/1440 px, light and dark) is in [`docs/screenshots/`](docs/screenshots/).
+The responsive matrix (all role routes at 390/768/1440 px, light and dark, plus the hire Graph and Schedule views) contains **198 screenshots** in [`docs/screenshots/`](docs/screenshots/).
 
 ![OnboardIQ overview at desktop width](docs/screenshots/admin-overview-1440-light.png)
 

@@ -9,6 +9,8 @@ class HireStatus(str, Enum):
     on_track = "on_track"
     at_risk = "at_risk"
     ready = "ready"
+    paused = "paused"
+    cancelled = "cancelled"
 
 
 class TaskStatus(str, Enum):
@@ -18,6 +20,8 @@ class TaskStatus(str, Enum):
     dispatched = "dispatched"
     done = "done"
     blocked = "blocked"
+    paused = "paused"
+    cancelled = "cancelled"
 
 
 class TaskTeam(str, Enum):

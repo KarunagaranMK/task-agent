@@ -43,6 +43,17 @@ test('HR can preview and create a role-specific onboarding plan', async ({ page 
   await expect(page.getByRole('heading', { name: 'Review and create' })).toBeVisible()
   await page.getByRole('button', { name: /Create onboarding plan/ }).click()
   await expect(page.getByText('QA Example')).toBeVisible()
+  await page.getByRole('link', { name: 'Open QA Example' }).click()
+  await page.getByRole('button', { name: 'Pause' }).click()
+  await expect(page.locator('.hire-hero .status-pill')).toHaveText(/Paused/i)
+  await page.getByRole('button', { name: 'Resume' }).click()
+  await expect(page.locator('.hire-hero .status-pill')).toHaveText(/On track/i)
+  await page.getByRole('button', { name: 'Cancel plan' }).click()
+  const cancelDialog = page.getByRole('dialog', { name: /Cancel QA Example’s onboarding/ })
+  await expect(cancelDialog.getByRole('button', { name: 'Cancel onboarding' })).toBeDisabled()
+  await cancelDialog.getByLabel('Type QA Example to confirm').fill('QA Example')
+  await cancelDialog.getByRole('button', { name: 'Cancel onboarding' }).click()
+  await expect(page.locator('.hire-hero .status-pill')).toHaveText(/Cancelled/i)
 })
 
 test('manager, IT, and new-hire interactions are keyboard reachable', async ({ page }) => {
@@ -155,7 +166,7 @@ test('Priya demo recovers from a stalled laptop and ITSM outage through her new-
   await page.locator('.demo-drawer-head').getByRole('button', { name: 'Close demo controls' }).click()
   await expect(page.locator('a.hire-name-link').filter({ hasText: 'Priya Sharma' })).toBeVisible()
   await page.locator('a.hire-name-link').filter({ hasText: 'Priya Sharma' }).click()
-  await expect(page.locator('.font-medium.text-sm.truncate').filter({ hasText: 'Issue Loaner Laptop' })).toBeVisible()
+  await expect(page.locator('.next-action-list article').filter({ hasText: 'Issue Loaner Laptop' })).toBeVisible()
 
   // An outage queues downstream work. Recovery drains it using the stable task idempotency keys.
   await page.getByRole('button', { name: 'Open demo controls' }).click()
@@ -205,7 +216,7 @@ test('Priya demo recovers from a stalled laptop and ITSM outage through her new-
   const readyResponse = page.waitForResponse(response => response.url().endsWith('/hires/1') && response.request().method() === 'GET')
   await page.locator('a.hire-name-link').filter({ hasText: 'Priya Sharma' }).click()
   expect(await (await readyResponse).json()).toMatchObject({ status: 'ready', readiness: 100 })
-  await expect(page.getByText('READY', { exact: true })).toBeVisible({ timeout: 30_000 })
+  await expect(page.locator('.hire-hero .status-pill')).toHaveText(/Ready/i, { timeout: 30_000 })
 
   await page.getByRole('button', { name: 'Sign out' }).click()
   await signIn(page, 'New hire')
@@ -228,6 +239,15 @@ test('primary role pages have no serious or critical axe findings', async ({ pag
       return result.violations.filter(item => item.impact === 'serious' || item.impact === 'critical').map(item => `${item.impact}:${item.id} ${item.nodes.map(node => `${node.target.join(',')} ${node.failureSummary ?? ''} ${node.html}`).join(';')}`)
     })
     findings.push(...serious.map(item => `${path} ${item}`))
+    if (path === '/hire/1') {
+      await page.getByRole('button', { name: 'Graph' }).click()
+      await expect(page.getByRole('heading', { name: 'How the work connects' })).toBeVisible()
+      await page.locator('.graph-node.is-critical').first().click()
+      await expect(page.getByRole('dialog', { name: 'Task details' })).toBeVisible()
+      await page.getByRole('button', { name: 'Close task details' }).click()
+      await page.getByRole('button', { name: 'Schedule', exact: true }).click()
+      await expect(page.getByRole('img', { name: /Task schedule from day 0/ })).toBeVisible()
+    }
   }
   expect(findings).toEqual([])
 })

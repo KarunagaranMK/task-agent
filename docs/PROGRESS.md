@@ -298,16 +298,48 @@ This file records verified state against the phases in the product brief. A gate
 
 ### Done
 
-- Updated README quickstart, demo-account details, commands, and populated screenshot examples; the full 162-image responsive matrix is in `docs/screenshots/`.
+- Updated README quickstart, demo-account details, commands, and populated screenshot examples; P10 originally captured 162 images before the hire schedule/graph views were added.
 - Standardized the review brief to the requested six sections and recorded P7/P8 implementation decisions.
 - Rewrote outdated prototype sections to describe current role workspaces, generated API contracts, test tools, and local-service limitations.
 
 ### Known gaps
 
-- A clean clone was not created in a separate checkout; first-run behavior was validated with isolated browser databases and a fresh app startup.
+- A separate clean clone was not created. Isolated browser starts exercise migrations and seeding, but do not fully satisfy the clean-clone release gate.
 
 ### Gate and commit
 
 - Fresh isolated Playwright startup ran normal migrations and seeding on a unique SQLite database/MCP store; `python run.py --test` also completed successfully. No external production services are needed for the demo.
-- **P10 gate: passed.** Local clean-start path, demo workflow, documentation and responsive screenshots are verified.
+- **P10 gate: partially verified.** Local start, demo workflow, documentation, and the original responsive screenshots were verified; the clean-clone acceptance condition remains open.
 - Release risks and production gaps are called out in `docs/SECURITY.md`: mock external services, local mail delivery, and absence of production load/security certification.
+
+## P11 — Product brief audit follow-up
+
+### Done
+
+- Added a live remaining-work schedule with critical path, Day 1 marker, today marker, zoom, task inspection, and keyboard-accessible scrolling.
+- Added a selectable dependency graph with upstream/downstream highlighting, status/critical/stalled styling, zoom, fit view, and task details.
+- Added HR/Admin pause, resume, and typed-confirmation cancel actions. Pause/cancel reconcile mock ITSM tickets, preserve completed work, audit the action, and let partial failures be retried.
+- Added `/api/v1` aliases, Problem Details responses, request IDs, baseline security headers, and frontend routing through the versioned API.
+- Added API and UI coverage for task schedule positions and ticket-aware pause/resume/cancel; corrected generic-auth-error checks to ignore per-request IDs.
+- Refreshed the screenshot matrix to **198 images**, including graph and schedule tabs at all required role/viewport/theme combinations. Visual inspection covered mobile graph, mobile schedule, and desktop light/dark graph/schedule captures.
+
+### Verification
+
+- Full backend suite passed: **129 tests**; this includes active-ticket pause/resume/cancel, HR/Admin permission checks, API versioning, and Problem Details.
+- `python run.py --test` passed the backend suite and strict TypeScript/Vite production build; Ruff passed (`E4,E7,E9,F`).
+- Playwright passed **8/8**, including HR lifecycle controls, the Priya recovery-to-READY scenario, and the serious/critical axe audit.
+- Final visual matrix passed and was regenerated: **198 screenshots**; representative mobile and desktop light/dark hire graph/schedule captures were opened and inspected.
+
+### Known gaps still open against the original brief
+
+- The domain still stores simulation-relative integer `start_day`; joining and projected-ready dates are not yet persisted or rendered as real dates through the organization business calendar.
+- The template editor remains a form/row editor; it does not provide an editable DAG canvas with drag connections and inline cycle feedback.
+- Hire list/API pagination and full server-side filtering/sorting, saved filters, bulk actions, and a full hire edit flow are incomplete.
+- SlowAPI/account-and-IP rate limits, a `GET /ready` health check, API UUID IDs, and request-wide transaction semantics remain open hardening work.
+- Vitest component tests and production performance/load profiling have not been added; GNU Make and a separate clean-clone gate have not been verified on this Windows machine.
+- The app uses local/mock ITSM and HRIS, local development mail, and an in-process deterministic layout/orchestrator; no LangGraph adapter or production vendor integration is claimed.
+
+### Gate
+
+- **P11 audit follow-up gate: passed** for the shipped visualization, lifecycle, API versioning, and hardening changes listed above. The original P10 clean-clone gate and the product gaps in this section remain open, so this does not certify the whole brief as complete.
+- **Commit:** pending.

@@ -42,7 +42,7 @@ test('capture all role routes at required sizes and themes', async ({ browser })
           }
           if (route === '/hire/1') {
             await expect(page.getByRole('heading', { name: 'Priya Sharma' })).toBeVisible()
-            await expect(page.getByText('Provision Laptop (High RAM)', { exact: true }).nth(1)).toBeVisible()
+            await expect(page.getByText('Provision Laptop (High RAM)', { exact: true }).first()).toBeVisible()
           }
           if (route === '/insights') await expect(page.getByText('Day-1 Readiness')).toBeVisible()
           if (route === '/templates') await expect(page.getByText('10 tasks')).toBeVisible()
@@ -59,6 +59,15 @@ test('capture all role routes at required sizes and themes', async ({ browser })
           const documentWidth = await page.evaluate(() => document.documentElement.scrollWidth)
           expect(documentWidth, `${role.name} ${route} overflows at ${width}px`).toBeLessThanOrEqual(width)
           await page.screenshot({ path: resolve(output, `${safe(role.name)}-${safe(route === '/' ? 'overview' : route.slice(1))}-${width}-${theme}.png`), fullPage: true, animations: 'disabled' })
+          if (route === '/hire/1') {
+            await page.getByRole('button', { name: 'Graph' }).click()
+            await expect(page.getByRole('heading', { name: 'How the work connects' })).toBeVisible()
+            await page.screenshot({ path: resolve(output, `${safe(role.name)}-hire-1-graph-${width}-${theme}.png`), fullPage: true, animations: 'disabled' })
+            await page.getByRole('button', { name: 'Schedule', exact: true }).click()
+            await expect(page.getByRole('img', { name: /Task schedule from day 0/ })).toBeVisible()
+            await page.screenshot({ path: resolve(output, `${safe(role.name)}-hire-1-schedule-${width}-${theme}.png`), fullPage: true, animations: 'disabled' })
+            await page.getByRole('button', { name: 'Overview', exact: true }).click()
+          }
         }
         await context.close()
       }

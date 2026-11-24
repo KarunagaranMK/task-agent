@@ -1,13 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from app.db.database import get_session
-from app.domain.models import Hire, Task, AuditEvent, User
-from app.services.orchestrator import create_hire_with_plan, get_current_day
+from app.domain.models import Hire, Task, TaskStatus, HireStatus, AuditEvent, User, Ticket, OutboxItem
+from app.services.orchestrator import audit, create_hire_with_plan, get_current_day
 from app.auth import require_roles
-from app.services.cpm import CPMTask, compute_what_if, get_remaining_days
+from app.services.cpm import CPMTask, compute_cpm, compute_what_if, get_remaining_days
 from app.services.planner import try_llm_plan
+from app.mcp_clients.tools import cancel_ticket as mcp_cancel_ticket, update_ticket_status as mcp_update_ticket_status
 from pydantic import BaseModel, Field
 from typing import Optional, List
+from datetime import datetime
 
 
 router = APIRouter(prefix="/hires", tags=["hires"])
@@ -48,6 +50,11 @@ class TaskOut(BaseModel):
     slack: Optional[float]
     critical: bool
     flag: str
+    dispatched_day: Optional[int] = None
+    remaining_days: float
+    schedule_start_day: Optional[float] = None
+    schedule_finish_day: Optional[float] = None
+    current_day: int
 
 
 class HireOut(BaseModel):
@@ -116,6 +123,25 @@ def get_hire_tasks(hire_id: int, session: Session = Depends(get_session), user=D
     if hire is None or (user.role == "MANAGER" and hire.manager_id != user.id):
         raise HTTPException(404, "Hire not found")
     tasks = session.exec(select(Task).where(Task.hire_id == hire_id)).all()
+    current_day = get_current_day(session)
+    open_statuses = {"pending", "queued", "dispatched", "awaiting_approval", "blocked"}
+    open_tasks = [
+        task for task in tasks
+        if getattr(task.status, "value", task.status) in open_statuses
+    ]
+    open_keys = {task.key for task in open_tasks}
+    schedule = compute_cpm(
+        [
+            CPMTask(
+                key=task.key,
+                remaining_days=get_remaining_days(task.status, task.duration_days, task.dispatched_day, current_day),
+                deps=[dep for dep in task.depends_on_list if dep in open_keys],
+            )
+            for task in open_tasks
+        ],
+        hire.start_day - current_day,
+    )
+    schedule_by_key = {task.key: task for task in schedule}
     return [
         TaskOut(
             id=t.id,
@@ -131,9 +157,134 @@ def get_hire_tasks(hire_id: int, session: Session = Depends(get_session), user=D
             slack=t.slack,
             critical=t.critical,
             flag=t.flag,
+            dispatched_day=t.dispatched_day,
+            remaining_days=get_remaining_days(t.status, t.duration_days, t.dispatched_day, current_day),
+            schedule_start_day=(current_day + schedule_by_key[t.key].es) if t.key in schedule_by_key else None,
+            schedule_finish_day=(current_day + schedule_by_key[t.key].ef) if t.key in schedule_by_key else None,
+            current_day=current_day,
         )
         for t in tasks
     ]
+
+
+def _get_editable_hire(hire_id: int, session: Session) -> Hire:
+    hire = session.get(Hire, hire_id)
+    if hire is None:
+        raise HTTPException(404, "Hire not found")
+    return hire
+
+
+@router.post("/{hire_id}/pause")
+def pause_hire(hire_id: int, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR"))):
+    hire = _get_editable_hire(hire_id, session)
+    if hire.status == HireStatus.cancelled:
+        raise HTTPException(409, "A cancelled hire cannot be paused")
+    if hire.status == HireStatus.ready:
+        raise HTTPException(409, "A ready hire does not need to be paused")
+    remaining = session.exec(select(Task).where(Task.hire_id == hire_id, Task.status.not_in([TaskStatus.done, TaskStatus.cancelled, TaskStatus.paused]))).first()
+    if hire.status == HireStatus.paused and remaining is None:
+        return {"status": "paused", "hire_id": hire_id}
+
+    failures: list[str] = []
+    for task in session.exec(select(Task).where(Task.hire_id == hire_id)).all():
+        if task.status in (TaskStatus.done, TaskStatus.cancelled, TaskStatus.paused):
+            continue
+        if task.ticket_id:
+            external = mcp_cancel_ticket(task.ticket_id)
+            if external.get("error"):
+                failures.append(task.ticket_id)
+                continue
+            ticket = session.exec(select(Ticket).where(Ticket.ticket_id == task.ticket_id)).first()
+            if ticket:
+                ticket.status = "cancelled"
+                ticket.updated_at = datetime.utcnow()
+                session.add(ticket)
+        task.status = TaskStatus.paused
+        session.add(task)
+
+    for item in session.exec(select(OutboxItem).where(OutboxItem.hire_id == hire_id)).all():
+        session.delete(item)
+    audit(session, hire_id, f"Onboarding paused by {user.name}; open tickets were cancelled", "warning", f"user:{user.id}")
+    hire.status = HireStatus.paused
+    session.add(hire)
+    session.commit()
+    if failures:
+        raise HTTPException(503, f"ITSM could not cancel {len(failures)} ticket(s). Retry to finish pausing this hire.")
+    return {"status": "paused", "hire_id": hire_id}
+
+
+@router.post("/{hire_id}/resume")
+def resume_hire(hire_id: int, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR"))):
+    hire = _get_editable_hire(hire_id, session)
+    if hire.status != HireStatus.paused:
+        raise HTTPException(409, "Only a paused hire can be resumed")
+    current_day = get_current_day(session)
+    failures: list[str] = []
+    for task in session.exec(select(Task).where(Task.hire_id == hire_id, Task.status == TaskStatus.paused)).all():
+        if task.ticket_id:
+            external = mcp_update_ticket_status(task.ticket_id, "open")
+            if external.get("error"):
+                failures.append(task.ticket_id)
+                continue
+            ticket = session.exec(select(Ticket).where(Ticket.ticket_id == task.ticket_id)).first()
+            if ticket:
+                ticket.status = "open"
+                ticket.updated_at = datetime.utcnow()
+                session.add(ticket)
+            task.status = TaskStatus.dispatched
+            task.dispatched_day = current_day
+            task.last_activity_day = current_day
+        elif task.needs_approval and task.approval_state == "pending":
+            task.status = TaskStatus.awaiting_approval
+        else:
+            task.status = TaskStatus.pending
+        session.add(task)
+
+    audit(session, hire_id, f"Onboarding resumed by {user.name}", "info", f"user:{user.id}")
+    if not failures:
+        hire.status = HireStatus.on_track
+    session.add(hire)
+    session.commit()
+    if failures:
+        raise HTTPException(503, f"ITSM could not reopen {len(failures)} ticket(s). Retry to finish resuming this hire.")
+    return {"status": "on_track", "hire_id": hire_id}
+
+
+@router.post("/{hire_id}/cancel")
+def cancel_hire(hire_id: int, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR"))):
+    hire = _get_editable_hire(hire_id, session)
+    if hire.status == HireStatus.ready:
+        raise HTTPException(409, "A ready hire cannot be cancelled")
+    remaining = session.exec(select(Task).where(Task.hire_id == hire_id, Task.status.not_in([TaskStatus.done, TaskStatus.cancelled]))).first()
+    if hire.status == HireStatus.cancelled and remaining is None:
+        return {"status": "cancelled", "hire_id": hire_id}
+
+    failures: list[str] = []
+    for task in session.exec(select(Task).where(Task.hire_id == hire_id)).all():
+        if task.status in (TaskStatus.done, TaskStatus.cancelled):
+            continue
+        if task.ticket_id:
+            external = mcp_cancel_ticket(task.ticket_id)
+            if external.get("error"):
+                failures.append(task.ticket_id)
+                continue
+            ticket = session.exec(select(Ticket).where(Ticket.ticket_id == task.ticket_id)).first()
+            if ticket:
+                ticket.status = "cancelled"
+                ticket.updated_at = datetime.utcnow()
+                session.add(ticket)
+        task.status = TaskStatus.cancelled
+        session.add(task)
+
+    for item in session.exec(select(OutboxItem).where(OutboxItem.hire_id == hire_id)).all():
+        session.delete(item)
+    audit(session, hire_id, f"Onboarding cancelled by {user.name}; open tickets were cancelled", "warning", f"user:{user.id}")
+    hire.status = HireStatus.cancelled
+    session.add(hire)
+    session.commit()
+    if failures:
+        raise HTTPException(503, f"ITSM could not cancel {len(failures)} ticket(s). Retry to finish cancelling this hire.")
+    return {"status": "cancelled", "hire_id": hire_id}
 
 
 @router.get("/{hire_id}/audit")

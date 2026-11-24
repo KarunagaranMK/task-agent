@@ -1,7 +1,7 @@
 import axios from 'axios'
 import type { components } from './generated'
 
-const BASE = import.meta.env.VITE_API_URL || '/api'
+const BASE = import.meta.env.VITE_API_URL || '/api/v1'
 const api = axios.create({ baseURL: BASE, withCredentials: true })
 let accessToken: string | null = null
 let refreshFlight: Promise<string> | null = null
@@ -75,6 +75,9 @@ export const planPreview = (role: string) => api.post('/hires/plan-preview', { r
 export const getHire = (id: number) => api.get<Hire>(`/hires/${id}`).then(r => r.data)
 export const getHireTasks = (id: number) => api.get<Task[]>(`/hires/${id}/tasks`).then(r => r.data)
 export const getHireAudit = (id: number) => api.get(`/hires/${id}/audit`).then(r => r.data)
+export const pauseHire = (id: number) => api.post(`/hires/${id}/pause`).then(r => r.data)
+export const resumeHire = (id: number) => api.post(`/hires/${id}/resume`).then(r => r.data)
+export const cancelHire = (id: number) => api.post(`/hires/${id}/cancel`).then(r => r.data)
 export const explainRisk = (id: number) => api.get(`/hires/${id}/explain`).then(r => r.data)
 export const approveTask = (id: number) => api.post(`/tasks/${id}/approve`).then(r => r.data)
 export const rejectTask = (id: number) => api.post(`/tasks/${id}/reject`).then(r => r.data)

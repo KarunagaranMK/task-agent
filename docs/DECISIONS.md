@@ -149,3 +149,21 @@
 - **Decision:** Give the Data Analyst laptop task a five-business-day estimate and reopen the existing ticket when the monitor applies its loaner fallback.
 - **Why:** The acceptance scenario needs a visible laptop critical path, a two-day stall rescue, and actionable follow-through to READY without creating a duplicate ITSM ticket.
 - **Alternative considered:** Leave the fallback ticket stalled or create a second ticket. The first would strand the scenario; the second would violate idempotency and could leave duplicate work.
+
+## 2026-11-24 — Publish a versioned API and consistent error envelope
+
+- **Decision:** Expose the same API routers under `/api/v1` and make the frontend use that base path; return HTTP and validation failures as `application/problem+json` with a request ID and field errors, and add baseline browser security headers.
+- **Why:** The brief requires a versioned API and a predictable error shape, while the existing clients and local proxy still need a non-breaking path during the transition.
+- **Alternative considered:** Move all routes in one breaking migration. Keeping legacy aliases supports existing scripts and seeded acceptance flows while new clients use the versioned contract.
+
+## 2026-11-24 — Resume paused work through the existing ticket identity
+
+- **Decision:** Pause cancels active ITSM tickets and holds remaining tasks; resume reopens each same ticket ID and restores its dispatched task state. Cancellation is terminal, keeps completed work, and requires typing the hire's name in the UI.
+- **Why:** This maintains a single work item per hire/task and makes partial external-service failures safe to retry without losing completed work.
+- **Alternative considered:** Create replacement tickets on resume. That complicates recovery and risks duplicate work in the connected team system.
+
+## 2026-11-24 — Use an SVG dependency canvas for hire-level exploration
+
+- **Decision:** Render the hire dependency map and Gantt in native SVG with keyboard task selection, internal scrolling, zoom controls, and a shared task inspector.
+- **Why:** The repository has no graph-layout dependency, and the onboarding graph is small enough for a deterministic rank layout that can be inspected and tested without adding a new package.
+- **Alternative considered:** Add React Flow and dagre as new dependencies. The native canvas covers the current hire workflow without changing dependency resolution; the template editor still needs an editable DAG canvas.

@@ -425,6 +425,8 @@ def _monitor_tick_body(session: Session) -> None:
 
     hires = session.exec(select(Hire)).all()
     for hire in hires:
+        if hire.status in (HireStatus.paused, HireStatus.cancelled):
+            continue
         tasks = session.exec(select(Task).where(Task.hire_id == hire.id)).all()
         done_keys = {t.key for t in tasks if t.status == TaskStatus.done}
 

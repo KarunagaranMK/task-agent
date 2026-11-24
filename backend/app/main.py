@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, Request
+from fastapi import FastAPI, Depends, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -9,6 +9,8 @@ from pathlib import Path
 import os
 from uuid import uuid4
 from contextlib import asynccontextmanager
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from app.api import hires, tasks, sim
 from app.api import events
 from app.api import me
@@ -16,6 +18,7 @@ from app.api import admin
 from app import auth
 from app.config import settings
 from app.services.scheduler import start_scheduler, stop_scheduler
+from app.db.database import get_session
 
 
 @asynccontextmanager
@@ -102,6 +105,17 @@ async def problem_validation_exception(request: Request, exc: RequestValidationE
 @app.get("/api/v1/health")
 def health():
     return {"status": "ok", "service": "onboarding-orchestrator"}
+
+
+@app.get("/ready")
+@app.get("/api/ready")
+@app.get("/api/v1/ready")
+def ready(session=Depends(get_session)):
+    try:
+        session.exec(text("SELECT 1")).one()
+    except SQLAlchemyError as exc:
+        raise HTTPException(status_code=503, detail="Database is not ready") from exc
+    return {"status": "ready", "checks": {"database": "ok"}}
 
 
 if os.getenv("SERVE_FRONTEND", "false").lower() == "true":

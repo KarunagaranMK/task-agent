@@ -185,3 +185,9 @@
 - **Decision:** Apply hire search, status, sort, and page parameters in the API; keep the existing JSON array response and add total/page metadata as response headers. The HR portfolio reads those headers for its pager and still shares the array contract with manager dashboards.
 - **Why:** The HR page needs server-side behavior once hires outgrow one client payload, while current role views and API callers already expect `/hires` to return an array.
 - **Alternative considered:** Replace the response with an `{items, total, page}` object. That would require changing every existing role consumer and generated contract for a UI-only pagination improvement.
+
+## 2026-11-24 — Separate liveness from database readiness
+
+- **Decision:** Keep `/health` as a process liveness response and add `/ready` aliases that execute `SELECT 1` against the configured database, returning 503 if the check fails.
+- **Why:** A running web process should not be advertised as ready to serve onboarding requests when its primary datastore is unavailable.
+- **Alternative considered:** Make `/health` perform the database query. That would turn a basic process check into a dependency check and could cause service managers to restart a healthy process during a transient database outage.

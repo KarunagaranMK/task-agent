@@ -13,6 +13,13 @@ def test_versioned_api_health(client):
     assert response.json()["status"] == "ok"
 
 
+def test_readiness_checks_database_and_supports_api_aliases(client):
+    for path in ("/ready", "/api/ready", "/api/v1/ready"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert response.json() == {"status": "ready", "checks": {"database": "ok"}}
+
+
 def test_create_hire(client):
     r = client.post(
         "/hires",

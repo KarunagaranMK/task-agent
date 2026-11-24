@@ -1,3 +1,5 @@
+from datetime import date
+
 from sqlmodel import select
 
 from app.auth import get_current_user
@@ -9,7 +11,8 @@ def test_new_hire_gets_only_self_service_summary(client, session):
     session.add(new_hire)
     session.commit()
     session.refresh(new_hire)
-    hire = Hire(name="Priya Sharma", role="Data Analyst", department="Analytics", start_day=8, new_hire_user_id=new_hire.id)
+    hire = Hire(name="Priya Sharma", role="Data Analyst", department="Analytics", start_day=8,
+                start_date=date(2026, 12, 4), new_hire_user_id=new_hire.id)
     session.add(hire)
     session.commit()
     session.refresh(hire)
@@ -24,6 +27,7 @@ def test_new_hire_gets_only_self_service_summary(client, session):
     assert response.status_code == 200
     data = response.json()
     assert data["hire"]["name"] == "Priya Sharma"
+    assert data["hire"]["start_date"] == "2026-12-04"
     assert data["tasks"] == [{"title": "Prepare your laptop", "status": "pending", "eta_day": 2}]
     assert "audit" not in data and "ticket_id" not in data["tasks"][0]
 

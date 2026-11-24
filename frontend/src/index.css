@@ -487,6 +487,8 @@ kbd { height: 20px; min-width: 22px; display: inline-flex; justify-content: cent
 .profile-status { color: #087f65; background: #e7f7f1; }
 .profile-error { color: #a52d37; background: #fff0f0; }
 .text-gray-400 { color: #64748b !important; }
+.settings-grid textarea { width:100%; min-height:88px; padding:9px 11px; color:var(--ink); background:var(--surface); border:1px solid var(--border); border-radius:8px; font:inherit; font-size:11px; resize:vertical; }
+.settings-grid textarea:focus { outline:3px solid rgba(20,184,166,.15); border-color:var(--teal); }
 .hire-hero-actions { display:flex; align-items:flex-end; flex-direction:column; gap:11px; }
 .lifecycle-actions { display:flex; align-items:center; gap:8px; }
 .button-danger { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:36px; padding:0 12px; color:#b42332; background:color-mix(in srgb,#dc3545 7%,var(--surface)); border:1px solid color-mix(in srgb,#dc3545 25%,var(--border)); border-radius:8px; font-size:10px; font-weight:700; cursor:pointer; }

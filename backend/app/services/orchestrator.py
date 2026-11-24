@@ -4,7 +4,7 @@ Dispatch tasks, detect stalls, escalate, reschedule with fallbacks.
 All decisions are deterministic — LLM used only for notification messages.
 """
 from typing import List, Optional, Tuple
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 import uuid
 from sqlmodel import Session, select
 from app.domain.models import (
@@ -531,14 +531,20 @@ def create_hire_with_plan(
     department: str,
     start_day: int,
     manager_id: Optional[int] = None,
+    start_date: Optional[date] = None,
 ) -> Hire:
     """Create a hire and generate their task plan from role template (+ optional LLM)."""
     import json
     from app.services.planner import PlanSpec, try_llm_plan
     from app.config import settings
     from app.domain.models import OnboardingTemplate
+    from app.services.clock import load_clock
 
-    hire = Hire(name=name, role=role, department=department, start_day=start_day, manager_id=manager_id)
+    if start_date is None:
+        clock = load_clock(session)
+        start_date = clock.calendar.add_business_days(clock.local_today(), start_day)
+    hire = Hire(name=name, role=role, department=department, start_day=start_day,
+                start_date=start_date, manager_id=manager_id)
     session.add(hire)
     session.commit()
     session.refresh(hire)

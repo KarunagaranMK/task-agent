@@ -109,7 +109,7 @@ export const updateUser = (id: number, data: Partial<Pick<AuthUser, 'role' | 'te
 export const getTemplates = () => api.get<OnboardingTemplate[]>('/templates').then(r => r.data)
 export const publishTemplate = (data: { role_key: string; tasks: TemplateTask[] }) => api.post<OnboardingTemplate>('/templates', data).then(r => r.data)
 export const getSettings = () => api.get<Record<string, string>>('/settings').then(r => r.data)
-export const saveSettings = (data: { stall_after_days: number; near_critical_margin: number; monitor_interval_minutes: number; auto_worker_enabled: boolean; timezone: string }) => api.put('/settings', data).then(r => r.data)
+export const saveSettings = (data: { stall_after_days: number; near_critical_margin: number; monitor_interval_minutes: number; auto_worker_enabled: boolean; timezone: string; holidays: string[] }) => api.put('/settings', data).then(r => r.data)
 export const getAudit = (search = '') => api.get<AuditRecord[]>('/audit', { params: { search } }).then(r => r.data)
 export const getExperimentHistory = () => api.get<ExperimentRecord[]>('/experiments').then(r => r.data)
 export const getDevMail = () => api.get<MailRecord[]>('/dev/mail').then(r => r.data)
@@ -124,7 +124,7 @@ export interface AuditEvent { id: number; day: number; level: string; message: s
 export interface Notification { id: number; for_role: string; message: string; hire_id: number | null; task_id: number | null; read: boolean; created_at: string }
 export interface TicketComment { id: number; author: string; body: string; created_at: string }
 export interface MyOnboarding {
-  hire: { name: string; role: string; department: string; start_day: number; status: string; readiness: number; projected_day: number | null } | null
+  hire: { name: string; role: string; department: string; start_day: number; start_date: string | null; status: string; readiness: number; projected_day: number | null; projected_ready_date: string | null } | null
   tasks: Array<{ title: string; status: string; eta_day: number | null }>
 }
 export interface TemplateTask { key: string; title: string; team: string; duration_days: number; depends_on: string[]; needs_approval: boolean; fallback_title?: string | null; fallback_days?: number | null }

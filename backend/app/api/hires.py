@@ -7,9 +7,10 @@ from app.auth import require_roles
 from app.services.cpm import CPMTask, compute_cpm, compute_what_if, get_remaining_days
 from app.services.planner import try_llm_plan
 from app.mcp_clients.tools import cancel_ticket as mcp_cancel_ticket, update_ticket_status as mcp_update_ticket_status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional, List
-from datetime import datetime
+from datetime import date, datetime
+from app.services.clock import load_clock
 
 
 router = APIRouter(prefix="/hires", tags=["hires"])
@@ -19,8 +20,15 @@ class HireCreate(BaseModel):
     name: str
     role: str
     department: str
-    start_day: int
+    start_day: Optional[int] = Field(default=None, ge=1, le=365)
+    start_date: Optional[date] = None
     manager_id: Optional[int] = None
+
+    @model_validator(mode="after")
+    def require_start_target(self):
+        if (self.start_day is None) == (self.start_date is None):
+            raise ValueError("Provide exactly one of start_day or start_date")
+        return self
 
 
 class PlanPreviewRequest(BaseModel):
@@ -63,9 +71,11 @@ class HireOut(BaseModel):
     role: str
     department: str
     start_day: int
+    start_date: Optional[date]
     status: str
     readiness: float
     projected_day: Optional[int]
+    projected_ready_date: Optional[date]
     manager_id: Optional[int] = None
 
 
@@ -76,16 +86,22 @@ def plan_preview(data: PlanPreviewRequest, _user=Depends(require_roles("ADMIN", 
     return {"role": data.role, "tasks": [task.model_dump() for task in plan.tasks]}
 
 
-def _hire_out(h: Hire) -> HireOut:
+def _hire_out(h: Hire, session: Session) -> HireOut:
+    clock = load_clock(session)
+    projected_ready_date = None
+    if h.start_date and h.projected_day is not None:
+        projected_ready_date = clock.calendar.add_business_days(h.start_date, h.projected_day - h.start_day)
     return HireOut(
         id=h.id,
         name=h.name,
         role=h.role,
         department=h.department,
         start_day=h.start_day,
+        start_date=h.start_date,
         status=h.status,
         readiness=h.readiness,
         projected_day=h.projected_day,
+        projected_ready_date=projected_ready_date,
         manager_id=h.manager_id,
     )
 
@@ -94,8 +110,22 @@ def _hire_out(h: Hire) -> HireOut:
 def create_hire(data: HireCreate, session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "HR"))):
     if data.manager_id is not None and session.get(User, data.manager_id) is None:
         raise HTTPException(422, "Manager not found")
-    hire = create_hire_with_plan(session, data.name, data.role, data.department, data.start_day, data.manager_id)
-    return _hire_out(hire)
+    if data.start_date is not None:
+        current_day = get_current_day(session)
+        clock = load_clock(session, current_day)
+        if not clock.calendar.is_business_day(data.start_date):
+            raise HTTPException(422, "Joining date must be a business day in the organization calendar")
+        days_until_start = clock.calendar.business_days_between(clock.today(), data.start_date)
+        if days_until_start < 1:
+            raise HTTPException(422, "Joining date must be after the current organization date")
+        start_day = current_day + days_until_start
+        start_date = data.start_date
+    else:
+        start_day = data.start_day
+        clock = load_clock(session)
+        start_date = clock.calendar.add_business_days(clock.local_today(), start_day)
+    hire = create_hire_with_plan(session, data.name, data.role, data.department, start_day, data.manager_id, start_date)
+    return _hire_out(hire, session)
 
 
 @router.get("", response_model=List[HireOut])
@@ -104,7 +134,7 @@ def list_hires(session: Session = Depends(get_session), user=Depends(require_rol
     if user.role == "MANAGER":
         query = query.where(Hire.manager_id == user.id)
     hires = session.exec(query).all()
-    return [_hire_out(h) for h in hires]
+    return [_hire_out(h, session) for h in hires]
 
 
 @router.get("/{hire_id}", response_model=HireOut)
@@ -114,7 +144,7 @@ def get_hire(hire_id: int, session: Session = Depends(get_session), user=Depends
         raise HTTPException(404, "Hire not found")
     if user.role == "MANAGER" and hire.manager_id != user.id:
         raise HTTPException(404, "Hire not found")
-    return _hire_out(hire)
+    return _hire_out(hire, session)
 
 
 @router.get("/{hire_id}/tasks", response_model=List[TaskOut])

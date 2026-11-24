@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
@@ -11,9 +11,20 @@ import {
 const ROLES = ['Data Analyst', 'Software Engineer', 'Product Manager', 'Customer Success Manager', 'default']
 const DEPARTMENTS = ['Analytics', 'Engineering', 'Marketing', 'HR', 'Finance', 'Operations']
 type PlanTask = { key: string; title: string; team: string; duration_days: number; depends_on: string[]; needs_approval: boolean }
-type HireForm = { name: string; role: string; department: string; start_day: number; manager_id: number | null }
+type HireForm = { name: string; role: string; department: string; start_date: string; manager_id: number | null }
 
-const initialForm: HireForm = { name: '', role: ROLES[0], department: DEPARTMENTS[0], start_day: 8, manager_id: null }
+function addBusinessDays(count: number, from?: string) {
+  const date = from ? new Date(`${from}T12:00:00`) : new Date()
+  date.setHours(12, 0, 0, 0)
+  let remaining = count
+  while (remaining > 0) {
+    date.setDate(date.getDate() + 1)
+    if (date.getDay() !== 0 && date.getDay() !== 6) remaining -= 1
+  }
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+const formatDate = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(`${value}T12:00:00`))
+const initialForm: HireForm = { name: '', role: ROLES[0], department: DEPARTMENTS[0], start_date: addBusinessDays(8), manager_id: null }
 const statusLabel: Record<string, string> = { on_track: 'On track', at_risk: 'At risk', ready: 'Ready' }
 
 export default function HRPage() {
@@ -32,6 +43,12 @@ export default function HRPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
+  useEffect(() => {
+    if (metrics?.default_joining_date && !form.name && !showWizard) {
+      setForm(current => ({ ...current, start_date: metrics.default_joining_date }))
+    }
+  }, [metrics?.default_joining_date])
+
   const createMutation = useMutation({
     mutationFn: (data: HireCreate) => createHire(data),
     onSuccess: hire => {
@@ -40,7 +57,10 @@ export default function HRPage() {
       setNotice(`${hire.name}’s onboarding plan is ready to coordinate.`)
       setShowWizard(false); setForm(initialForm); setStep(0); setPreview([]); setError('')
     },
-    onError: () => setError('We couldn’t create the plan. Check the details and try again.'),
+    onError: error => {
+      const message = (error as { response?: { data?: { message?: string } } }).response?.data?.message
+      setError(message || 'We couldn’t create the plan. Check the details and try again.')
+    },
   })
 
   const visibleHires = useMemo(() => hires
@@ -63,7 +83,7 @@ export default function HRPage() {
       return
     }
     if (step === 1) { setStep(2); return }
-    const payload: HireCreate = { name: form.name.trim(), role: form.role, department: form.department, start_day: form.start_day, ...(form.manager_id ? { manager_id: form.manager_id } : {}) }
+    const payload: HireCreate = { name: form.name.trim(), role: form.role, department: form.department, start_date: form.start_date, ...(form.manager_id ? { manager_id: form.manager_id } : {}) }
     createMutation.mutate(payload)
   }
 
@@ -107,7 +127,7 @@ export default function HRPage() {
             <tbody>{visibleHires.map(hire => <tr key={hire.id}>
               <td><Link className="hire-name-link" to={`/hire/${hire.id}`}><span className="hire-avatar">{hire.name.split(' ').map(part => part[0]).join('').slice(0, 2)}</span><span><strong>{hire.name}</strong><small>{hire.role} · {hire.department}</small></span></Link></td>
               <td>{managers.find(manager => manager.id === hire.manager_id)?.name ?? <span className="table-muted">Unassigned</span>}</td>
-              <td>Day {hire.start_day}</td>
+              <td>{hire.start_date ? <><strong>{formatDate(hire.start_date)}</strong><small>Day {hire.start_day} in demo</small></> : `Day ${hire.start_day}`}</td>
               <td><div className="readiness-cell"><span className="readiness-track"><i className={hire.status === 'at_risk' ? 'risk' : hire.status === 'ready' ? 'ready' : ''} style={{ width: `${Math.max(0, Math.min(100, hire.readiness))}%` }} /></span><span>{hire.readiness}%</span></div></td>
               <td><span className={`status-pill ${hire.status}`}>{statusLabel[hire.status] ?? hire.status}</span></td>
               <td><Link className="table-open" aria-label={`Open ${hire.name}`} to={`/hire/${hire.id}`}><ArrowRight size={16} /></Link></td>
@@ -122,10 +142,10 @@ export default function HRPage() {
         {step === 0 && <div className="wizard-fields">
           <label>Full name<input autoFocus value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} placeholder="e.g. Priya Sharma" maxLength={120} /></label>
           <div className="wizard-field-grid"><label>Role<select value={form.role} onChange={event => setForm({ ...form, role: event.target.value })}>{ROLES.map(role => <option key={role}>{role}</option>)}</select></label><label>Department<select value={form.department} onChange={event => setForm({ ...form, department: event.target.value })}>{DEPARTMENTS.map(department => <option key={department}>{department}</option>)}</select></label></div>
-          <div className="wizard-field-grid"><label>Manager<select value={form.manager_id ?? ''} onChange={event => setForm({ ...form, manager_id: event.target.value ? Number(event.target.value) : null })}><option value="">Choose later</option>{managers.map(manager => <option key={manager.id} value={manager.id}>{manager.name}</option>)}</select></label><label>Day 1 in<input type="number" min={1} max={365} value={form.start_day} onChange={event => setForm({ ...form, start_day: Math.max(1, Number(event.target.value)) })} /><small>Business days from today</small></label></div>
+          <div className="wizard-field-grid"><label>Manager<select value={form.manager_id ?? ''} onChange={event => setForm({ ...form, manager_id: event.target.value ? Number(event.target.value) : null })}><option value="">Choose later</option>{managers.map(manager => <option key={manager.id} value={manager.id}>{manager.name}</option>)}</select></label><label>Joining date<input type="date" min={metrics?.earliest_joining_date ?? addBusinessDays(1, metrics?.current_date)} value={form.start_date} onChange={event => setForm({ ...form, start_date: event.target.value })} /><small>Choose a future organization business day</small></label></div>
         </div>}
         {step === 1 && <div className="plan-preview"><div className="preview-summary"><span>{preview.length} planned tasks</span><span>Day 1 protected</span></div>{preview.map((task, index) => <div className="preview-task" key={task.key}><span className="preview-step">{String(index + 1).padStart(2, '0')}</span><span className="preview-task-copy"><strong>{task.title}</strong><small>{task.team} · {task.duration_days} day{task.duration_days === 1 ? '' : 's'}{task.needs_approval ? ' · approval required' : ''}</small></span>{task.depends_on.length > 0 && <span className="dependency-label">After {task.depends_on.length}</span>}</div>)}<p className="preview-note">Teams complete the work in their own systems. OnboardIQ coordinates dependencies and readiness.</p></div>}
-        {step === 2 && <div className="review-summary"><div className="review-person"><span className="hire-avatar large">{form.name.split(' ').map(part => part[0]).join('').slice(0, 2) || 'NH'}</span><span><strong>{form.name}</strong><small>{form.role} · {form.department}</small></span></div><div className="review-lines"><p><span>Manager</span><strong>{managers.find(manager => manager.id === form.manager_id)?.name ?? 'Assign later'}</strong></p><p><span>Day 1</span><strong>In {form.start_day} business days</strong></p><p><span>Task plan</span><strong>{preview.length} coordinated tasks</strong></p></div><div className="amber-callout">The hire’s task plan and critical path will be created together.</div></div>}
+        {step === 2 && <div className="review-summary"><div className="review-person"><span className="hire-avatar large">{form.name.split(' ').map(part => part[0]).join('').slice(0, 2) || 'NH'}</span><span><strong>{form.name}</strong><small>{form.role} · {form.department}</small></span></div><div className="review-lines"><p><span>Manager</span><strong>{managers.find(manager => manager.id === form.manager_id)?.name ?? 'Assign later'}</strong></p><p><span>Joining date</span><strong>{formatDate(form.start_date)}</strong></p><p><span>Task plan</span><strong>{preview.length} coordinated tasks</strong></p></div><div className="amber-callout">The hire’s task plan and critical path will be created together.</div></div>}
         {error && <p className="form-error" role="alert">{error}</p>}
         <div className="wizard-actions"><button className="button-secondary" onClick={() => step === 0 ? closeWizard() : setStep(step - 1)}>{step === 0 ? 'Cancel' : <><ChevronLeft size={16} /> Back</>}</button><button className="button-primary" onClick={() => void nextStep()} disabled={previewBusy || createMutation.isPending}>{previewBusy ? 'Building preview…' : createMutation.isPending ? 'Creating plan…' : step === 2 ? 'Create onboarding plan' : <>Continue <ChevronRight size={16} /></>}</button></div>
       </section>

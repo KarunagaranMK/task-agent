@@ -4,8 +4,8 @@ export interface components {
     "ExperimentRequest": { "n_hires"?: number; "stall_probability"?: number; "seed"?: number; }
     "ForgotRequest": { "email": string; }
     "HTTPValidationError": { "detail"?: Array<components['schemas']["ValidationError"]>; }
-    "HireCreate": { "name": string; "role": string; "department": string; "start_day": number; "manager_id"?: (number) | (null); }
-    "HireOut": { "id": number; "name": string; "role": string; "department": string; "start_day": number; "status": string; "readiness": number; "projected_day": (number) | (null); "manager_id"?: (number) | (null); }
+    "HireCreate": { "name": string; "role": string; "department": string; "start_day"?: (number) | (null); "start_date"?: (string) | (null); "manager_id"?: (number) | (null); }
+    "HireOut": { "id": number; "name": string; "role": string; "department": string; "start_day": number; "start_date": (string) | (null); "status": string; "readiness": number; "projected_day": (number) | (null); "projected_ready_date": (string) | (null); "manager_id"?: (number) | (null); }
     "InviteRequest": { "email": string; "name": string; "role": string; "team"?: (string) | (null); }
     "IssueRequest": { "message": string; }
     "LoginOut": { "access_token": string; "token_type"?: string; "user": components['schemas']["UserOut"]; }
@@ -14,7 +14,7 @@ export interface components {
     "PlanPreviewRequest": { "role": string; }
     "PreferenceUpdate": { "in_app"?: boolean; "email"?: boolean; }
     "ProfileUpdate": { "name": string; }
-    "SettingsUpdate": { "stall_after_days": number; "near_critical_margin": number; "monitor_interval_minutes": number; "auto_worker_enabled"?: boolean; "timezone"?: string; }
+    "SettingsUpdate": { "stall_after_days": number; "near_critical_margin": number; "monitor_interval_minutes": number; "auto_worker_enabled"?: boolean; "timezone"?: string; "holidays"?: Array<string>; }
     "TaskOut": { "id": number; "key": string; "title": string; "team": string; "duration_days": number; "depends_on": Array<string>; "needs_approval": boolean; "approval_state": string; "status": string; "ticket_id": (string) | (null); "slack": (number) | (null); "critical": boolean; "flag": string; "dispatched_day"?: (number) | (null); "remaining_days": number; "schedule_start_day"?: (number) | (null); "schedule_finish_day"?: (number) | (null); "current_day": number; }
     "TemplateSave": { "role_key": string; "tasks": Array<{ [key: string]: unknown; }>; }
     "TicketCommentRequest": { "body": string; }

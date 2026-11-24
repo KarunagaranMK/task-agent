@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
+import json
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
@@ -71,3 +72,21 @@ class Clock:
         if value.tzinfo is None:
             raise ValueError("Timestamp must be timezone-aware")
         return value.astimezone(timezone.utc)
+
+
+def load_clock(session, demo_offset_business_days: int = 0) -> Clock:
+    """Load the organization timezone and holiday calendar from workspace settings."""
+    from sqlmodel import select
+    from app.domain.models import AppSetting
+
+    rows = session.exec(select(AppSetting).where(AppSetting.key.in_(["timezone", "holidays"]))).all()
+    values = {row.key: row.value for row in rows}
+    try:
+        holidays = frozenset(date.fromisoformat(item) for item in json.loads(values.get("holidays", "[]")))
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise ValueError("Workspace holidays must be ISO dates") from exc
+    return Clock(
+        timezone_name=values.get("timezone", "Asia/Kolkata"),
+        calendar=BusinessCalendar(holidays=holidays),
+        demo_offset_business_days=demo_offset_business_days,
+    )

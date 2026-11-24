@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -28,6 +28,7 @@ class SettingsUpdate(BaseModel):
     monitor_interval_minutes: int = Field(ge=1, le=1440)
     auto_worker_enabled: bool = False
     timezone: str = Field(default="Asia/Kolkata", min_length=1, max_length=80)
+    holidays: list[date] = Field(default_factory=list, max_length=200)
 
     @field_validator("timezone")
     @classmethod
@@ -81,6 +82,7 @@ DEFAULT_SETTINGS = {
     "stall_after_days": "2", "near_critical_margin": "1",
     "monitor_interval_minutes": "15", "auto_worker_enabled": "false",
     "timezone": "Asia/Kolkata",
+    "holidays": "[]",
 }
 
 
@@ -94,9 +96,12 @@ def get_settings(_viewer=Depends(require_roles("ADMIN", "HR")), session: Session
 @router.put("/settings")
 def update_settings(data: SettingsUpdate, user=Depends(require_roles("ADMIN")), session: Session = Depends(get_session)):
     values = data.model_dump()
+    stored_values = {}
     for key, value in values.items():
         row = session.get(AppSetting, key)
-        encoded = str(value).lower() if isinstance(value, bool) else str(value)
+        encoded = (json.dumps([item.isoformat() for item in value]) if key == "holidays"
+                   else str(value).lower() if isinstance(value, bool) else str(value))
+        stored_values[key] = encoded
         if row is None:
             row = AppSetting(key=key, value=encoded)
         else:
@@ -107,7 +112,7 @@ def update_settings(data: SettingsUpdate, user=Depends(require_roles("ADMIN")), 
     session.commit()
     from app.services.scheduler import update_monitor_interval
     update_monitor_interval(data.monitor_interval_minutes)
-    return values
+    return stored_values
 
 
 @router.get("/audit")

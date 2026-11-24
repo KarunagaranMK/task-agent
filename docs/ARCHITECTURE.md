@@ -112,9 +112,11 @@ erDiagram
         string role
         string department
         int start_day
+        date start_date
         string status
         float readiness
         int projected_day
+        date projected_ready_date
     }
     Task {
         int id PK

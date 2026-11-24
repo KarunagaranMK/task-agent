@@ -1,6 +1,4 @@
 """Add the durable monitor scheduler lease."""
-from datetime import datetime
-
 from alembic import op
 from sqlalchemy import Column, DateTime, Integer, String, inspect, text
 

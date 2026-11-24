@@ -167,3 +167,9 @@
 - **Decision:** Render the hire dependency map and Gantt in native SVG with keyboard task selection, internal scrolling, zoom controls, and a shared task inspector.
 - **Why:** The repository has no graph-layout dependency, and the onboarding graph is small enough for a deterministic rank layout that can be inspected and tested without adding a new package.
 - **Alternative considered:** Add React Flow and dagre as new dependencies. The native canvas covers the current hire workflow without changing dependency resolution; the template editor still needs an editable DAG canvas.
+
+## 2026-11-24 — Persist joining dates while retaining deterministic demo-day math
+
+- **Decision:** Persist a hire's organization-local joining date, derive projected-ready dates from the configured timezone, weekdays, and holiday list, and keep the integer `start_day` as the simulation index used by CPM and the demo clock. The hire API accepts a real `start_date`; the legacy `start_day` input remains supported.
+- **Why:** HR and new hires need an actual date, while the established deterministic demo, monitor, and CPM workflows depend on an indexed clock. The mapping now uses one server-side business calendar and accounts for the current demo-clock date.
+- **Alternative considered:** Replace every orchestration and CPM day counter with calendar date arithmetic. That would blur simulator offsets with wall-clock time and touch the already-tested monitor/experiment APIs; the new date field provides persistence and calendar-correct presentation without that ambiguity.

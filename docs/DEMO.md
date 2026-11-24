@@ -18,7 +18,7 @@ Open **http://localhost:5173**. On the sign-in page, choose a role chip (Admin, 
 
 ### 🟢 Step 1 — Show the Hire List (HR Page)
 - Open **Overview** in the HR workspace
-- Three hires are already seeded: **Priya Sharma** (Data Analyst, Day 8), Alex Chen (SWE, Day 10), Maria Garcia (Marketing, Day 6)
+- Three hires are already seeded: **Priya Sharma** (Data Analyst, joining on the eighth organization business day from seed time), Alex Chen (SWE, Day 10), Maria Garcia (Marketing, Day 6). HR and the new-hire portal show the persisted calendar date; the demo clock still labels its simulation-day index.
 - Point out the **readiness bars** — all at ~10% (only root tasks dispatched so far)
 - Click **Priya Sharma** to open her detail
 

@@ -5,8 +5,9 @@ import { getMyOnboarding, reportOnboardingIssue } from '../api/client'
 
 const statusText: Record<string, string> = {
   done: 'Complete', dispatched: 'In progress', in_progress: 'In progress', awaiting_approval: 'Waiting for approval',
-  pending: 'Coming up', queued: 'Being scheduled', blocked: 'Needs attention',
+  pending: 'Coming up', queued: 'Being scheduled', blocked: 'Needs attention', paused: 'On hold', cancelled: 'Cancelled',
 }
+const displayDate = (value?: string | null) => value ? new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(new Date(`${value}T12:00:00`)) : null
 
 export default function MyOnboardingPage() {
   const client = useQueryClient()
@@ -26,6 +27,7 @@ export default function MyOnboardingPage() {
   const { hire, tasks } = data
   const complete = tasks.filter(task => task.status === 'done').length
   const readyDay = hire.projected_day ?? hire.start_day
+  const readyDate = displayDate(hire.projected_ready_date ?? hire.start_date)
   const grouped = [
     { title: 'Completed', tasks: tasks.filter(task => task.status === 'done') },
     { title: 'In progress', tasks: tasks.filter(task => ['dispatched', 'in_progress'].includes(task.status)) },
@@ -36,12 +38,12 @@ export default function MyOnboardingPage() {
     <div className="newhire-welcome"><div><span className="eyebrow">YOUR FIRST DAY, IN SYNC</span><h1>Welcome, {hire.name.split(' ')[0]}</h1><p>Your teams are coordinating the details. Here’s what’s happening before Day 1.</p></div><div className="newhire-welcome-mark"><Sparkles size={23} /></div></div>
     <section className="newhire-summary">
       <div className="newhire-ready-icon"><ShieldCheck size={22} /></div>
-      <div className="newhire-summary-copy"><span className="eyebrow">{hire.status === 'ready' ? 'ALL SET FOR DAY 1' : 'DAY 1 READINESS'}</span><h2>{hire.status === 'ready' ? 'You’re ready to go' : `Your plan is ${hire.readiness}% complete`}</h2><p>{hire.role} · {hire.department} <span>·</span> Day 1 in {hire.start_day} days</p></div>
+      <div className="newhire-summary-copy"><span className="eyebrow">{hire.status === 'ready' ? 'ALL SET FOR DAY 1' : hire.status === 'paused' ? 'PLAN ON HOLD' : 'DAY 1 READINESS'}</span><h2>{hire.status === 'ready' ? 'You’re ready to go' : `Your plan is ${hire.readiness}% complete`}</h2><p>{hire.role} · {hire.department} <span>·</span> Joining {displayDate(hire.start_date) ?? `in ${hire.start_day} business days`}</p></div>
       <div className="newhire-progress"><strong>{complete}<span>/{tasks.length}</span></strong><small>tasks complete</small><div className="readiness-track"><i style={{ width: `${tasks.length ? (complete / tasks.length) * 100 : 0}%` }} /></div></div>
     </section>
 
     <section className="newhire-timeline-card">
-      <div className="section-heading"><div><h2>Your onboarding plan</h2><p>We’ll keep this timeline updated as teams finish their work.</p></div><span className="eta-chip"><Clock3 size={14} /> Target ready: Day {readyDay}</span></div>
+      <div className="section-heading"><div><h2>Your onboarding plan</h2><p>We’ll keep this timeline updated as teams finish their work.</p></div><span className="eta-chip"><Clock3 size={14} /> Target ready: {readyDate ?? `Day ${readyDay}`}</span></div>
       {grouped.length === 0 ? <div className="empty-state compact"><Clock3 size={24} /><h3>Your plan is being prepared</h3><p>Tasks will appear here when they’re ready.</p></div> : <div className="newhire-timeline">{grouped.map(group => <div className="timeline-group" key={group.title}><h3>{group.title}<span>{group.tasks.length}</span></h3><div className="timeline-items">{group.tasks.map((task, index) => {
         const done = task.status === 'done'
         const blocked = task.status === 'blocked'

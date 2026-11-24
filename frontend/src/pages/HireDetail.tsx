@@ -12,6 +12,7 @@ type ScheduledTask = Task & { dispatched_day: number | null; schedule_start_day:
 const statusText: Record<string, string> = { on_track: 'On track', at_risk: 'At risk', ready: 'Ready', paused: 'Paused', cancelled: 'Cancelled' }
 const statusClass: Record<string, string> = { on_track: 'on_track', at_risk: 'at_risk', ready: 'ready', paused: 'warning', cancelled: 'neutral' }
 const taskStatusClass: Record<string, string> = { done: 'ready', dispatched: 'on_track', pending: 'neutral', awaiting_approval: 'warning', queued: 'warning', blocked: 'at_risk', paused: 'warning', cancelled: 'neutral' }
+const displayDate = (value?: string | null) => value ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(`${value}T12:00:00`)) : null
 const tabs: Array<{ id: Tab; label: string; icon: typeof LayoutDashboard }> = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard }, { id: 'schedule', label: 'Schedule', icon: CalendarDays },
   { id: 'graph', label: 'Graph', icon: GitBranch }, { id: 'tasks', label: 'Tasks', icon: ListTodo },
@@ -72,13 +73,15 @@ export default function HireDetail() {
   if (hireQuery.isError || !hire) return <main className="hire-detail-page"><section className="empty-state"><h1>Hire details unavailable</h1><p>We couldn’t load this onboarding plan. Check your access or try again.</p><button className="button-secondary" onClick={() => void hireQuery.refetch()}>Retry</button><Link to="/" className="text-action">Return to overview</Link></section></main>
 
   const readyDay = hire.projected_day ?? hire.start_day
+  const joiningDate = displayDate(hire.start_date)
+  const projectedDate = displayDate(hire.projected_ready_date ?? hire.start_date)
   return <main className="hire-detail-page">
     <div className="hire-breadcrumb"><Link to="/" aria-label="Back to hire portfolio"><ArrowLeft size={15} /> Hire portfolio</Link><span>/</span><span>{hire.name}</span></div>
     <header className="hire-hero"><div className="hire-hero-heading"><div><span className="eyebrow">ONBOARDING PLAN · #{hire.id}</span><h1>{hire.name}</h1><p>{hire.role} <span>·</span> {hire.department}</p></div><div className="hire-hero-actions"><span className={`status-pill ${statusClass[hire.status] ?? 'neutral'}`}><i />{statusText[hire.status] ?? hire.status}</span>{['ADMIN', 'HR'].includes(role) && !['ready', 'cancelled'].includes(hire.status) && <div className="lifecycle-actions">{hire.status === 'paused' ? <button className="button-secondary" disabled={lifecycleMutation.isPending} onClick={() => lifecycleMutation.mutate('resume')}><Play size={14} /> Resume</button> : <button className="button-secondary" disabled={lifecycleMutation.isPending} onClick={() => lifecycleMutation.mutate('pause')}><Pause size={14} /> Pause</button>}<button className="button-danger" disabled={lifecycleMutation.isPending} onClick={() => { setCancelConfirmation(''); setCancelDialog(true) }}><X size={14} /> Cancel plan</button></div>}</div></div>
       {actionError && !cancelDialog && <p className="form-error" role="alert">{actionError}<button className="text-action" onClick={() => { setActionError(''); lifecycleMutation.mutate(retryAction) }}>Retry</button></p>}
       <div className="hire-kpis"><article className="hire-readiness-kpi"><div className="readiness-donut" style={{ '--readiness': `${hire.readiness}%` } as CSSProperties}><span>{Math.round(hire.readiness)}<small>%</small></span></div><div><span>Day-1 readiness</span><strong>{hire.readiness >= 100 ? 'Plan complete' : `${tasks.filter(task => task.status === 'done').length} of ${tasks.length} tasks complete`}</strong></div></article>
-        <article><span>Joining target</span><strong>Day {hire.start_day}</strong><small>Business day in this demo</small></article>
-        <article><span>Projected ready</span><strong className={readyDay > hire.start_day ? 'text-risk' : ''}>Day {readyDay}</strong><small>{readyDay > hire.start_day ? `${readyDay - hire.start_day} days after Day 1` : 'On or before Day 1'}</small></article>
+        <article><span>Joining target</span><strong>{joiningDate ?? `Day ${hire.start_day}`}</strong><small>Day {hire.start_day} in the demo calendar</small></article>
+        <article><span>Projected ready</span><strong className={readyDay > hire.start_day ? 'text-risk' : ''}>{projectedDate ?? `Day ${readyDay}`}</strong><small>{readyDay > hire.start_day ? `${readyDay - hire.start_day} business days after joining` : 'On or before the joining date'}</small></article>
         <article><span>Critical tasks</span><strong>{criticalTasks.length}</strong><small>{criticalTasks.length ? 'Remaining on the critical path' : 'No remaining critical blockers'}</small></article>
       </div>
       <div className="hire-progress-track" role="progressbar" aria-label="Day-1 readiness" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(hire.readiness)}><i style={{ width: `${Math.max(0, Math.min(100, hire.readiness))}%` }} /></div>

@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 from app.auth import require_roles
 from app.db.database import get_session
 from app.domain.models import Hire, Notification, SimState, Task, User
+from app.services.clock import load_clock
 
 router = APIRouter(prefix="/me", tags=["my onboarding"])
 
@@ -22,6 +23,10 @@ def my_onboarding(session: Session = Depends(get_session), user: User = Depends(
     if hire is None:
         return {"hire": None, "tasks": []}
     current_day = session.exec(select(SimState.current_day).limit(1)).first() or 0
+    clock = load_clock(session)
+    projected_ready_date = None
+    if hire.start_date and hire.projected_day is not None:
+        projected_ready_date = clock.calendar.add_business_days(hire.start_date, hire.projected_day - hire.start_day)
     tasks = session.exec(select(Task).where(Task.hire_id == hire.id)).all()
     return {
         "hire": {
@@ -29,9 +34,11 @@ def my_onboarding(session: Session = Depends(get_session), user: User = Depends(
             "role": hire.role,
             "department": hire.department,
             "start_day": hire.start_day,
+            "start_date": hire.start_date.isoformat() if hire.start_date else None,
             "status": hire.status,
             "readiness": hire.readiness,
             "projected_day": hire.projected_day,
+            "projected_ready_date": projected_ready_date.isoformat() if projected_ready_date else None,
         },
         "tasks": [
             {

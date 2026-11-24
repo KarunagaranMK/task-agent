@@ -321,19 +321,21 @@ This file records verified state against the phases in the product brief. A gate
 - Added HR/Admin pause, resume, and typed-confirmation cancel actions. Pause/cancel reconcile mock ITSM tickets, preserve completed work, audit the action, and let partial failures be retried.
 - Suppressed stale critical-path actions and what-if task choices for paused/cancelled tasks; their overview now explains the closed state.
 - Added `/api/v1` aliases, Problem Details responses, request IDs, baseline security headers, and frontend routing through the versioned API.
+- Persisted real joining dates with an Alembic backfill, accepted date-based hire creation, and calculated current/earliest/default joining dates from the organization timezone and configurable holiday calendar. The internal simulation-day index remains for deterministic CPM/demo behavior.
+- HR hire creation and the new-hire portal now show joining/projected-ready dates. Admin can edit the ISO-date holiday list; invalid weekends and past dates are rejected by the API.
 - Added API and UI coverage for task schedule positions and ticket-aware pause/resume/cancel; corrected generic-auth-error checks to ignore per-request IDs.
 - Refreshed the screenshot matrix to **198 images**, including graph and schedule tabs at all required role/viewport/theme combinations. Visual inspection covered mobile graph, mobile schedule, and desktop light/dark graph/schedule captures.
 
 ### Verification
 
-- Full backend suite passed: **129 tests**; this includes active-ticket pause/resume/cancel, HR/Admin permission checks, API versioning, and Problem Details.
+- Full backend suite passed: **130 tests**; this includes date/calendar mapping, active-ticket pause/resume/cancel, HR/Admin permission checks, API versioning, and Problem Details.
 - `python run.py --test` passed the backend suite and strict TypeScript/Vite production build; Ruff passed (`E4,E7,E9,F`).
 - Playwright passed **8/8**, including HR lifecycle controls, the Priya recovery-to-READY scenario, and the serious/critical axe audit.
 - Final visual matrix passed and was regenerated: **198 screenshots**; representative mobile and desktop light/dark hire graph/schedule captures were opened and inspected.
 
 ### Known gaps still open against the original brief
 
-- The domain still stores simulation-relative integer `start_day`; joining and projected-ready dates are not yet persisted or rendered as real dates through the organization business calendar.
+- CPM and monitor internals still use a simulation-relative integer day index; real dates are persisted and mapped to that index at the API boundary.
 - The template editor remains a form/row editor; it does not provide an editable DAG canvas with drag connections and inline cycle feedback.
 - Hire list/API pagination and full server-side filtering/sorting, saved filters, bulk actions, and a full hire edit flow are incomplete.
 - SlowAPI/account-and-IP rate limits, a `GET /ready` health check, API UUID IDs, and request-wide transaction semantics remain open hardening work.

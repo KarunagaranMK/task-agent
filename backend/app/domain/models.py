@@ -1,7 +1,7 @@
 from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional, List
 from enum import Enum
-from datetime import datetime
+from datetime import date, datetime
 import json
 
 
@@ -50,7 +50,8 @@ class Hire(SQLModel, table=True):
     name: str
     role: str
     department: str
-    start_day: int  # days from today when hired
+    start_day: int  # joining-day index in the demo simulation
+    start_date: Optional[date] = Field(default=None, index=True)
     status: HireStatus = HireStatus.on_track
     readiness: float = 0.0
     projected_day: Optional[int] = None

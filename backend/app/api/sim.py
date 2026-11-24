@@ -9,6 +9,7 @@ from app.services.experiment import run_experiment
 from app.auth import get_current_user, in_app_notifications_enabled, require_roles
 from app.config import settings
 from app.mcp_clients.tools import reset_mcp_services, set_itsm_offline
+from app.services.clock import load_clock
 from pydantic import BaseModel, Field
 import json
 from typing import Optional
@@ -84,8 +85,13 @@ def get_metrics(session: Session = Depends(get_session), _user=Depends(require_r
     recoveries = session.exec(select(SecurityAudit).where(SecurityAudit.action == "itsm_recovered")).all()
 
     state = get_or_create_sim_state(session)
+    clock = load_clock(session, state.current_day)
+    organization_today = clock.today()
     return {
         "current_day": state.current_day,
+        "current_date": organization_today.isoformat(),
+        "earliest_joining_date": clock.calendar.add_business_days(organization_today, 1).isoformat(),
+        "default_joining_date": clock.calendar.add_business_days(organization_today, 8).isoformat(),
         "itsm_offline": state.itsm_offline,
         "total_hires": total,
         "ready_hires": ready,

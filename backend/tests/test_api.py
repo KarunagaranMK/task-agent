@@ -23,6 +23,36 @@ def test_create_hire(client):
     assert data["name"] == "Priya"
     assert data["id"] is not None
     assert data["readiness"] == 0.0
+    assert data["start_date"]
+
+
+def test_create_hire_uses_organization_business_calendar(client, session, monkeypatch):
+    from datetime import date
+    from app.domain.models import AppSetting
+    from app.services.clock import Clock
+
+    monkeypatch.setattr(Clock, "local_today", lambda _self: date(2026, 11, 24))
+    session.add(AppSetting(key="holidays", value='["2026-11-26"]'))
+    session.commit()
+    metrics = client.get("/metrics").json()
+    assert metrics["current_date"] == "2026-11-24"
+    assert metrics["earliest_joining_date"] == "2026-11-25"
+    assert metrics["default_joining_date"] == "2026-12-07"
+    created = client.post("/api/v1/hires", json={
+        "name": "Calendar QA", "role": "default", "department": "Ops", "start_date": "2026-11-27",
+    })
+    assert created.status_code == 200
+    assert created.json()["start_date"] == "2026-11-27"
+    assert created.json()["start_day"] == 2
+
+    weekend = client.post("/hires", json={
+        "name": "Weekend QA", "role": "default", "department": "Ops", "start_date": "2026-11-28",
+    })
+    assert weekend.status_code == 422
+    past = client.post("/hires", json={
+        "name": "Past QA", "role": "default", "department": "Ops", "start_date": "2026-11-23",
+    })
+    assert past.status_code == 422
 
 
 def test_plan_preview_returns_validated_role_template(client):

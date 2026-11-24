@@ -355,4 +355,4 @@ This file records verified state against the phases in the product brief. A gate
 ### Gate
 
 - **P11 audit follow-up gate: passed** for the shipped visualization, lifecycle, API versioning, template editor, and hardening changes listed above. The P10 clean-copy gate now passes; the remaining product gaps in this section mean the overall brief is still in progress.
-- **Implementation commits:** `2509f0f feat: persist joining dates with business calendar`; `42243e0 feat: add interactive onboarding template canvas`.
+- **Implementation commits:** `2509f0f feat: persist joining dates with business calendar`; `42243e0 feat: add interactive onboarding template canvas`; `07a90ef feat: add server-side hire portfolio queries`.

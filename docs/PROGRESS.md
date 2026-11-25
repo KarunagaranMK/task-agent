@@ -501,3 +501,12 @@ This file records verified state against the phases in the product brief. A gate
 - Re-ran `python run.py --prod --no-browser` after the public-ID, request-transaction, and API-throttling changes. The frontend built, Uvicorn started, and the launcher health poll passed.
 - Directly checked the production root page (`200`, React root present), `/health` (`200`), and `/api/health` (`200`). Stopped the temporary server after verification.
 - **Gate: current `--prod` serving path passed.** Fresh-clone first-run is covered by the earlier P10 clean-copy record; Vitest and GNU Make remain environment/tooling gaps.
+
+### Shared frontend components and accessible schedule inspection — 2026-11-25
+
+- Added reusable `ReadinessRing`, `StatusPill`, `ApprovalCard`, and `DataTable` components and connected them to the hire detail, manager approvals, and HR portfolio screens. Schedule timeline inspection now has a keyboard-accessible task list alongside the visual Gantt, and task detail dialogs remain available from both schedule and dependency graph.
+- Added an isolated Vitest + React Testing Library package with component checks for readiness bounds, status semantics, schedule keyboard access, table interaction, and approval actions. `python run.py --test` now runs backend tests, component tests, and the production build.
+- Verification: **140 backend tests passed**, target coverage **90.60%**, Ruff passed, **5/5 component tests passed**, TypeScript/Vite production build passed, and all **11/11 Playwright end-to-end workflows passed**, including the serious/critical axe audit. A first end-to-end pass identified Gantt SVG accessibility issues; the follow-up audit passed after the keyboard path moved to proper hidden buttons and the SVG returned to a descriptive diagram role.
+- Opened the local app in the browser and inspected the role-specific dashboard; the live preview remains open. The 198-capture responsive screenshot matrix was already verified earlier today and the visual layout did not change in this increment.
+- GNU Make is not installed in this Windows environment, so `make verify` itself could not be invoked. Its `test`, `coverage`, `lint`, and `e2e` commands were run individually with passing results.
+- **Gate: shared frontend component tests and accessible role flows passed.** External vendor connectors and production multi-worker coordination remain outside the local demo's verified scope.

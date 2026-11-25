@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertCircle, Bell, Check, CheckCheck, Clock3, RotateCcw, ShieldCheck, X } from 'lucide-react'
-import { approveTask, getHires, getHireTasks, getNotifications, markAllNotificationsRead, markNotificationRead, rejectTask, undoApproval, type Hire, type Notification, type Task } from '../api/client'
+import { ApprovalCard, type ApprovalTask } from '../components/ApprovalCard'
+import { approveTask, getHires, getHireTasks, getNotifications, markAllNotificationsRead, markNotificationRead, rejectTask, undoApproval, type Hire, type Notification } from '../api/client'
 
-type ApprovalTask = Task & { hire_name: string }
 type UndoInfo = { taskId: string; taskTitle: string; expires: number }
 
 export default function ManagerPage() {
@@ -61,10 +61,13 @@ export default function ManagerPage() {
     {actionError && <div className="action-error" role="alert"><AlertCircle size={16} />{actionError}<button aria-label="Dismiss" onClick={() => setActionError('')}><X size={14} /></button></div>}
     <section className="content-card manager-approval-card">
       <div className="section-heading"><div><h2>Needs your review</h2><p>Approval holds are keeping these tasks from moving forward.</p></div><span className="subtle-count">{pendingTasks.length} requests</span></div>
-      {loadingTasks ? <div className="table-skeleton" aria-label="Loading approvals"><span /><span /></div> : loadError ? <div className="empty-state compact"><AlertCircle size={22} /><h3>Approvals could not be loaded</h3><p>Check your connection and try again.</p><button className="button-secondary" onClick={() => void refreshTasks()}>Retry</button></div> : pendingTasks.length === 0 ? <div className="empty-state compact"><CheckCheck size={24} /><h3>You’re all caught up</h3><p>New access requests for your hires will appear here.</p></div> : <div className="approval-list">{pendingTasks.map(task => <article className="approval-item" key={task.id}>
-        <div className="approval-item-icon"><ShieldCheck size={18} /></div><div className="approval-item-main"><div className="approval-title-row"><strong>{task.title}</strong><span className="approval-badge">Approval required</span></div><p>{task.hire_name} <span>·</span> {task.team} <span>·</span> {task.duration_days} day{task.duration_days === 1 ? '' : 's'}</p><small>Required for this hire’s role-specific onboarding plan.</small></div>
-        <div className="approval-actions"><button className="button-secondary reject-action" disabled={actionMutation.isPending} onClick={() => actionMutation.mutate({ taskId: task.id, action: 'reject' })}><X size={15} />Reject</button><button className="button-primary" disabled={actionMutation.isPending} onClick={() => actionMutation.mutate({ taskId: task.id, action: 'approve' })}><Check size={15} />Approve</button></div>
-      </article>)}</div>}
+      {loadingTasks ? <div className="table-skeleton" aria-label="Loading approvals"><span /><span /></div> : loadError ? <div className="empty-state compact"><AlertCircle size={22} /><h3>Approvals could not be loaded</h3><p>Check your connection and try again.</p><button className="button-secondary" onClick={() => void refreshTasks()}>Retry</button></div> : pendingTasks.length === 0 ? <div className="empty-state compact"><CheckCheck size={24} /><h3>You’re all caught up</h3><p>New access requests for your hires will appear here.</p></div> : <div className="approval-list">{pendingTasks.map(task => <ApprovalCard
+        key={task.id}
+        task={task}
+        disabled={actionMutation.isPending}
+        onReject={taskId => actionMutation.mutate({ taskId, action: 'reject' })}
+        onApprove={taskId => actionMutation.mutate({ taskId, action: 'approve' })}
+      />)}</div>}
     </section>
 
     {undoInfo && <div className="undo-toast" role="status"><span><Check size={15} />{undoInfo.taskTitle} updated</span><button disabled={undoMutation.isPending} onClick={() => undoMutation.mutate(undoInfo.taskId)}><RotateCcw size={14} />Undo</button><i aria-hidden="true" style={{ animationDuration: '5s' }} /></div>}

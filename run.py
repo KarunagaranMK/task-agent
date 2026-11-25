@@ -21,13 +21,14 @@ VENV = ROOT / ".venv"
 PYTHON = VENV / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 PIP = VENV / ("Scripts/pip.exe" if os.name == "nt" else "bin/pip")
 NPM = shutil.which("npm") or ("npm.cmd" if os.name == "nt" else "npm")
+COMPONENT_TESTS = ROOT / "frontend" / "component-tests"
 
 
 def command(args: list[str], *, cwd: Path, check: bool = True) -> subprocess.CompletedProcess[str]:
     return subprocess.run(args, cwd=cwd, text=True, check=check)
 
 
-def prepare(*, reset: bool = False) -> None:
+def prepare(*, reset: bool = False, component_tests: bool = False) -> None:
     if sys.version_info < (3, 11):
         raise SystemExit("Python 3.11 or newer is required.")
     try:
@@ -48,6 +49,8 @@ def prepare(*, reset: bool = False) -> None:
         marker.write_text(digest, encoding="utf-8")
     if not (ROOT / "frontend" / "node_modules").is_dir():
         command([NPM, "install"], cwd=ROOT / "frontend")
+    if component_tests and not (COMPONENT_TESTS / "node_modules").is_dir():
+        command([NPM, "ci"], cwd=COMPONENT_TESTS)
 
     env_file = ROOT / ".env"
     if not env_file.exists():
@@ -115,13 +118,14 @@ def main() -> int:
         sys.stdout.reconfigure(errors="replace", line_buffering=True)
     parser = argparse.ArgumentParser(description="Run the OnboardIQ local demo")
     parser.add_argument("--reset", action="store_true", help="Recreate and reseed the demo database")
-    parser.add_argument("--test", action="store_true", help="Run backend tests and frontend build")
+    parser.add_argument("--test", action="store_true", help="Run backend tests, frontend component tests, and build")
     parser.add_argument("--no-browser", action="store_true", help="Do not open a browser")
     parser.add_argument("--prod", action="store_true", help="Build static frontend assets")
     opts = parser.parse_args()
-    prepare(reset=opts.reset)
+    prepare(reset=opts.reset, component_tests=opts.test)
     if opts.test:
         command([str(PYTHON), "-m", "pytest", "backend/tests", "-q"], cwd=ROOT)
+        command([NPM, "run", "test"], cwd=COMPONENT_TESTS)
         command([NPM, "run", "build"], cwd=ROOT / "frontend")
         return 0
     if opts.prod:

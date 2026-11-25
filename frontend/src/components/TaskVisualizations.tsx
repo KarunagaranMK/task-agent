@@ -101,7 +101,7 @@ export function DependencyGraph({ tasks }: { tasks: ScheduledTask[] }) {
 
 function taskByKeyCritical(tasks: ScheduledTask[], key: string) { return tasks.find(task => task.key === key)?.critical ?? false }
 
-export function ScheduleTimeline({ tasks, dayOne, currentDay }: Props) {
+export function GanttCriticalPath({ tasks, dayOne, currentDay }: Props) {
   const [selected, setSelected] = useState<ScheduledTask | null>(null)
   const [scale, setScale] = useState(58)
   const lastDay = Math.max(dayOne + 1, currentDay + 1, ...tasks.map(task => task.schedule_finish_day ?? currentDay))
@@ -121,8 +121,7 @@ export function ScheduleTimeline({ tasks, dayOne, currentDay }: Props) {
         const left = start === null ? null : 210 + start * scale
         const barWidth = left === null || finish === null ? 0 : Math.max(9, (finish - (start ?? finish)) * scale)
         const visibleTitle = task.title.length > 26 ? `${task.title.slice(0, 25)}…` : task.title
-        const rowDescription = `${visibleTitle} · ${task.team} · ${done ? 'Complete' : `${task.remaining_days}d remaining`}${!done && task.critical && finish !== null && start !== null ? ` · Critical · ${Math.max(1, Math.round(finish - start))}d` : done ? ' · Done' : ''}`
-        return <g key={task.key} className="schedule-row" aria-label={rowDescription} onClick={() => setSelected(task)}>
+        return <g key={task.key} className="schedule-row" onClick={() => setSelected(task)}>
           <rect x="0" y={y - 8} width={width} height={rowHeight} className="schedule-row-bg" />
           <text x="8" y={y + 9} className="schedule-task-title">{visibleTitle}</text>
           <text x="8" y={y + 25} className="schedule-task-team">{task.team} · {done ? 'Complete' : `${task.remaining_days}d remaining`}</text>

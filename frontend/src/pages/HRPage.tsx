@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 import { ArrowDownUp, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, CircleAlert, Clock3, Download, Pause, Play, Plus, Search, Users, X } from 'lucide-react'
+import { DataTable, type DataTableColumn } from '../components/DataTable'
+import { StatusPill } from '../components/StatusPill'
 import {
   createHire, getHirePage, getManagers, getMetrics, pauseHire, planPreview, resumeHire,
   type Hire, type HireCreate, type HirePageResult,
@@ -181,6 +183,15 @@ export default function HRPage() {
   const onTrack = metrics?.on_track_hires ?? 0
   const atRisk = metrics?.at_risk_hires ?? 0
   const readySoon = metrics?.ready_starting_soon ?? 0
+  const hireColumns: DataTableColumn<Hire>[] = [
+    { key: 'select', header: <input type="checkbox" aria-label="Select all hires on this page" checked={visibleHires.length > 0 && selectedHires.length === visibleHires.length} onChange={event => setSelectedIds(event.target.checked ? visibleHires.map(hire => hire.id) : [])} />, headerClassName: 'hire-select-cell', className: 'hire-select-cell', render: hire => <input type="checkbox" aria-label={`Select ${hire.name}`} checked={selectedIds.includes(hire.id)} onChange={event => setSelectedIds(current => event.target.checked ? [...current, hire.id] : current.filter(id => id !== hire.id))} /> },
+    { key: 'hire', header: 'New hire', render: hire => <Link className="hire-name-link" to={`/hire/${hire.id}`}><span className="hire-avatar">{hire.name.split(' ').map(part => part[0]).join('').slice(0, 2)}</span><span><strong>{hire.name}</strong><small>{hire.role} · {hire.department}</small></span></Link> },
+    { key: 'manager', header: 'Manager', render: hire => managers.find(manager => manager.id === hire.manager_id)?.name ?? <span className="table-muted">Unassigned</span> },
+    { key: 'day-one', header: 'Day 1', render: hire => hire.start_date ? <><strong>{formatDate(hire.start_date)}</strong><small>Day {hire.start_day} in demo</small></> : `Day ${hire.start_day}` },
+    { key: 'readiness', header: 'Readiness', render: hire => <div className="readiness-cell"><span className="readiness-track"><i className={hire.status === 'at_risk' ? 'risk' : hire.status === 'ready' ? 'ready' : ''} style={{ width: `${Math.max(0, Math.min(100, hire.readiness))}%` }} /></span><span>{hire.readiness}%</span></div> },
+    { key: 'status', header: 'Status', render: hire => <StatusPill status={hire.status} label={statusLabel[hire.status] ?? hire.status} /> },
+    { key: 'open', header: <span className="sr-only">Open hire</span>, render: hire => <Link className="table-open" aria-label={`Open ${hire.name}`} to={`/hire/${hire.id}`}><ArrowRight size={16} /></Link> },
+  ]
 
   return <div className="portal-page">
     <div className="page-heading-row">
@@ -217,16 +228,7 @@ export default function HRPage() {
       {isLoading ? <div className="table-skeleton" aria-label="Loading hires"><span /><span /><span /></div> : isError ?
         <div className="empty-state compact"><CircleAlert size={23} /><h3>We couldn’t load hires</h3><p>Check the connection and refresh this page.</p></div> : visibleHires.length === 0 ?
           <div className="empty-state compact"><Users size={25} /><h3>{search || filter !== 'all' ? 'No matching hires' : 'Your portfolio is ready to begin'}</h3><p>{search || filter !== 'all' ? 'Try another search or status filter.' : 'Create a hire to build a team-ready onboarding plan.'}</p>{!search && filter === 'all' && <button className="button-secondary" onClick={() => setShowWizard(true)}>Create first hire</button>}</div> :
-          <div className="hire-table-wrap"><table className="hire-table"><thead><tr><th className="hire-select-cell"><input type="checkbox" aria-label="Select all hires on this page" checked={visibleHires.length > 0 && selectedHires.length === visibleHires.length} onChange={event => setSelectedIds(event.target.checked ? visibleHires.map(hire => hire.id) : [])} /></th><th>New hire</th><th>Manager</th><th>Day 1</th><th>Readiness</th><th>Status</th><th><span className="sr-only">Open hire</span></th></tr></thead>
-            <tbody>{visibleHires.map(hire => <tr key={hire.id}>
-              <td className="hire-select-cell"><input type="checkbox" aria-label={`Select ${hire.name}`} checked={selectedIds.includes(hire.id)} onChange={event => setSelectedIds(current => event.target.checked ? [...current, hire.id] : current.filter(id => id !== hire.id))} /></td>
-              <td><Link className="hire-name-link" to={`/hire/${hire.id}`}><span className="hire-avatar">{hire.name.split(' ').map(part => part[0]).join('').slice(0, 2)}</span><span><strong>{hire.name}</strong><small>{hire.role} · {hire.department}</small></span></Link></td>
-              <td>{managers.find(manager => manager.id === hire.manager_id)?.name ?? <span className="table-muted">Unassigned</span>}</td>
-              <td>{hire.start_date ? <><strong>{formatDate(hire.start_date)}</strong><small>Day {hire.start_day} in demo</small></> : `Day ${hire.start_day}`}</td>
-              <td><div className="readiness-cell"><span className="readiness-track"><i className={hire.status === 'at_risk' ? 'risk' : hire.status === 'ready' ? 'ready' : ''} style={{ width: `${Math.max(0, Math.min(100, hire.readiness))}%` }} /></span><span>{hire.readiness}%</span></div></td>
-              <td><span className={`status-pill ${hire.status}`}>{statusLabel[hire.status] ?? hire.status}</span></td>
-              <td><Link className="table-open" aria-label={`Open ${hire.name}`} to={`/hire/${hire.id}`}><ArrowRight size={16} /></Link></td>
-            </tr>)}</tbody></table><div className="hire-pagination"><span>Showing {Math.min((page - 1) * pageSize + 1, totalHires)}–{Math.min(page * pageSize, totalHires)} of {totalHires} hires</span><div><button className="button-secondary" aria-label="Previous hire page" disabled={page <= 1 || hiresQuery.isFetching} onClick={() => updatePortfolio({ page: page - 1 })}><ChevronLeft size={15} /> Previous</button><span>Page {page} of {Math.max(1, totalPages)}</span><button className="button-secondary" aria-label="Next hire page" disabled={page >= totalPages || hiresQuery.isFetching} onClick={() => updatePortfolio({ page: page + 1 })}><span>Next</span><ChevronRight size={15} /></button></div></div></div>}
+          <div className="hire-table-wrap"><DataTable ariaLabel="Hire portfolio" className="hire-table" rows={visibleHires} columns={hireColumns} rowKey={hire => hire.id} /><div className="hire-pagination"><span>Showing {Math.min((page - 1) * pageSize + 1, totalHires)}–{Math.min(page * pageSize, totalHires)} of {totalHires} hires</span><div><button className="button-secondary" aria-label="Previous hire page" disabled={page <= 1 || hiresQuery.isFetching} onClick={() => updatePortfolio({ page: page - 1 })}><ChevronLeft size={15} /> Previous</button><span>Page {page} of {Math.max(1, totalPages)}</span><button className="button-secondary" aria-label="Next hire page" disabled={page >= totalPages || hiresQuery.isFetching} onClick={() => updatePortfolio({ page: page + 1 })}><span>Next</span><ChevronRight size={15} /></button></div></div></div>}
     </section>
 
     {showWizard && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) closeWizard() }}>

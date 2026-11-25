@@ -305,3 +305,15 @@
 - **Decision:** Apply a 600-request rolling one-minute in-memory limit per client IP across API prefixes, while exempting health/readiness probes and preflight requests. Keep the tighter existing login and recovery buckets.
 - **Why:** A broad cap also bounds anonymous and authenticated API traffic that is not covered by the sensitive credential/recovery limits, and returns the same Problem Details format as other API failures.
 - **Alternative considered:** Add individual limits to every endpoint or introduce a Redis dependency. Per-route limits create a long maintenance list; a shared store is unnecessary for the single-process local deployment but required if it is scaled to multiple workers.
+
+## 2026-11-25 — Keep component tests in a separate frontend package
+
+- **Decision:** Run Vitest and React Testing Library from `frontend/component-tests`, with its own lockfile and `legacy-peer-deps` setting. Reuse the app's React runtime through Vite aliases, and invoke the suite from `run.py --test`.
+- **Why:** The main frontend lockfile already contains an existing user change, so the test runner and browser-test dependencies can be added without rewriting that lockfile. The separate package still gives clean installs through `npm ci` and runs under the project's Node 20+ requirement.
+- **Alternative considered:** Add test dependencies to the main frontend manifest and regenerate its lockfile. That would mix testing dependencies into the application package and overwrite unrelated lockfile work.
+
+## 2026-11-25 — Keep the Gantt diagram and keyboard actions separate
+
+- **Decision:** Keep the SVG schedule as a labeled diagram and provide a visually hidden, keyboard-accessible inspection button for each task. The dependency graph continues to expose its task nodes as keyboard-operable controls.
+- **Why:** Putting focusable buttons inside an SVG marked as one image produced nested-interactive and accessible-name axe violations. The separate button list preserves keyboard task inspection while leaving the visual schedule semantics accurate.
+- **Alternative considered:** Mark each SVG row as a button. Current axe results show SVG text rows do not reliably satisfy the label-content-name rule across browser accessibility trees.

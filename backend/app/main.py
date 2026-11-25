@@ -9,6 +9,8 @@ from pathlib import Path
 import os
 from uuid import uuid4
 from contextlib import asynccontextmanager
+from threading import Lock
+from time import monotonic
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from app.api import hires, tasks, sim
@@ -36,6 +38,36 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+_API_RATE_WINDOW_SECONDS = 60
+_API_RATE_LIMIT = 600
+_API_RATE_BUCKETS: dict[str, list[float]] = {}
+_API_RATE_LOCK = Lock()
+_API_RATE_REQUEST_COUNT = 0
+_API_PREFIXES = (
+    "/api/", "/auth", "/users", "/hires", "/tickets", "/tasks", "/notifications",
+    "/events", "/me", "/admin", "/settings", "/audit", "/templates", "/experiments",
+    "/metrics", "/monitor", "/sim", "/dev",
+)
+
+
+def _api_rate_limited(client_ip: str, now: float) -> bool:
+    global _API_RATE_REQUEST_COUNT
+    with _API_RATE_LOCK:
+        recent = [stamp for stamp in _API_RATE_BUCKETS.get(client_ip, []) if now - stamp < _API_RATE_WINDOW_SECONDS]
+        if len(recent) >= _API_RATE_LIMIT:
+            limited = True
+        else:
+            recent.append(now)
+            _API_RATE_BUCKETS[client_ip] = recent
+            limited = False
+        _API_RATE_REQUEST_COUNT += 1
+        if _API_RATE_REQUEST_COUNT % 256 == 0:
+            expired = [ip for ip, stamps in _API_RATE_BUCKETS.items()
+                       if not stamps or now - stamps[-1] >= _API_RATE_WINDOW_SECONDS]
+            for ip in expired:
+                _API_RATE_BUCKETS.pop(ip, None)
+        return limited
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:8000", "http://127.0.0.1:8000"],
@@ -57,7 +89,24 @@ for prefix in ("", "/api", "/api/v1"):
 @app.middleware("http")
 async def add_request_context(request: Request, call_next):
     request.state.request_id = str(uuid4())
-    response = await call_next(request)
+    path = request.url.path
+    health_check = path in {"/health", "/ready", "/api/health", "/api/ready", "/api/v1/health", "/api/v1/ready"}
+    is_api = path.startswith(_API_PREFIXES)
+    if is_api and not health_check and request.method != "OPTIONS" and _api_rate_limited(
+        request.client.host if request.client else "unknown", monotonic()
+    ):
+        response = JSONResponse({
+            "type": "about:blank",
+            "title": "Too Many Requests",
+            "status": 429,
+            "code": "rate_limit_exceeded",
+            "message": "Too many API requests. Try again shortly.",
+            "detail": "The per-client API request limit has been reached.",
+            "field_errors": [],
+            "request_id": request.state.request_id,
+        }, status_code=429, headers={"Retry-After": str(_API_RATE_WINDOW_SECONDS)}, media_type="application/problem+json")
+    else:
+        response = await call_next(request)
     response.headers["X-Request-ID"] = request.state.request_id
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"

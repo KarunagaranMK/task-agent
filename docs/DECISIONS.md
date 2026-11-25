@@ -299,3 +299,9 @@
 - **Decision:** Defer API session commits to the request dependency. Route-level `commit()` remains a flush for in-request reads; successful completion commits once, while exceptions roll the transaction back. SSE ticket consumption has an explicit immediate commit before streaming begins.
 - **Why:** Several routes perform multiple related writes and may fail after an earlier flush. A request-level unit of work keeps those local records atomic and preserves the single-use guarantee for streaming tickets.
 - **Alternative considered:** Keep route-level commits and add compensating deletes to each endpoint. That duplicates rollback logic and is easy to miss when future routes add related writes. External MCP operations cannot share a local SQLite transaction and continue to use idempotency/outbox recovery.
+
+## 2026-11-25 — Bound API request volume per client
+
+- **Decision:** Apply a 600-request rolling one-minute in-memory limit per client IP across API prefixes, while exempting health/readiness probes and preflight requests. Keep the tighter existing login and recovery buckets.
+- **Why:** A broad cap also bounds anonymous and authenticated API traffic that is not covered by the sensitive credential/recovery limits, and returns the same Problem Details format as other API failures.
+- **Alternative considered:** Add individual limits to every endpoint or introduce a Redis dependency. Per-route limits create a long maintenance list; a shared store is unnecessary for the single-process local deployment but required if it is scaled to multiple workers.

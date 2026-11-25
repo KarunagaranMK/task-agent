@@ -86,6 +86,18 @@ test('HR portfolio search and status filters are applied by the API', async ({ p
   expect((await download).suggestedFilename()).toBe('onboardiq-hire-portfolio.csv')
 })
 
+test('HR can bulk pause and resume selected hires on the current page', async ({ page }) => {
+  await signIn(page, 'HR')
+  await page.getByLabel('Select Priya Sharma').check()
+  await expect(page.getByRole('region', { name: 'Bulk hire actions' })).toContainText('1 selected on this page')
+  await page.getByRole('button', { name: 'Pause 1 selected' }).click()
+  const priyaRow = page.locator('.hire-table tbody tr').filter({ hasText: 'Priya Sharma' })
+  await expect(priyaRow.locator('.status-pill')).toHaveText('paused')
+  await priyaRow.getByLabel('Select Priya Sharma').check()
+  await page.getByRole('button', { name: 'Resume 1 selected' }).click()
+  await expect(priyaRow.locator('.status-pill')).toHaveText(/On track|At risk/)
+})
+
 test('manager, IT, and new-hire interactions are keyboard reachable', async ({ page }) => {
   await signIn(page, 'Manager')
   await page.getByRole('link', { name: 'Approvals', exact: true }).click()

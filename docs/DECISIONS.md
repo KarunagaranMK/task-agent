@@ -209,3 +209,9 @@
 - **Decision:** Store search, status, sort and page in the URL; persist saved views in browser local storage; build CSV downloads from all API pages matching the active search/status filters and escape spreadsheet formula prefixes.
 - **Why:** HR can share or bookmark a portfolio state and reuse personal views without adding server-side preference storage. The export remains complete beyond the current page and inherits the API's authorization filters.
 - **Alternative considered:** Persist named views in the backend and add a dedicated export endpoint. Browser-local saved views avoid another data model/migration; pagination over the already-authorized API preserves the no-new-endpoint local-first design.
+
+## 2026-11-25 — Scope bulk lifecycle actions to the visible hire page
+
+- **Decision:** Let HR select hires on the current page and bulk pause or resume eligible selections through the existing per-hire lifecycle endpoints. Clear selection when the query/page changes and report partial success counts.
+- **Why:** Each lifecycle route already reconciles tickets and writes an audit event. Keeping one request per hire preserves those safeguards while making multi-hire follow-up faster; page-local selection avoids accidentally acting on unseen records.
+- **Alternative considered:** Add a batch endpoint and select all filtered hires across pages. A new transaction boundary would be misleading because ITSM reconciliation can partially fail, so this UI reports independent outcomes using the existing single-hire behavior.

@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
-import { ArrowDownUp, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, CircleAlert, Clock3, Download, Plus, Search, Users, X } from 'lucide-react'
+import { ArrowDownUp, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, CircleAlert, Clock3, Download, Pause, Play, Plus, Search, Users, X } from 'lucide-react'
 import {
-  createHire, getHirePage, getManagers, getMetrics, planPreview,
+  createHire, getHirePage, getManagers, getMetrics, pauseHire, planPreview, resumeHire,
   type Hire, type HireCreate, type HirePageResult,
 } from '../api/client'
 
@@ -69,6 +69,7 @@ export default function HRPage() {
   const [notice, setNotice] = useState('')
   const [portfolioError, setPortfolioError] = useState('')
   const [exporting, setExporting] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [savedViews, setSavedViews] = useState<SavedView[]>(() => {
     try {
       const stored: unknown = JSON.parse(localStorage.getItem(savedViewsKey) ?? '[]')
@@ -77,6 +78,7 @@ export default function HRPage() {
   })
 
   useEffect(() => { localStorage.setItem(savedViewsKey, JSON.stringify(savedViews)) }, [savedViews])
+  useEffect(() => { setSelectedIds([]) }, [search, filter, sortNewest, page])
 
   const saveCurrentView = () => {
     const label = [filter === 'all' ? 'All hires' : filter === 'at_risk' ? 'At risk' : filter === 'on_track' ? 'On track' : 'Ready', search.trim()].filter(Boolean).join(' · ')
@@ -119,6 +121,19 @@ export default function HRPage() {
     } finally { setExporting(false) }
   }
 
+  const bulkLifecycle = useMutation({
+    mutationFn: async ({ action, ids }: { action: 'pause' | 'resume'; ids: number[] }) => {
+      const results = await Promise.allSettled(ids.map(id => action === 'pause' ? pauseHire(id) : resumeHire(id)))
+      return { action, succeeded: results.filter(result => result.status === 'fulfilled').length, failed: results.filter(result => result.status === 'rejected').length }
+    },
+    onSuccess: result => {
+      void queryClient.invalidateQueries({ queryKey: ['hires'] })
+      void queryClient.invalidateQueries({ queryKey: ['metrics'] })
+      setSelectedIds([])
+      setNotice(`${result.action === 'pause' ? 'Paused' : 'Resumed'} ${result.succeeded} ${result.succeeded === 1 ? 'hire' : 'hires'}${result.failed ? `; ${result.failed} could not be updated` : ''}.`)
+    },
+  })
+
   useEffect(() => {
     if (metrics?.default_joining_date && !form.name && !showWizard) {
       setForm(current => ({ ...current, start_date: metrics.default_joining_date }))
@@ -140,6 +155,9 @@ export default function HRPage() {
   })
 
   const visibleHires = hires
+  const selectedHires = visibleHires.filter(hire => selectedIds.includes(hire.id))
+  const pausableHires = selectedHires.filter(hire => !['paused', 'cancelled', 'ready'].includes(hire.status))
+  const resumableHires = selectedHires.filter(hire => hire.status === 'paused')
 
   const closeWizard = () => { setShowWizard(false); setStep(0); setError('') }
   const nextStep = async () => {
@@ -194,12 +212,14 @@ export default function HRPage() {
       </div>
       {savedViews.length > 0 && <div className="saved-views" aria-label="Saved portfolio views"><span>Saved views</span>{savedViews.map(view => <span className="saved-view-item" key={view.id}><button className="filter-chip" onClick={() => updatePortfolio({ search: view.search, filter: view.filter, sortNewest: view.sortNewest, page: 1 })}>{view.label}</button><button className="saved-view-remove" aria-label={`Remove saved view ${view.label}`} onClick={() => setSavedViews(current => current.filter(item => item.id !== view.id))}><X size={12} /></button></span>)}</div>}
       {portfolioError && <p className="form-error portfolio-error" role="alert">{portfolioError}</p>}
+      {selectedHires.length > 0 && <div className="bulk-toolbar" role="region" aria-label="Bulk hire actions"><span><strong>{selectedHires.length}</strong> selected on this page</span><div>{pausableHires.length > 0 && <button className="button-secondary" disabled={bulkLifecycle.isPending} onClick={() => bulkLifecycle.mutate({ action: 'pause', ids: pausableHires.map(hire => hire.id) })}><Pause size={14} />Pause {pausableHires.length} selected</button>}{resumableHires.length > 0 && <button className="button-secondary" disabled={bulkLifecycle.isPending} onClick={() => bulkLifecycle.mutate({ action: 'resume', ids: resumableHires.map(hire => hire.id) })}><Play size={14} />Resume {resumableHires.length} selected</button>}<button className="bulk-clear" onClick={() => setSelectedIds([])}>Clear selection</button></div>{bulkLifecycle.isError && <span className="form-error" role="alert">Some hires could not be updated. Refresh the list to see the current state.</span>}</div>}
 
       {isLoading ? <div className="table-skeleton" aria-label="Loading hires"><span /><span /><span /></div> : isError ?
         <div className="empty-state compact"><CircleAlert size={23} /><h3>We couldn’t load hires</h3><p>Check the connection and refresh this page.</p></div> : visibleHires.length === 0 ?
           <div className="empty-state compact"><Users size={25} /><h3>{search || filter !== 'all' ? 'No matching hires' : 'Your portfolio is ready to begin'}</h3><p>{search || filter !== 'all' ? 'Try another search or status filter.' : 'Create a hire to build a team-ready onboarding plan.'}</p>{!search && filter === 'all' && <button className="button-secondary" onClick={() => setShowWizard(true)}>Create first hire</button>}</div> :
-          <div className="hire-table-wrap"><table className="hire-table"><thead><tr><th>New hire</th><th>Manager</th><th>Day 1</th><th>Readiness</th><th>Status</th><th><span className="sr-only">Open hire</span></th></tr></thead>
+          <div className="hire-table-wrap"><table className="hire-table"><thead><tr><th className="hire-select-cell"><input type="checkbox" aria-label="Select all hires on this page" checked={visibleHires.length > 0 && selectedHires.length === visibleHires.length} onChange={event => setSelectedIds(event.target.checked ? visibleHires.map(hire => hire.id) : [])} /></th><th>New hire</th><th>Manager</th><th>Day 1</th><th>Readiness</th><th>Status</th><th><span className="sr-only">Open hire</span></th></tr></thead>
             <tbody>{visibleHires.map(hire => <tr key={hire.id}>
+              <td className="hire-select-cell"><input type="checkbox" aria-label={`Select ${hire.name}`} checked={selectedIds.includes(hire.id)} onChange={event => setSelectedIds(current => event.target.checked ? [...current, hire.id] : current.filter(id => id !== hire.id))} /></td>
               <td><Link className="hire-name-link" to={`/hire/${hire.id}`}><span className="hire-avatar">{hire.name.split(' ').map(part => part[0]).join('').slice(0, 2)}</span><span><strong>{hire.name}</strong><small>{hire.role} · {hire.department}</small></span></Link></td>
               <td>{managers.find(manager => manager.id === hire.manager_id)?.name ?? <span className="table-muted">Unassigned</span>}</td>
               <td>{hire.start_date ? <><strong>{formatDate(hire.start_date)}</strong><small>Day {hire.start_day} in demo</small></> : `Day ${hire.start_day}`}</td>

@@ -324,6 +324,7 @@ This file records verified state against the phases in the product brief. A gate
 - Added live key/dependency/cycle validation that disables publishing until the plan is valid; small-screen graph panning stays inside the canvas without widening the page.
 - Added server-side hire search, status filtering, stable sorting and bounded pagination with total/page response headers. HR’s portfolio query state drives the React Query cache key; summary metrics are server-wide, not page-local.
 - Synced HR portfolio search, status, sort and page state into the URL; saved named-by-filter views in local storage; added CSV export that fetches every page matching the active search and status, with spreadsheet-formula escaping.
+- Added page-local hire selection with bulk pause/resume actions through the existing audited API routes; mixed outcomes report successful and failed counts, and the selection clears when the portfolio query changes.
 - Added `/ready` aliases that probe the database connection and return 503 when the database is unavailable; `/health` remains a liveness check.
 - Added independent rolling 15-minute login limits for each IP/email pair, each account, and each client IP, alongside the existing five-failure account lockout.
 - Added separate 15-minute per-IP limits for password recovery (10), reset-token submissions (30), and invitation acceptance (30); recovery responses remain generic.
@@ -346,14 +347,14 @@ This file records verified state against the phases in the product brief. A gate
 
 - Full backend suite passed: **134 tests**; this includes date/calendar mapping, active-ticket pause/resume/cancel, HR/Admin permission checks, API versioning, Problem Details, hire list query/pagination behavior, database readiness aliases, login rate buckets, and public recovery rate limits.
 - `python run.py --test` passed the backend suite and strict TypeScript/Vite production build; Ruff passed (`E4,E7,E9,F`).
-- Playwright passed **10/10**, including hire search/status filters, template dependency edits/cycle recovery, HR lifecycle controls, the Priya recovery-to-READY scenario, and the serious/critical axe audit.
+- Playwright passed **11/11**, including hire search/status filters, saved-view restore and CSV download, bulk pause/resume, template dependency edits/cycle recovery, the Priya recovery-to-READY scenario, and the serious/critical axe audit.
 - Final visual matrix passed and was regenerated: **198 screenshots**; representative mobile/desktop template and HR portfolio captures plus hire graph/schedule views were opened and inspected.
 
 ### Known gaps still open against the original brief
 
 - CPM and monitor internals still use a simulation-relative integer day index; real dates are persisted and mapped to that index at the API boundary.
 - Template dependencies can be edited by click-to-connect and prerequisite controls; draggable edge handles are not implemented, and current templates remain below the 40-task API limit.
-- Bulk hire actions and a full hire edit flow are incomplete; search, status, sort, paging, saved views, URL sharing and filtered CSV export are implemented.
+- A full hire edit flow remains incomplete; search, status, sort, paging, saved views, URL sharing, filtered CSV export, and bulk pause/resume are implemented.
 - Other unauthenticated endpoints remain without rate limits; login and recovery limits are in-memory per process. API UUID IDs and request-wide transaction semantics also remain open hardening work.
 - Vitest component tests and production performance/load profiling have not been added; the GNU Make target mirror has not been independently exercised on this Windows machine.
 - The app uses local/mock ITSM and HRIS, local development mail, and an in-process deterministic layout/orchestrator; no LangGraph adapter or production vendor integration is claimed.
@@ -375,3 +376,10 @@ This file records verified state against the phases in the product brief. A gate
 - Export quotes CSV cells and neutralizes leading spreadsheet formula characters. Mobile toolbar controls wrap into a three-column row; hire date and demo-day notes now have clear spacing.
 - Verification: strict TypeScript/Vite production build passed; Playwright passed **10/10**, including URL state, saved-view restore and CSV download; responsive screenshot matrix passed **198 captures** with no page overflow. Inspected HR overview at 390px light and 1440px dark.
 - **Gate: passed.** Bulk actions and full hire editing remain open. This increment is committed after verification.
+
+### HR bulk portfolio actions — 2026-11-25
+
+- Added checkboxes to select hires on the current page, with page-wide select/clear and selection reset when filters or paging change. Eligible hires can be paused or resumed in bulk; terminal and ready hires are excluded from pause actions.
+- Actions use the existing per-hire audited lifecycle routes. Each request can succeed or fail independently, and the completion notice reports both counts.
+- Verification: frontend build passed; Playwright passed **11/11**, including a browser pause/resume round trip; the refreshed **198-capture** screenshot matrix passed with no overflow, and HR portfolio captures at 390px light and 1440px dark were inspected.
+- **Gate: passed.** A full hire edit flow remains open. This increment is committed after verification.

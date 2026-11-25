@@ -116,7 +116,7 @@ export const reportOnboardingIssue = (message: string) => api.post('/me/issues',
 export const runWhatIf = (hireId: string, task_key: string, delay_days: number) => api.post(`/hires/${hireId}/what-if`, { task_key, delay_days }).then(r => r.data as WhatIfResult)
 export const listUsers = () => api.get<AuthUser[]>('/users').then(r => r.data)
 export const inviteUser = (data: { email: string; name: string; role: string; team?: string }) => api.post<AuthUser>('/users/invite', data).then(r => r.data)
-export const updateUser = (id: number, data: Partial<Pick<AuthUser, 'role' | 'team' | 'is_active'>>) => api.patch<AuthUser>(`/users/${id}`, data).then(r => r.data)
+export const updateUser = (id: string, data: Partial<Pick<AuthUser, 'role' | 'team' | 'is_active'>>) => api.patch<AuthUser>(`/users/${id}`, data).then(r => r.data)
 export const getTemplates = () => api.get<OnboardingTemplate[]>('/templates').then(r => r.data)
 export const publishTemplate = (data: { role_key: string; tasks: TemplateTask[] }) => api.post<OnboardingTemplate>('/templates', data).then(r => r.data)
 export const getSettings = () => api.get<Record<string, string>>('/settings').then(r => r.data)

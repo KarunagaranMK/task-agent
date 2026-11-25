@@ -269,3 +269,9 @@
 - **Decision:** Expose a persisted UUID for notification IDs in polling responses, the read endpoint, and SSE JSON payloads. Keep the event-stream `id:` cursor numeric so reconnect replay can continue using the existing monotonically increasing internal database cursor.
 - **Why:** UI actions need a stable, non-sequential notification identifier, while SSE replay needs an ordered cursor independent of the public resource ID.
 - **Alternative considered:** Use UUIDs as SSE replay cursors. UUIDs do not preserve event ordering; separating the JSON resource ID from the protocol cursor keeps both guarantees clear.
+
+## 2026-11-25 — Use stable UUIDs for public users
+
+- **Decision:** Expose UUIDs for user records and user-management route IDs, and use UUIDs for hire manager assignment inputs/outputs. Keep JWT subjects and relational foreign keys as internal integers.
+- **Why:** User IDs are public through auth, admin, and manager-selection APIs; hire manager references must use the same public identifier. Internal token and relationship consumers can continue using stable database keys without a risky schema-wide foreign-key conversion.
+- **Alternative considered:** Change JWT subjects and all user foreign keys to UUIDs. This would require rotating/invalidating every session and rebuilding dependent tables; public UUIDs provide the API contract without changing identity storage semantics.

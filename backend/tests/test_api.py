@@ -82,13 +82,13 @@ def test_hr_can_edit_hire_details_and_recalculate_joining_date(client, session, 
     hire = client.post("/hires", json={"name": "Edit Me", "role": "Analyst", "department": "Data", "start_day": 8}).json()
 
     updated = client.patch(f"/api/v1/hires/{hire['id']}", json={
-        "name": "Edited Name", "role": "Software Engineer", "department": "Analytics", "manager_id": manager.id, "start_date": "2026-12-07",
+        "name": "Edited Name", "role": "Software Engineer", "department": "Analytics", "manager_id": manager.public_id, "start_date": "2026-12-07",
     })
     assert updated.status_code == 200
     assert updated.json()["name"] == "Edited Name"
     assert updated.json()["role"] == "Software Engineer"
     assert updated.json()["department"] == "Analytics"
-    assert updated.json()["manager_id"] == manager.id
+    assert updated.json()["manager_id"] == manager.public_id
     assert updated.json()["start_date"] == "2026-12-07"
     assert updated.json()["start_day"] == 9
     from app.domain.models import Hire

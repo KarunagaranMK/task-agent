@@ -23,7 +23,7 @@ class HireCreate(BaseModel):
     department: str
     start_day: Optional[int] = Field(default=None, ge=1, le=365)
     start_date: Optional[date] = None
-    manager_id: Optional[int] = None
+    manager_id: Optional[UUID] = None
 
     @model_validator(mode="after")
     def require_start_target(self):
@@ -37,7 +37,7 @@ class HireUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=2, max_length=120)
     role: Optional[str] = Field(default=None, min_length=1, max_length=120)
     department: Optional[str] = Field(default=None, min_length=1, max_length=120)
-    manager_id: Optional[int] = None
+    manager_id: Optional[UUID] = None
     start_date: Optional[date] = None
 
     @model_validator(mode="after")
@@ -92,7 +92,7 @@ class HireOut(BaseModel):
     readiness: float
     projected_day: Optional[int]
     projected_ready_date: Optional[date]
-    manager_id: Optional[int] = None
+    manager_id: Optional[UUID] = None
 
 
 @router.post("/plan-preview")
@@ -118,7 +118,7 @@ def _hire_out(h: Hire, session: Session) -> HireOut:
         readiness=h.readiness,
         projected_day=h.projected_day,
         projected_ready_date=projected_ready_date,
-        manager_id=h.manager_id,
+        manager_id=(UUID(manager.public_id) if h.manager_id is not None and (manager := session.get(User, h.manager_id)) else None),
     )
 
 
@@ -128,8 +128,9 @@ def _hire_by_public_id(public_id: UUID, session: Session) -> Hire | None:
 
 @router.post("", response_model=HireOut)
 def create_hire(data: HireCreate, session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "HR"))):
-    if data.manager_id is not None and session.get(User, data.manager_id) is None:
-        raise HTTPException(422, "Manager not found")
+    manager = session.exec(select(User).where(User.public_id == str(data.manager_id))).first() if data.manager_id else None
+    if data.manager_id is not None and (manager is None or not manager.is_active or manager.role != "MANAGER"):
+        raise HTTPException(422, "Choose an active manager")
     if data.start_date is not None:
         current_day = get_current_day(session)
         clock = load_clock(session, current_day)
@@ -144,7 +145,7 @@ def create_hire(data: HireCreate, session: Session = Depends(get_session), _user
         start_day = data.start_day
         clock = load_clock(session)
         start_date = clock.calendar.add_business_days(clock.local_today(), start_day)
-    hire = create_hire_with_plan(session, data.name, data.role, data.department, start_day, data.manager_id, start_date)
+    hire = create_hire_with_plan(session, data.name, data.role, data.department, start_day, manager.id if manager else None, start_date)
     return _hire_out(hire, session)
 
 
@@ -220,9 +221,10 @@ def update_hire_details(
     ):
         raise HTTPException(422, "Name and department cannot be empty")
     if "manager_id" in changes and changes["manager_id"] is not None:
-        manager = session.get(User, changes["manager_id"])
+        manager = session.exec(select(User).where(User.public_id == str(changes["manager_id"]))).first()
         if manager is None or not manager.is_active or manager.role != "MANAGER":
             raise HTTPException(422, "Choose an active manager")
+        changes["manager_id"] = manager.id
 
     role_changed = "role" in changes and changes["role"] != hire.role
     if "role" in changes:

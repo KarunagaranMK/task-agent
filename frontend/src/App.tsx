@@ -27,7 +27,7 @@ const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, ref
 
 export const RoleContext = createContext<{ role: string; setRole: (r: string) => void }>({ role: 'HR', setRole: () => {} })
 export const useRole = () => useContext(RoleContext)
-const AuthContext = createContext<{ user: AuthUser; signOut: () => void }>({ user: { id: 0, email: '', name: '', role: 'HR', must_change_password: false }, signOut: () => {} })
+const AuthContext = createContext<{ user: AuthUser; signOut: () => void }>({ user: { id: '', email: '', name: '', role: 'HR', must_change_password: false }, signOut: () => {} })
 const useAuth = () => useContext(AuthContext)
 
 const navigation: Array<{ label: string; to: string; icon: LucideIcon; group: string; roles: string[]; badge?: string }> = [

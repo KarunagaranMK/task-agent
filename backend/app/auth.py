@@ -6,6 +6,7 @@ import json
 import secrets
 import time
 from datetime import datetime, timedelta, timezone
+from uuid import UUID
 from threading import Lock
 from typing import Callable
 
@@ -96,13 +97,20 @@ class LoginRequest(BaseModel):
 
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    id: int
+    id: UUID
     email: str
     name: str
     role: str
     team: str | None = None
     must_change_password: bool = False
     is_active: bool = True
+
+
+def _user_out(user: User) -> UserOut:
+    return UserOut(
+        id=UUID(user.public_id), email=user.email, name=user.name, role=user.role,
+        team=user.team, must_change_password=user.must_change_password, is_active=user.is_active,
+    )
 
 
 class LoginOut(BaseModel):
@@ -299,12 +307,12 @@ def login(data: LoginRequest, request: Request, response: Response, session: Ses
     ))
     session.commit()
     _set_auth_cookies(response, raw_refresh, csrf)
-    return LoginOut(access_token=_access_token(user), user=UserOut.model_validate(user))
+    return LoginOut(access_token=_access_token(user), user=_user_out(user))
 
 
 @router.get("/me", response_model=UserOut)
 def me(user: User = Depends(get_current_user)) -> UserOut:
-    return UserOut.model_validate(user)
+    return _user_out(user)
 
 
 @router.put("/profile", response_model=UserOut)
@@ -314,7 +322,7 @@ def update_profile(data: ProfileUpdate, user: User = Depends(get_current_user), 
     _audit(session, "profile_updated", actor_id=user.id, target=user.email)
     session.commit()
     session.refresh(user)
-    return UserOut.model_validate(user)
+    return _user_out(user)
 
 
 @router.get("/preferences")
@@ -379,7 +387,7 @@ def refresh(
     session.add(old)
     session.commit()
     _set_auth_cookies(response, new_raw, secrets.token_urlsafe(32))
-    return LoginOut(access_token=_access_token(user), user=UserOut.model_validate(user))
+    return LoginOut(access_token=_access_token(user), user=_user_out(user))
 
 
 @router.post("/logout")
@@ -489,13 +497,13 @@ def accept_invite(request: Request, data: TokenPasswordRequest, session: Session
 
 @users_router.get("")
 def list_users(_admin: User = Depends(require_roles("ADMIN")), session: Session = Depends(get_session)) -> list[UserOut]:
-    return [UserOut.model_validate(user) for user in session.exec(select(User).order_by(User.created_at.desc())).all()]
+    return [_user_out(user) for user in session.exec(select(User).order_by(User.created_at.desc())).all()]
 
 
 @users_router.get("/managers")
 def list_managers(_viewer: User = Depends(require_roles("ADMIN", "HR")), session: Session = Depends(get_session)) -> list[UserOut]:
     managers = session.exec(select(User).where(User.role == "MANAGER", User.is_active.is_(True)).order_by(User.name)).all()
-    return [UserOut.model_validate(user) for user in managers]
+    return [_user_out(user) for user in managers]
 
 
 @users_router.post("/invite", response_model=UserOut, status_code=201)
@@ -512,12 +520,12 @@ def invite_user(data: InviteRequest, admin: User = Depends(require_roles("ADMIN"
     _audit(session, "user_invited", actor_id=admin.id, target=email, detail=data.role)
     session.commit()
     session.refresh(user)
-    return UserOut.model_validate(user)
+    return _user_out(user)
 
 
 @users_router.patch("/{user_id}", response_model=UserOut)
-def update_user(user_id: int, data: dict, admin: User = Depends(require_roles("ADMIN")), session: Session = Depends(get_session)) -> UserOut:
-    user = session.get(User, user_id)
+def update_user(user_id: UUID, data: dict, admin: User = Depends(require_roles("ADMIN")), session: Session = Depends(get_session)) -> UserOut:
+    user = session.exec(select(User).where(User.public_id == str(user_id))).first()
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     if "role" in data:
@@ -537,12 +545,12 @@ def update_user(user_id: int, data: dict, admin: User = Depends(require_roles("A
     _audit(session, "user_updated", actor_id=admin.id, target=user.email, detail=",".join(data.keys()))
     session.commit()
     session.refresh(user)
-    return UserOut.model_validate(user)
+    return _user_out(user)
 
 
 @users_router.delete("/{user_id}", response_model=UserOut)
-def deactivate_user(user_id: int, admin: User = Depends(require_roles("ADMIN")), session: Session = Depends(get_session)) -> UserOut:
-    user = session.get(User, user_id)
+def deactivate_user(user_id: UUID, admin: User = Depends(require_roles("ADMIN")), session: Session = Depends(get_session)) -> UserOut:
+    user = session.exec(select(User).where(User.public_id == str(user_id))).first()
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     user.is_active = False
@@ -551,7 +559,7 @@ def deactivate_user(user_id: int, admin: User = Depends(require_roles("ADMIN")),
     _audit(session, "user_deactivated", actor_id=admin.id, target=user.email)
     session.commit()
     session.refresh(user)
-    return UserOut.model_validate(user)
+    return _user_out(user)
 
 
 @mail_router.get("/mail")

@@ -167,6 +167,7 @@ class SimState(SQLModel, table=True):
 class User(SQLModel, table=True):
     __tablename__ = "users"
     id: Optional[int] = Field(default=None, primary_key=True)
+    public_id: str = Field(default_factory=lambda: str(uuid4()), unique=True, index=True)
     email: str = Field(index=True, unique=True)
     name: str
     role: str

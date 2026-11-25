@@ -180,7 +180,10 @@ def test_admin_can_invite_change_role_and_deactivate(client, session):
     invited = client.post("/users/invite", json={"email": "new@example.local", "name": "New User", "role": "IT_STAFF", "team": "IT"})
     assert invited.status_code == 201
     assert invited.json()["must_change_password"] is True
+    from uuid import UUID
+    UUID(invited.json()["id"])
     assert client.get("/users").status_code == 200
+    assert client.patch("/users/1", json={"role": "HR"}).status_code == 422
     assert client.patch(f"/users/{invited.json()['id']}", json={"role": "HR"}).json()["role"] == "HR"
     assert client.delete(f"/users/{invited.json()['id']}").json()["is_active"] is False
 
@@ -237,13 +240,12 @@ def test_approval_role_matrix(client, role, expected):
 
 
 def test_manager_sees_only_assigned_hires(client, session):
-    session.add_all([
-        User(email="manager-one@example.local", name="Manager One", role="MANAGER", password_hash="unused"),
-        User(email="manager-two@example.local", name="Manager Two", role="MANAGER", password_hash="unused"),
-    ])
+    manager_one = User(email="manager-one@example.local", name="Manager One", role="MANAGER", password_hash="unused")
+    manager_two = User(email="manager-two@example.local", name="Manager Two", role="MANAGER", password_hash="unused")
+    session.add_all([manager_one, manager_two])
     session.commit()
-    first = client.post("/hires", json={"name": "Own", "role": "default", "department": "X", "start_day": 5, "manager_id": 1}).json()
-    other = client.post("/hires", json={"name": "Other", "role": "default", "department": "X", "start_day": 5, "manager_id": 2}).json()
+    first = client.post("/hires", json={"name": "Own", "role": "default", "department": "X", "start_day": 5, "manager_id": manager_one.public_id}).json()
+    other = client.post("/hires", json={"name": "Other", "role": "default", "department": "X", "start_day": 5, "manager_id": manager_two.public_id}).json()
     client.app.dependency_overrides[get_current_user] = lambda: User(
         id=1, email="manager@example.local", name="Manager", role="MANAGER", password_hash="unused"
     )

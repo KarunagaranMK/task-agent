@@ -4,9 +4,9 @@ export interface components {
     "ExperimentRequest": { "n_hires"?: number; "stall_probability"?: number; "seed"?: number; }
     "ForgotRequest": { "email": string; }
     "HTTPValidationError": { "detail"?: Array<components['schemas']["ValidationError"]>; }
-    "HireCreate": { "name": string; "role": string; "department": string; "start_day"?: (number) | (null); "start_date"?: (string) | (null); "manager_id"?: (number) | (null); }
-    "HireOut": { "id": string; "name": string; "role": string; "department": string; "start_day": number; "start_date": (string) | (null); "status": string; "readiness": number; "projected_day": (number) | (null); "projected_ready_date": (string) | (null); "manager_id"?: (number) | (null); }
-    "HireUpdate": { "name"?: (string) | (null); "role"?: (string) | (null); "department"?: (string) | (null); "manager_id"?: (number) | (null); "start_date"?: (string) | (null); }
+    "HireCreate": { "name": string; "role": string; "department": string; "start_day"?: (number) | (null); "start_date"?: (string) | (null); "manager_id"?: (string) | (null); }
+    "HireOut": { "id": string; "name": string; "role": string; "department": string; "start_day": number; "start_date": (string) | (null); "status": string; "readiness": number; "projected_day": (number) | (null); "projected_ready_date": (string) | (null); "manager_id"?: (string) | (null); }
+    "HireUpdate": { "name"?: (string) | (null); "role"?: (string) | (null); "department"?: (string) | (null); "manager_id"?: (string) | (null); "start_date"?: (string) | (null); }
     "InviteRequest": { "email": string; "name": string; "role": string; "team"?: (string) | (null); }
     "IssueRequest": { "message": string; }
     "LoginOut": { "access_token": string; "token_type"?: string; "user": components['schemas']["UserOut"]; }
@@ -20,7 +20,7 @@ export interface components {
     "TemplateSave": { "role_key": string; "tasks": Array<{ [key: string]: unknown; }>; }
     "TicketCommentRequest": { "body": string; }
     "TokenPasswordRequest": { "token": string; "password": string; }
-    "UserOut": { "id": number; "email": string; "name": string; "role": string; "team"?: (string) | (null); "must_change_password"?: boolean; "is_active"?: boolean; }
+    "UserOut": { "id": string; "email": string; "name": string; "role": string; "team"?: (string) | (null); "must_change_password"?: boolean; "is_active"?: boolean; }
     "ValidationError": { "loc": Array<(string) | (number)>; "msg": string; "type": string; }
     "WhatIfRequest": { "task_key": string; "delay_days": number; }
   }
@@ -1862,7 +1862,7 @@ export interface paths {
     patch: {
       operationId: "update_user_users__user_id__patch"
       parameters: {
-        path: { "user_id": number }
+        path: { "user_id": string }
       }
       requestBody: {
         required: true
@@ -1880,7 +1880,7 @@ export interface paths {
     delete: {
       operationId: "deactivate_user_users__user_id__delete"
       parameters: {
-        path: { "user_id": number }
+        path: { "user_id": string }
       }
       responses: {
         "200": {
@@ -1933,7 +1933,7 @@ export interface paths {
     patch: {
       operationId: "update_user_api_users__user_id__patch"
       parameters: {
-        path: { "user_id": number }
+        path: { "user_id": string }
       }
       requestBody: {
         required: true
@@ -1951,7 +1951,7 @@ export interface paths {
     delete: {
       operationId: "deactivate_user_api_users__user_id__delete"
       parameters: {
-        path: { "user_id": number }
+        path: { "user_id": string }
       }
       responses: {
         "200": {
@@ -2004,7 +2004,7 @@ export interface paths {
     patch: {
       operationId: "update_user_api_v1_users__user_id__patch"
       parameters: {
-        path: { "user_id": number }
+        path: { "user_id": string }
       }
       requestBody: {
         required: true
@@ -2022,7 +2022,7 @@ export interface paths {
     delete: {
       operationId: "deactivate_user_api_v1_users__user_id__delete"
       parameters: {
-        path: { "user_id": number }
+        path: { "user_id": string }
       }
       responses: {
         "200": {

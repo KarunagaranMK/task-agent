@@ -2,9 +2,17 @@
 
 > **CAT2-029** · Local onboarding orchestration demo · November 2026
 
-A multi-agent AI system that orchestrates cross-team (IT, HR, Facilities) employee onboarding with **critical-path scheduling**, **automatic stall detection**, **self-healing fallbacks**, and a governance layer — all vendor-neutral via MCP tools.
+A cross-team onboarding workflow app for HR, managers, IT, and Facilities. It coordinates onboarding tasks with **critical-path scheduling**, **stall monitoring**, **configured fallbacks**, and an audit trail. Integrations use MCP adapters so the local demo systems can later be replaced.
 
 HR creates plans against a real joining date. The organization timezone and editable holiday calendar drive business-day mapping and projected-ready dates, while the demo clock keeps the scheduling scenario deterministic.
+
+## Explain the project in one minute
+
+OnboardIQ gives the teams involved in a new hire's first day one shared plan. HR creates the hire, the planner builds dependent tasks, and the Critical Path Method (CPM) estimates which tasks can delay Day 1. Managers approve sensitive access; IT and Facilities process their assigned work. A monitor checks progress, records changes, and can escalate a stalled critical task or apply a configured fallback. The dashboard updates readiness and notifications.
+
+The application is a **workflow orchestrator**, not a group of autonomous AI agents. Normal workflow decisions use explicit application rules. Optional Gemini calls help draft text or suggest tasks; they do not approve access or decide schedules.
+
+For the interactive walkthrough, open **Project guide** from the sign-in screen or go to `/guide`. It covers the workflow, architecture, model boundary, and a four-step demo.
 
 ---
 
@@ -117,12 +125,14 @@ No API key is required; unavailable LLM features use deterministic template text
 
 The API schema is available at **http://localhost:8000/docs** while the app is running. TypeScript API contracts are generated from FastAPI OpenAPI with `npm --prefix frontend run typegen:api`.
 
-## 🧰 Stack and boundaries
+## 🧰 Technology and model details
 
-- **Backend:** Python 3.11+, FastAPI, Pydantic, SQLModel, Alembic, APScheduler, SQLite.
-- **Frontend:** React, Vite, strict TypeScript, Tailwind CSS, TanStack Query, Recharts.
-- **Integrations:** FastMCP stdio clients and persistent local mock ITSM/HRIS services.
-- **AI:** optional Gemini for validated suggestions and copy; deterministic rules own workflow decisions.
+- **Backend:** Python 3.11+, FastAPI for HTTP APIs and SSE events, Pydantic for request/response validation, SQLModel for persistence models, Alembic for schema migrations, APScheduler for monitoring, and SQLite for local demo data.
+- **Frontend:** React, Vite, strict TypeScript, Tailwind CSS, TanStack Query for API state, Recharts for charts, and React Router for role workspaces.
+- **Integrations:** FastMCP stdio clients with local mock ITSM and HRIS servers; the outbox records retryable ticket work.
+- **Model:** Google Gemini `gemini-2.5-flash` is optional and configured by `GEMINI_MODEL`. With `GEMINI_API_KEY`, it can suggest role-specific tasks and draft risk explanations or escalation messages. The app validates responses and falls back to templates when the model is unavailable. Without an API key, the demo still works.
+- **Deterministic application logic:** CPM scheduling, business-day calculations, authentication and role checks, manager approvals, ticket dispatch, duplicate protection, stall thresholds, recovery choices, and audit events do not depend on a model.
+- **No model framework is required:** there is no active LangGraph or autonomous multi-agent runtime in the implemented workflow.
 - **Quality:** pytest, Ruff, Playwright, axe-core, coverage gate, and responsive screenshot matrix.
 
 This is a local-first demonstration. The ITSM and HRIS services are mocks, outbound email is a local database outbox, and the experiment results are illustrative simulation data. Real vendor systems, SMTP delivery, production SSO, and production performance/security certification are not configured.

@@ -60,7 +60,7 @@ export default function LoginPage({ onAuthenticated }: { onAuthenticated: (user:
       </section>
 
       <section className="login-panel">
-        <div className="login-panel-top"><span className="login-workspace"><span className="workspace-dot">N</span> Northstar Labs</span><button className="login-help" type="button" title="Help"><CircleHelp size={16} /></button></div>
+        <div className="login-panel-top"><span className="login-workspace"><span className="workspace-dot">N</span> Northstar Labs</span><Link className="login-help" to="/guide" title="Project guide" aria-label="Open the project guide"><CircleHelp size={16} /></Link></div>
         <div className="login-card">
           <div className="login-heading"><span className="login-eyebrow">WELCOME BACK</span><h2>Sign in to your workspace</h2><p>Use your work email to continue to OnboardIQ.</p></div>
           <form onSubmit={submit} className="login-form">

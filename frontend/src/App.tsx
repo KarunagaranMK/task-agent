@@ -2,7 +2,7 @@ import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNaviga
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { createContext, lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Activity, ArrowUpRight, Bell, Check, ChevronDown, Command, Compass, LogOut,
+  Activity, ArrowUpRight, Bell, BookOpen, Check, ChevronDown, Command, Compass, LogOut,
   Gauge, HelpCircle, LayoutDashboard, Menu, Moon, PanelLeftClose, Search,
   ShieldCheck, Sparkles, Sun, Workflow, X,
 } from 'lucide-react'
@@ -22,6 +22,7 @@ const MyOnboardingPage = lazy(() => import('./pages/MyOnboardingPage'))
 const ManagerDashboard = lazy(() => import('./pages/ManagerDashboard'))
 const AdminPage = lazy(() => import('./pages/AdminPage'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
+const GuidePage = lazy(() => import('./pages/GuidePage'))
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: true } } })
 
@@ -37,6 +38,7 @@ const navigation: Array<{ label: string; to: string; icon: LucideIcon; group: st
   { label: 'Insights', to: '/insights', icon: Activity, group: 'Operations', roles: ['ADMIN', 'HR'] },
   { label: 'My onboarding', to: '/my-onboarding', icon: Workflow, group: 'Workspace', roles: ['NEW_HIRE'] },
   { label: 'Profile & preferences', to: '/profile', icon: Gauge, group: 'Workspace', roles: ['ADMIN', 'HR', 'MANAGER', 'IT_STAFF', 'NEW_HIRE'] },
+  { label: 'Project guide', to: '/guide', icon: BookOpen, group: 'Help', roles: ['ADMIN', 'HR', 'MANAGER', 'IT_STAFF', 'NEW_HIRE'] },
   { label: 'Templates', to: '/templates', icon: Workflow, group: 'Administration', roles: ['ADMIN', 'HR'] },
   { label: 'People', to: '/users', icon: ShieldCheck, group: 'Administration', roles: ['ADMIN'] },
   { label: 'Audit trail', to: '/audit', icon: Activity, group: 'Administration', roles: ['ADMIN', 'HR'] },
@@ -49,6 +51,7 @@ const routes: Array<{ label: string; to: string; description: string; roles: str
   { label: 'Insights and experiment', to: '/insights', description: 'Readiness metrics and policy comparison', roles: ['ADMIN', 'HR'] },
   { label: 'My onboarding', to: '/my-onboarding', description: 'Your personal first-day plan', roles: ['NEW_HIRE'] },
   { label: 'Profile and preferences', to: '/profile', description: 'Update your account and notification settings', roles: ['ADMIN', 'HR', 'MANAGER', 'IT_STAFF', 'NEW_HIRE'] },
+  { label: 'Project guide', to: '/guide', description: 'Understand the workflow, technology, and demo', roles: ['ADMIN', 'HR', 'MANAGER', 'IT_STAFF', 'NEW_HIRE'] },
   { label: 'Role templates', to: '/templates', description: 'Edit and publish task plans', roles: ['ADMIN', 'HR'] },
   { label: 'People and access', to: '/users', description: 'Invite users and manage roles', roles: ['ADMIN'] },
   { label: 'Audit trail', to: '/audit', description: 'Review activity and access events', roles: ['ADMIN', 'HR'] },
@@ -190,6 +193,7 @@ function AppFrame() {
             {['ADMIN', 'HR'].includes(role) && <Route path="/insights" element={<InsightsPage />} />}
             {role === 'NEW_HIRE' && <Route path="/my-onboarding" element={<MyOnboardingPage />} />}
             <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/guide" element={<GuidePage embedded />} />
             {['ADMIN', 'HR'].includes(role) && <Route path="/templates" element={<AdminPage />} />}
             {role === 'ADMIN' && <Route path="/users" element={<AdminPage />} />}
             {['ADMIN', 'HR'].includes(role) && <Route path="/audit" element={<AdminPage />} />}
@@ -253,6 +257,7 @@ function AuthCoordinator() {
   }
 
   if (checking) return <div className="auth-loading"><span className="brand-mark"><Workflow size={19} /></span><strong>Restoring your session…</strong></div>
+  if (!user && location.pathname === '/guide') return <Suspense fallback={<div className="auth-loading">Loading project guide…</div>}><GuidePage /></Suspense>
   if (!user && ['/forgot-password', '/reset-password', '/accept-invite'].includes(location.pathname)) return <Suspense fallback={<div className="auth-loading">Loading secure page…</div>}><AccountRecovery /></Suspense>
   if (!user) return <LoginPage onAuthenticated={onAuthenticated} />
   if (location.pathname === '/login') return <Navigate to="/" replace />

@@ -30,6 +30,7 @@ def my_onboarding(session: Session = Depends(get_session), user: User = Depends(
     tasks = session.exec(select(Task).where(Task.hire_id == hire.id)).all()
     return {
         "hire": {
+            "id": hire.public_id,
             "name": hire.name,
             "role": hire.role,
             "department": hire.department,

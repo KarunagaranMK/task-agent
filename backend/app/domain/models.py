@@ -3,6 +3,7 @@ from typing import Optional, List
 from enum import Enum
 from datetime import date, datetime
 import json
+from uuid import uuid4
 
 
 class HireStatus(str, Enum):
@@ -47,6 +48,7 @@ class TaskFlag(str, Enum):
 class Hire(SQLModel, table=True):
     __tablename__ = "hires"
     id: Optional[int] = Field(default=None, primary_key=True)
+    public_id: str = Field(default_factory=lambda: str(uuid4()), unique=True, index=True)
     name: str
     role: str
     department: str

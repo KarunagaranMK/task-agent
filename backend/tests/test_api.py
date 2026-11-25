@@ -32,6 +32,10 @@ def test_create_hire(client):
     data = r.json()
     assert data["name"] == "Priya"
     assert data["id"] is not None
+    from uuid import UUID
+    UUID(data["id"])
+    assert client.get(f"/hires/{data['id']}").status_code == 200
+    assert client.get("/hires/1").status_code == 422
     assert data["readiness"] == 0.0
     assert data["start_date"]
 
@@ -87,13 +91,15 @@ def test_hr_can_edit_hire_details_and_recalculate_joining_date(client, session, 
     assert updated.json()["manager_id"] == manager.id
     assert updated.json()["start_date"] == "2026-12-07"
     assert updated.json()["start_day"] == 9
-    assert session.exec(select(AuditEvent).where(AuditEvent.hire_id == hire["id"], AuditEvent.actor_agent == "user:1")).first()
+    from app.domain.models import Hire
+    internal_hire = session.exec(select(Hire).where(Hire.public_id == hire["id"])).one()
+    assert session.exec(select(AuditEvent).where(AuditEvent.hire_id == internal_hire.id, AuditEvent.actor_agent == "user:1")).first()
     tasks = client.get(f"/hires/{hire['id']}/tasks").json()
     assert len(tasks) == 9
     assert {task["key"] for task in tasks} >= {"it:repo_access", "it:laptop"}
 
     from app.domain.models import Task, TaskStatus
-    first_task = session.exec(select(Task).where(Task.hire_id == hire["id"])).first()
+    first_task = session.exec(select(Task).where(Task.hire_id == internal_hire.id)).first()
     first_task.status = TaskStatus.dispatched
     session.add(first_task)
     session.commit()
@@ -259,7 +265,7 @@ def test_only_hr_and_admin_can_change_hire_lifecycle(client):
 
 
 def test_hire_not_found(client):
-    r = client.get("/hires/9999")
+    r = client.get("/hires/00000000-0000-4000-8000-000000000000")
     assert r.status_code == 404
     assert r.headers["content-type"].startswith("application/problem+json")
     assert r.json()["code"] == "http_404"

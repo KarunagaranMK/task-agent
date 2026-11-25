@@ -1,7 +1,7 @@
 from sqlmodel import select
 
 from app.auth import get_current_user
-from app.domain.models import Notification, User
+from app.domain.models import Hire, Notification, User
 
 
 def _admin(session):
@@ -46,3 +46,21 @@ def test_notifications_read_all_respects_role_filter(client, session):
     assert response.status_code == 200
     assert response.json()["updated"] == 2
     assert all(item.read for item in session.exec(select(Notification)).all())
+
+
+def test_notification_hire_links_use_public_uuid(client, session):
+    user = _admin(session)
+    client.app.dependency_overrides[get_current_user] = lambda: user
+    hire = Hire(name="Linked Hire", role="Analyst", department="Data", start_day=8)
+    session.add(hire)
+    session.commit()
+    session.refresh(hire)
+    ticket = client.post("/events/ticket").json()["ticket"]
+    session.add(Notification(for_role="HR", message="Hire update", hire_id=hire.id))
+    session.commit()
+
+    notification = next(item for item in client.get("/notifications").json() if item["message"] == "Hire update")
+    assert notification["hire_id"] == hire.public_id
+
+    event = client.get("/events/stream", params={"ticket": ticket, "max_events": 10}).text
+    assert f'"hire_id":"{hire.public_id}"' in event

@@ -99,7 +99,7 @@ async def event_stream(
                     "id": item.id,
                     "for_role": item.for_role,
                     "message": item.message,
-                    "hire_id": item.hire_id,
+                    "hire_id": _public_hire_id(session, item),
                     "task_id": item.task_id,
                     "created_at": item.created_at.isoformat(),
                 }, separators=(",", ":"))
@@ -114,7 +114,7 @@ async def event_stream(
                     "id": item.id,
                     "for_role": item.for_role,
                     "message": item.message,
-                    "hire_id": item.hire_id,
+                    "hire_id": _public_hire_id(session, item),
                     "task_id": item.task_id,
                     "created_at": item.created_at.isoformat(),
                 }, separators=(",", ":"))
@@ -127,3 +127,8 @@ async def event_stream(
         "X-Accel-Buffering": "no",
         "Connection": "keep-alive",
     })
+
+
+def _public_hire_id(session: Session, notification: Notification) -> str | None:
+    hire = session.get(Hire, notification.hire_id) if notification.hire_id is not None else None
+    return hire.public_id if hire else None

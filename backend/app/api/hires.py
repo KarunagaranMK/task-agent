@@ -10,6 +10,7 @@ from app.mcp_clients.tools import cancel_ticket as mcp_cancel_ticket, update_tic
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing import Optional, List, Literal
 from datetime import date, datetime
+from uuid import UUID
 from app.services.clock import load_clock
 
 
@@ -81,7 +82,7 @@ class TaskOut(BaseModel):
 
 
 class HireOut(BaseModel):
-    id: int
+    id: UUID
     name: str
     role: str
     department: str
@@ -107,7 +108,7 @@ def _hire_out(h: Hire, session: Session) -> HireOut:
     if h.start_date and h.projected_day is not None:
         projected_ready_date = clock.calendar.add_business_days(h.start_date, h.projected_day - h.start_day)
     return HireOut(
-        id=h.id,
+        id=UUID(h.public_id),
         name=h.name,
         role=h.role,
         department=h.department,
@@ -119,6 +120,10 @@ def _hire_out(h: Hire, session: Session) -> HireOut:
         projected_ready_date=projected_ready_date,
         manager_id=h.manager_id,
     )
+
+
+def _hire_by_public_id(public_id: UUID, session: Session) -> Hire | None:
+    return session.exec(select(Hire).where(Hire.public_id == str(public_id))).first()
 
 
 @router.post("", response_model=HireOut)
@@ -191,8 +196,8 @@ def list_hires(
 
 
 @router.get("/{hire_id}", response_model=HireOut)
-def get_hire(hire_id: int, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR", "MANAGER"))):
-    hire = session.get(Hire, hire_id)
+def get_hire(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR", "MANAGER"))):
+    hire = _hire_by_public_id(hire_id, session)
     if not hire:
         raise HTTPException(404, "Hire not found")
     if user.role == "MANAGER" and hire.manager_id != user.id:
@@ -202,7 +207,7 @@ def get_hire(hire_id: int, session: Session = Depends(get_session), user=Depends
 
 @router.patch("/{hire_id}", response_model=HireOut)
 def update_hire_details(
-    hire_id: int,
+    hire_id: UUID,
     data: HireUpdate,
     session: Session = Depends(get_session),
     user=Depends(require_roles("ADMIN", "HR")),
@@ -266,11 +271,11 @@ def update_hire_details(
 
 
 @router.get("/{hire_id}/tasks", response_model=List[TaskOut])
-def get_hire_tasks(hire_id: int, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR", "MANAGER"))):
-    hire = session.get(Hire, hire_id)
+def get_hire_tasks(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR", "MANAGER"))):
+    hire = _hire_by_public_id(hire_id, session)
     if hire is None or (user.role == "MANAGER" and hire.manager_id != user.id):
         raise HTTPException(404, "Hire not found")
-    tasks = session.exec(select(Task).where(Task.hire_id == hire_id)).all()
+    tasks = session.exec(select(Task).where(Task.hire_id == hire.id)).all()
     current_day = get_current_day(session)
     open_statuses = {"pending", "queued", "dispatched", "awaiting_approval", "blocked"}
     open_tasks = [
@@ -315,26 +320,27 @@ def get_hire_tasks(hire_id: int, session: Session = Depends(get_session), user=D
     ]
 
 
-def _get_editable_hire(hire_id: int, session: Session) -> Hire:
-    hire = session.get(Hire, hire_id)
+def _get_editable_hire(hire_id: UUID, session: Session) -> Hire:
+    hire = _hire_by_public_id(hire_id, session)
     if hire is None:
         raise HTTPException(404, "Hire not found")
     return hire
 
 
 @router.post("/{hire_id}/pause")
-def pause_hire(hire_id: int, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR"))):
+def pause_hire(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR"))):
     hire = _get_editable_hire(hire_id, session)
+    internal_hire_id = hire.id
     if hire.status == HireStatus.cancelled:
         raise HTTPException(409, "A cancelled hire cannot be paused")
     if hire.status == HireStatus.ready:
         raise HTTPException(409, "A ready hire does not need to be paused")
-    remaining = session.exec(select(Task).where(Task.hire_id == hire_id, Task.status.not_in([TaskStatus.done, TaskStatus.cancelled, TaskStatus.paused]))).first()
+    remaining = session.exec(select(Task).where(Task.hire_id == internal_hire_id, Task.status.not_in([TaskStatus.done, TaskStatus.cancelled, TaskStatus.paused]))).first()
     if hire.status == HireStatus.paused and remaining is None:
-        return {"status": "paused", "hire_id": hire_id}
+        return {"status": "paused", "hire_id": hire.public_id}
 
     failures: list[str] = []
-    for task in session.exec(select(Task).where(Task.hire_id == hire_id)).all():
+    for task in session.exec(select(Task).where(Task.hire_id == internal_hire_id)).all():
         if task.status in (TaskStatus.done, TaskStatus.cancelled, TaskStatus.paused):
             continue
         if task.ticket_id:
@@ -350,25 +356,26 @@ def pause_hire(hire_id: int, session: Session = Depends(get_session), user=Depen
         task.status = TaskStatus.paused
         session.add(task)
 
-    for item in session.exec(select(OutboxItem).where(OutboxItem.hire_id == hire_id)).all():
+    for item in session.exec(select(OutboxItem).where(OutboxItem.hire_id == internal_hire_id)).all():
         session.delete(item)
-    audit(session, hire_id, f"Onboarding paused by {user.name}; open tickets were cancelled", "warning", f"user:{user.id}")
+    audit(session, internal_hire_id, f"Onboarding paused by {user.name}; open tickets were cancelled", "warning", f"user:{user.id}")
     hire.status = HireStatus.paused
     session.add(hire)
     session.commit()
     if failures:
         raise HTTPException(503, f"ITSM could not cancel {len(failures)} ticket(s). Retry to finish pausing this hire.")
-    return {"status": "paused", "hire_id": hire_id}
+    return {"status": "paused", "hire_id": hire.public_id}
 
 
 @router.post("/{hire_id}/resume")
-def resume_hire(hire_id: int, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR"))):
+def resume_hire(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR"))):
     hire = _get_editable_hire(hire_id, session)
+    internal_hire_id = hire.id
     if hire.status != HireStatus.paused:
         raise HTTPException(409, "Only a paused hire can be resumed")
     current_day = get_current_day(session)
     failures: list[str] = []
-    for task in session.exec(select(Task).where(Task.hire_id == hire_id, Task.status == TaskStatus.paused)).all():
+    for task in session.exec(select(Task).where(Task.hire_id == internal_hire_id, Task.status == TaskStatus.paused)).all():
         if task.ticket_id:
             external = mcp_update_ticket_status(task.ticket_id, "open")
             if external.get("error"):
@@ -388,27 +395,28 @@ def resume_hire(hire_id: int, session: Session = Depends(get_session), user=Depe
             task.status = TaskStatus.pending
         session.add(task)
 
-    audit(session, hire_id, f"Onboarding resumed by {user.name}", "info", f"user:{user.id}")
+    audit(session, internal_hire_id, f"Onboarding resumed by {user.name}", "info", f"user:{user.id}")
     if not failures:
         hire.status = HireStatus.on_track
     session.add(hire)
     session.commit()
     if failures:
         raise HTTPException(503, f"ITSM could not reopen {len(failures)} ticket(s). Retry to finish resuming this hire.")
-    return {"status": "on_track", "hire_id": hire_id}
+    return {"status": "on_track", "hire_id": hire.public_id}
 
 
 @router.post("/{hire_id}/cancel")
-def cancel_hire(hire_id: int, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR"))):
+def cancel_hire(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR"))):
     hire = _get_editable_hire(hire_id, session)
+    internal_hire_id = hire.id
     if hire.status == HireStatus.ready:
         raise HTTPException(409, "A ready hire cannot be cancelled")
-    remaining = session.exec(select(Task).where(Task.hire_id == hire_id, Task.status.not_in([TaskStatus.done, TaskStatus.cancelled]))).first()
+    remaining = session.exec(select(Task).where(Task.hire_id == internal_hire_id, Task.status.not_in([TaskStatus.done, TaskStatus.cancelled]))).first()
     if hire.status == HireStatus.cancelled and remaining is None:
-        return {"status": "cancelled", "hire_id": hire_id}
+        return {"status": "cancelled", "hire_id": hire.public_id}
 
     failures: list[str] = []
-    for task in session.exec(select(Task).where(Task.hire_id == hire_id)).all():
+    for task in session.exec(select(Task).where(Task.hire_id == internal_hire_id)).all():
         if task.status in (TaskStatus.done, TaskStatus.cancelled):
             continue
         if task.ticket_id:
@@ -424,25 +432,25 @@ def cancel_hire(hire_id: int, session: Session = Depends(get_session), user=Depe
         task.status = TaskStatus.cancelled
         session.add(task)
 
-    for item in session.exec(select(OutboxItem).where(OutboxItem.hire_id == hire_id)).all():
+    for item in session.exec(select(OutboxItem).where(OutboxItem.hire_id == internal_hire_id)).all():
         session.delete(item)
-    audit(session, hire_id, f"Onboarding cancelled by {user.name}; open tickets were cancelled", "warning", f"user:{user.id}")
+    audit(session, internal_hire_id, f"Onboarding cancelled by {user.name}; open tickets were cancelled", "warning", f"user:{user.id}")
     hire.status = HireStatus.cancelled
     session.add(hire)
     session.commit()
     if failures:
         raise HTTPException(503, f"ITSM could not cancel {len(failures)} ticket(s). Retry to finish cancelling this hire.")
-    return {"status": "cancelled", "hire_id": hire_id}
+    return {"status": "cancelled", "hire_id": hire.public_id}
 
 
 @router.get("/{hire_id}/audit")
-def get_hire_audit(hire_id: int, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR", "MANAGER"))):
-    hire = session.get(Hire, hire_id)
+def get_hire_audit(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR", "MANAGER"))):
+    hire = _hire_by_public_id(hire_id, session)
     if hire is None or (user.role == "MANAGER" and hire.manager_id != user.id):
         raise HTTPException(404, "Hire not found")
     events = session.exec(
         select(AuditEvent)
-        .where(AuditEvent.hire_id == hire_id)
+        .where(AuditEvent.hire_id == hire.id)
         .order_by(AuditEvent.created_at)
     ).all()
     return [
@@ -459,14 +467,14 @@ def get_hire_audit(hire_id: int, session: Session = Depends(get_session), user=D
 
 
 @router.post("/{hire_id}/what-if")
-def what_if(hire_id: int, data: WhatIfRequest, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR", "MANAGER"))):
-    hire = session.get(Hire, hire_id)
+def what_if(hire_id: UUID, data: WhatIfRequest, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR", "MANAGER"))):
+    hire = _hire_by_public_id(hire_id, session)
     if hire is None or (user.role == "MANAGER" and hire.manager_id != user.id):
         raise HTTPException(404, "Hire not found")
     open_statuses = ("pending", "queued", "dispatched", "awaiting_approval")
     current_day = get_current_day(session)
-    open_tasks = session.exec(select(Task).where(Task.hire_id == hire_id, Task.status.in_(open_statuses))).all()
-    done_keys = {task.key for task in session.exec(select(Task).where(Task.hire_id == hire_id, Task.status == "done")).all()}
+    open_tasks = session.exec(select(Task).where(Task.hire_id == hire.id, Task.status.in_(open_statuses))).all()
+    done_keys = {task.key for task in session.exec(select(Task).where(Task.hire_id == hire.id, Task.status == "done")).all()}
     cpm_tasks = [
         CPMTask(
             key=task.key,
@@ -483,14 +491,14 @@ def what_if(hire_id: int, data: WhatIfRequest, session: Session = Depends(get_se
 
 
 @router.get("/{hire_id}/explain")
-def explain_risk(hire_id: int, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR", "MANAGER"))):
-    hire = session.get(Hire, hire_id)
+def explain_risk(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR", "MANAGER"))):
+    hire = _hire_by_public_id(hire_id, session)
     if not hire:
         raise HTTPException(404, "Hire not found")
     if user.role == "MANAGER" and hire.manager_id != user.id:
         raise HTTPException(404, "Hire not found")
 
-    tasks = session.exec(select(Task).where(Task.hire_id == hire_id)).all()
+    tasks = session.exec(select(Task).where(Task.hire_id == hire.id)).all()
     critical = [t for t in tasks if t.critical]
     stalled = [t for t in tasks if t.flag in ("escalated", "watch", "rescheduled")]
 

@@ -251,3 +251,9 @@
 - **Decision:** Add bounded `limit` and nonnegative `offset` query parameters to the authorized hire collection, retain `page`/`page_size` for existing clients, and return `X-Total-Count`, `X-Limit`, and `X-Offset` alongside the existing pagination headers.
 - **Why:** The API convention calls for limit/offset pagination with a total, while the current portfolio is URL-synced to page/page_size and expects an array response. Supporting both contracts lets the API meet the convention without breaking the shipped UI.
 - **Alternative considered:** Replace page-based queries and the array response immediately. That would create unnecessary client churn; new API consumers can use limit/offset and current clients remain compatible.
+
+## 2026-11-25 — Use stable UUIDs for public hire resources
+
+- **Decision:** Keep the integer primary key for relational joins and internal orchestration, and add a persisted UUIDv4 as the public hire identifier. Use it consistently in hire routes, responses, generated frontend types, and notification links.
+- **Why:** A public UUID avoids exposing sequential database keys and satisfies the hire API's UUID convention without rewriting the mature internal foreign-key graph in one migration. Existing rows receive IDs before the column becomes required.
+- **Alternative considered:** Convert every foreign key and all related entities to UUIDs at once. That would create a broad, high-risk schema rewrite; remaining integer IDs are tracked as an explicit API gap to address in later increments.

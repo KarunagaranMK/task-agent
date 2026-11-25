@@ -69,7 +69,7 @@ export default function HRPage() {
   const [notice, setNotice] = useState('')
   const [portfolioError, setPortfolioError] = useState('')
   const [exporting, setExporting] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<number[]>([])
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [savedViews, setSavedViews] = useState<SavedView[]>(() => {
     try {
       const stored: unknown = JSON.parse(localStorage.getItem(savedViewsKey) ?? '[]')
@@ -122,7 +122,7 @@ export default function HRPage() {
   }
 
   const bulkLifecycle = useMutation({
-    mutationFn: async ({ action, ids }: { action: 'pause' | 'resume'; ids: number[] }) => {
+    mutationFn: async ({ action, ids }: { action: 'pause' | 'resume'; ids: string[] }) => {
       const results = await Promise.allSettled(ids.map(id => action === 'pause' ? pauseHire(id) : resumeHire(id)))
       return { action, succeeded: results.filter(result => result.status === 'fulfilled').length, failed: results.filter(result => result.status === 'rejected').length }
     },

@@ -358,7 +358,7 @@ This file records verified state against the phases in the product brief. A gate
 - CPM and monitor internals still use a simulation-relative integer day index; real dates are persisted and mapped to that index at the API boundary.
 - Template dependencies support draggable edge handles, click-to-connect, keyboard task selection, and prerequisite controls; templates remain below the 40-task API limit.
 - Role changes are allowed only before work starts: all tasks must remain pending with no tickets or approvals. After any work begins, the role stays locked; name, department, manager and joining date remain audited edits.
-- Other unauthenticated endpoints remain without rate limits; login and recovery limits are in-memory per process. API UUID IDs and request-wide transaction semantics also remain open hardening work.
+- Other unauthenticated endpoints remain without rate limits; login and recovery limits are in-memory per process. Public UUID identifiers now cover hire resources and hire links. User, task, ticket, notification, and other API entity identifiers remain integer-based; request-wide transaction semantics remain open hardening work.
 - Core backend coverage is **90.6%** across CPM, planner, clock, and experiment modules. A repeatable local authenticated API load profile now exists; production infrastructure/SLO profiling and dedicated Vitest component tests have not been added. The GNU Make target mirror has not been independently exercised because GNU Make is unavailable on this Windows machine.
 - The app uses local/mock ITSM and HRIS, local development mail, and an in-process deterministic layout/orchestrator; no LangGraph adapter or production vendor integration is claimed.
 
@@ -432,3 +432,10 @@ This file records verified state against the phases in the product brief. A gate
 - Added bounded `limit` and nonnegative `offset` parameters to `GET /hires`, with `X-Total-Count`, `X-Limit`, and `X-Offset` headers. Existing `page`/`page_size` clients and metadata remain supported.
 - Verification: the focused search/sort/filter/pagination API regression passed for both pagination styles, their total metadata, and invalid bounds; Ruff passed.
 - **Gate: passed for pagination compatibility.** API UUID identifiers and request-wide transaction boundaries remain separate hardening gaps.
+
+### Public UUIDs for hire resources — 2026-11-25
+
+- Added a persistent UUID to each hire with Alembic migration `0010_hire_public_uuid`; existing rows receive UUIDv4 values while internal integer foreign keys remain intact.
+- Changed hire responses and detail, edit, tasks, audit, lifecycle, what-if, and explanation routes to use UUIDs. Frontend route callers and generated OpenAPI TypeScript types now match. Notification, SSE, ticket, and demo-reset hire links expose the UUID instead of the internal key.
+- Verification: full `python run.py --test` passed **136 backend tests** and the strict TypeScript/Vite production build. Added regression coverage for UUID validation, old numeric-route rejection, and notification/SSE links.
+- **Gate: passed for hire API identifiers.** Other API entities still use integer IDs, and request-wide transaction semantics remain open.

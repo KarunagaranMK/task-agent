@@ -116,7 +116,7 @@ def list_tickets(session: Session = Depends(get_session), user=Depends(require_r
             "title": t.title,
             "team": t.team,
             "status": t.status,
-            "hire_id": t.hire_id,
+            "hire_id": (hire.public_id if (hire := session.get(Hire, t.hire_id)) else None),
             "task_id": t.task_id,
             "estimate_days": t.estimate_days,
             "created_at": t.created_at.isoformat(),

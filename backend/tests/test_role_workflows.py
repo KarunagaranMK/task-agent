@@ -97,7 +97,9 @@ def test_stalled_ticket_remains_visible_to_monitor_fallback(client, session):
     hire = client.post("/hires", json={"name": "Stall Recovery", "role": "Data Analyst", "department": "Analytics", "start_day": 8}).json()
     client.post("/monitor/tick")
     ticket = next(ticket for ticket in client.get("/tickets").json() if ticket["title"] == "Provision Laptop (High RAM)")
-    laptop = session.exec(select(Task).where(Task.hire_id == hire["id"], Task.key == "it:laptop")).one()
+    from app.domain.models import Hire
+    internal_hire = session.exec(select(Hire).where(Hire.public_id == hire["id"])).one()
+    laptop = session.exec(select(Task).where(Task.hire_id == internal_hire.id, Task.key == "it:laptop")).one()
     state = session.exec(select(SimState)).first()
     assert state is not None
     state.current_day = 2

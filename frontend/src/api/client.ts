@@ -82,14 +82,14 @@ export const getHirePage = (params: { page: number; page_size: number; search?: 
   }))
 export const createHire = (data: HireCreate) => api.post<Hire>('/hires', data).then(r => r.data)
 export const planPreview = (role: string) => api.post('/hires/plan-preview', { role }).then(r => r.data)
-export const getHire = (id: number) => api.get<Hire>(`/hires/${id}`).then(r => r.data)
-export const updateHireDetails = (id: number, data: HireUpdate) => api.patch<Hire>(`/hires/${id}`, data).then(r => r.data)
-export const getHireTasks = (id: number) => api.get<Task[]>(`/hires/${id}/tasks`).then(r => r.data)
-export const getHireAudit = (id: number) => api.get(`/hires/${id}/audit`).then(r => r.data)
-export const pauseHire = (id: number) => api.post(`/hires/${id}/pause`).then(r => r.data)
-export const resumeHire = (id: number) => api.post(`/hires/${id}/resume`).then(r => r.data)
-export const cancelHire = (id: number) => api.post(`/hires/${id}/cancel`).then(r => r.data)
-export const explainRisk = (id: number) => api.get(`/hires/${id}/explain`).then(r => r.data)
+export const getHire = (id: string) => api.get<Hire>(`/hires/${id}`).then(r => r.data)
+export const updateHireDetails = (id: string, data: HireUpdate) => api.patch<Hire>(`/hires/${id}`, data).then(r => r.data)
+export const getHireTasks = (id: string) => api.get<Task[]>(`/hires/${id}/tasks`).then(r => r.data)
+export const getHireAudit = (id: string) => api.get(`/hires/${id}/audit`).then(r => r.data)
+export const pauseHire = (id: string) => api.post(`/hires/${id}/pause`).then(r => r.data)
+export const resumeHire = (id: string) => api.post(`/hires/${id}/resume`).then(r => r.data)
+export const cancelHire = (id: string) => api.post(`/hires/${id}/cancel`).then(r => r.data)
+export const explainRisk = (id: string) => api.get(`/hires/${id}/explain`).then(r => r.data)
 export const approveTask = (id: number) => api.post(`/tasks/${id}/approve`).then(r => r.data)
 export const rejectTask = (id: number) => api.post(`/tasks/${id}/reject`).then(r => r.data)
 export const undoApproval = (id: number) => api.post(`/tasks/${id}/undo-approval`).then(r => r.data)
@@ -113,7 +113,7 @@ export const resetAll = () => api.post('/reset').then(r => r.data)
 export const getManagers = () => api.get<AuthUser[]>('/users/managers').then(r => r.data)
 export const getMyOnboarding = () => api.get<MyOnboarding>('/me/onboarding').then(r => r.data)
 export const reportOnboardingIssue = (message: string) => api.post('/me/issues', { message }).then(r => r.data)
-export const runWhatIf = (hireId: number, task_key: string, delay_days: number) => api.post(`/hires/${hireId}/what-if`, { task_key, delay_days }).then(r => r.data as WhatIfResult)
+export const runWhatIf = (hireId: string, task_key: string, delay_days: number) => api.post(`/hires/${hireId}/what-if`, { task_key, delay_days }).then(r => r.data as WhatIfResult)
 export const listUsers = () => api.get<AuthUser[]>('/users').then(r => r.data)
 export const inviteUser = (data: { email: string; name: string; role: string; team?: string }) => api.post<AuthUser>('/users/invite', data).then(r => r.data)
 export const updateUser = (id: number, data: Partial<Pick<AuthUser, 'role' | 'team' | 'is_active'>>) => api.patch<AuthUser>(`/users/${id}`, data).then(r => r.data)
@@ -129,10 +129,10 @@ export const setDemoClock = (day: number) => api.post(`/admin/clock?day=${day}`)
 export interface ExperimentParams { n_hires: number; stall_probability: number; seed: number }
 export interface Ticket {
   id: number; ticket_id: string; title: string; team: string;
-  status: string; hire_id: number | null; task_id: number | null; estimate_days: number; created_at: string
+  status: string; hire_id: string | null; task_id: number | null; estimate_days: number; created_at: string
 }
 export interface AuditEvent { id: number; day: number; level: string; message: string; actor: string; created_at: string }
-export interface Notification { id: number; for_role: string; message: string; hire_id: number | null; task_id: number | null; read: boolean; created_at: string }
+export interface Notification { id: number; for_role: string; message: string; hire_id: string | null; task_id: number | null; read: boolean; created_at: string }
 export interface TicketComment { id: number; author: string; body: string; created_at: string }
 export interface MyOnboarding {
   hire: { name: string; role: string; department: string; start_day: number; start_date: string | null; status: string; readiness: number; projected_day: number | null; projected_ready_date: string | null } | null

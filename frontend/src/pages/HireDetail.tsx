@@ -23,7 +23,7 @@ const tabs: Array<{ id: Tab; label: string; icon: typeof LayoutDashboard }> = [
 
 export default function HireDetail() {
   const { id } = useParams<{ id: string }>()
-  const hireId = Number(id)
+  const hireId = id ?? ''
   const { role } = useRole()
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<Tab>('overview')
@@ -39,9 +39,10 @@ export default function HireDetail() {
   const [editError, setEditError] = useState('')
   const [actionError, setActionError] = useState('')
   const [retryAction, setRetryAction] = useState<'pause' | 'resume' | 'cancel'>('pause')
-  const hireQuery = useQuery<Hire>({ queryKey: ['hire', hireId], queryFn: () => getHire(hireId), refetchInterval: 5000, enabled: Number.isInteger(hireId) && hireId > 0 })
-  const tasksQuery = useQuery<Task[]>({ queryKey: ['hire-tasks', hireId], queryFn: () => getHireTasks(hireId), refetchInterval: 5000, enabled: Number.isInteger(hireId) && hireId > 0 })
-  const auditQuery = useQuery<AuditEvent[]>({ queryKey: ['hire-audit', hireId], queryFn: () => getHireAudit(hireId), refetchInterval: 5000, enabled: Number.isInteger(hireId) && hireId > 0 })
+  const validHireId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(hireId)
+  const hireQuery = useQuery<Hire>({ queryKey: ['hire', hireId], queryFn: () => getHire(hireId), refetchInterval: 5000, enabled: validHireId })
+  const tasksQuery = useQuery<Task[]>({ queryKey: ['hire-tasks', hireId], queryFn: () => getHireTasks(hireId), refetchInterval: 5000, enabled: validHireId })
+  const auditQuery = useQuery<AuditEvent[]>({ queryKey: ['hire-audit', hireId], queryFn: () => getHireAudit(hireId), refetchInterval: 5000, enabled: validHireId })
   const { data: managers = [] } = useQuery({ queryKey: ['managers'], queryFn: getManagers, enabled: ['ADMIN', 'HR'].includes(role) })
   const hire = hireQuery.data
   const tasks = tasksQuery.data ?? []

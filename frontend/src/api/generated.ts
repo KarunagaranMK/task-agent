@@ -5,7 +5,7 @@ export interface components {
     "ForgotRequest": { "email": string; }
     "HTTPValidationError": { "detail"?: Array<components['schemas']["ValidationError"]>; }
     "HireCreate": { "name": string; "role": string; "department": string; "start_day"?: (number) | (null); "start_date"?: (string) | (null); "manager_id"?: (number) | (null); }
-    "HireOut": { "id": number; "name": string; "role": string; "department": string; "start_day": number; "start_date": (string) | (null); "status": string; "readiness": number; "projected_day": (number) | (null); "projected_ready_date": (string) | (null); "manager_id"?: (number) | (null); }
+    "HireOut": { "id": string; "name": string; "role": string; "department": string; "start_day": number; "start_date": (string) | (null); "status": string; "readiness": number; "projected_day": (number) | (null); "projected_ready_date": (string) | (null); "manager_id"?: (number) | (null); }
     "HireUpdate": { "name"?: (string) | (null); "role"?: (string) | (null); "department"?: (string) | (null); "manager_id"?: (number) | (null); "start_date"?: (string) | (null); }
     "InviteRequest": { "email": string; "name": string; "role": string; "team"?: (string) | (null); }
     "IssueRequest": { "message": string; }
@@ -80,7 +80,7 @@ export interface paths {
     get: {
       operationId: "get_hire_hires__hire_id__get"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       responses: {
         "200": {
@@ -94,7 +94,7 @@ export interface paths {
     patch: {
       operationId: "update_hire_details_hires__hire_id__patch"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       requestBody: {
         required: true
@@ -114,7 +114,7 @@ export interface paths {
     get: {
       operationId: "get_hire_tasks_hires__hire_id__tasks_get"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       responses: {
         "200": {
@@ -130,7 +130,7 @@ export interface paths {
     post: {
       operationId: "pause_hire_hires__hire_id__pause_post"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       responses: {
         "200": {
@@ -146,7 +146,7 @@ export interface paths {
     post: {
       operationId: "resume_hire_hires__hire_id__resume_post"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       responses: {
         "200": {
@@ -162,7 +162,7 @@ export interface paths {
     post: {
       operationId: "cancel_hire_hires__hire_id__cancel_post"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       responses: {
         "200": {
@@ -178,7 +178,7 @@ export interface paths {
     get: {
       operationId: "get_hire_audit_hires__hire_id__audit_get"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       responses: {
         "200": {
@@ -194,7 +194,7 @@ export interface paths {
     post: {
       operationId: "what_if_hires__hire_id__what_if_post"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       requestBody: {
         required: true
@@ -214,7 +214,7 @@ export interface paths {
     get: {
       operationId: "explain_risk_hires__hire_id__explain_get"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       responses: {
         "200": {
@@ -279,7 +279,7 @@ export interface paths {
     get: {
       operationId: "get_hire_api_hires__hire_id__get"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       responses: {
         "200": {
@@ -293,7 +293,7 @@ export interface paths {
     patch: {
       operationId: "update_hire_details_api_hires__hire_id__patch"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       requestBody: {
         required: true
@@ -313,7 +313,7 @@ export interface paths {
     get: {
       operationId: "get_hire_tasks_api_hires__hire_id__tasks_get"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       responses: {
         "200": {
@@ -329,7 +329,7 @@ export interface paths {
     post: {
       operationId: "pause_hire_api_hires__hire_id__pause_post"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       responses: {
         "200": {
@@ -345,7 +345,7 @@ export interface paths {
     post: {
       operationId: "resume_hire_api_hires__hire_id__resume_post"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       responses: {
         "200": {
@@ -361,7 +361,7 @@ export interface paths {
     post: {
       operationId: "cancel_hire_api_hires__hire_id__cancel_post"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       responses: {
         "200": {
@@ -377,7 +377,7 @@ export interface paths {
     get: {
       operationId: "get_hire_audit_api_hires__hire_id__audit_get"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       responses: {
         "200": {
@@ -393,7 +393,7 @@ export interface paths {
     post: {
       operationId: "what_if_api_hires__hire_id__what_if_post"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       requestBody: {
         required: true
@@ -413,7 +413,7 @@ export interface paths {
     get: {
       operationId: "explain_risk_api_hires__hire_id__explain_get"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       responses: {
         "200": {
@@ -478,7 +478,7 @@ export interface paths {
     get: {
       operationId: "get_hire_api_v1_hires__hire_id__get"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       responses: {
         "200": {
@@ -492,7 +492,7 @@ export interface paths {
     patch: {
       operationId: "update_hire_details_api_v1_hires__hire_id__patch"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       requestBody: {
         required: true
@@ -512,7 +512,7 @@ export interface paths {
     get: {
       operationId: "get_hire_tasks_api_v1_hires__hire_id__tasks_get"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       responses: {
         "200": {
@@ -528,7 +528,7 @@ export interface paths {
     post: {
       operationId: "pause_hire_api_v1_hires__hire_id__pause_post"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       responses: {
         "200": {
@@ -544,7 +544,7 @@ export interface paths {
     post: {
       operationId: "resume_hire_api_v1_hires__hire_id__resume_post"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       responses: {
         "200": {
@@ -560,7 +560,7 @@ export interface paths {
     post: {
       operationId: "cancel_hire_api_v1_hires__hire_id__cancel_post"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       responses: {
         "200": {
@@ -576,7 +576,7 @@ export interface paths {
     get: {
       operationId: "get_hire_audit_api_v1_hires__hire_id__audit_get"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       responses: {
         "200": {
@@ -592,7 +592,7 @@ export interface paths {
     post: {
       operationId: "what_if_api_v1_hires__hire_id__what_if_post"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       requestBody: {
         required: true
@@ -612,7 +612,7 @@ export interface paths {
     get: {
       operationId: "explain_risk_api_v1_hires__hire_id__explain_get"
       parameters: {
-        path: { "hire_id": number }
+        path: { "hire_id": string }
       }
       responses: {
         "200": {

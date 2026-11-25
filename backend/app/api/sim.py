@@ -142,7 +142,9 @@ def get_notifications(role: Optional[str] = None, session: Session = Depends(get
             "id": n.id,
             "for_role": n.for_role,
             "message": n.message,
-            "hire_id": n.hire_id,
+            "hire_id": (
+                hire.public_id if n.hire_id is not None and (hire := session.get(Hire, n.hire_id)) else None
+            ),
             "task_id": n.task_id,
             "read": n.read,
             "created_at": n.created_at.isoformat(),
@@ -202,5 +204,5 @@ def reset_all(session: Session = Depends(get_session), _user=Depends(require_rol
         create_hire_with_plan(session, "Alex Chen", "Software Engineer", "Engineering", 10, manager_id)
         create_hire_with_plan(session, "Maria Garcia", "default", "Marketing", 6, manager_id)
         monitor_tick(session)
-        return {"message": "Demo reset to Priya scenario", "hire_id": priya.id}
+        return {"message": "Demo reset to Priya scenario", "hire_id": priya.public_id}
     return {"message": "Simulation data reset"}

@@ -359,7 +359,7 @@ This file records verified state against the phases in the product brief. A gate
 - Template dependencies support draggable edge handles, click-to-connect, keyboard task selection, and prerequisite controls; templates remain below the 40-task API limit.
 - Role changes are allowed only before work starts: all tasks must remain pending with no tickets or approvals. After any work begins, the role stays locked; name, department, manager and joining date remain audited edits.
 - Other unauthenticated endpoints remain without rate limits; login and recovery limits are in-memory per process. API UUID IDs and request-wide transaction semantics also remain open hardening work.
-- Vitest component tests and production performance/load profiling have not been added; the GNU Make target mirror has not been independently exercised on this Windows machine.
+- Core backend coverage is **90.6%** across CPM, planner, clock, and experiment modules. Dedicated Vitest component tests and production performance/load profiling have not been added; the GNU Make target mirror has not been independently exercised because GNU Make is unavailable on this Windows machine.
 - The app uses local/mock ITSM and HRIS, local development mail, and an in-process deterministic layout/orchestrator; no LangGraph adapter or production vendor integration is claimed.
 
 ### Gate
@@ -407,3 +407,9 @@ This file records verified state against the phases in the product brief. A gate
 - Added visible source/target ports to the admin task canvas. Dragging from a task's right handle to another task's left handle previews and creates a prerequisite edge; existing click-to-connect and keyboard selection remain available. Invalid graph structures continue to block publish.
 - Verification: strict TypeScript/Vite build passed; Playwright passed **11/11**, including a drag gesture that verifies the dependency in the task inspector; responsive screenshot matrix passed **198 captures** with no overflow. Inspected the 390px light and 1440px dark template canvases.
 - **Gate: passed for this increment.** The 40-task cap and remaining hardening, CPM, load-test, test-framework, and production-integration work remain open against the original brief.
+
+### Core coverage verification — 2026-11-25
+
+- Ran the Makefile's exact core coverage command directly under the project virtual environment. All **135 backend tests passed**, and CPM, planner, clock, and experiment report **90.6% combined coverage** (minimum required: 80%).
+- The remaining Phase 9 gaps are the dedicated frontend component-test suite and performance/load profiling. GNU Make is not installed here, so `make verify` itself remains unverified; its component commands (backend tests, core coverage, Ruff lint/build, and Playwright E2E) have been run separately across this and the preceding increments.
+- **Gate: coverage threshold passed.** The overall P9 gate remains open until the remaining quality work is completed and the aggregate target is exercised in a GNU Make environment.

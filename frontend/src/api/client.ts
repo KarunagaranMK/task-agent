@@ -131,7 +131,7 @@ export interface Ticket {
   id: string; ticket_id: string; title: string; team: string;
   status: string; hire_id: string | null; task_id: string | null; estimate_days: number; created_at: string
 }
-export interface AuditEvent { id: number; day: number; level: string; message: string; actor: string; created_at: string }
+export interface AuditEvent { id: string; day: number; level: string; message: string; actor: string; created_at: string }
 export interface Notification { id: string; for_role: string; message: string; hire_id: string | null; task_id: string | null; read: boolean; created_at: string }
 export interface TicketComment { id: string; author: string; body: string; created_at: string }
 export interface MyOnboarding {
@@ -139,8 +139,8 @@ export interface MyOnboarding {
   tasks: Array<{ title: string; status: string; eta_day: number | null }>
 }
 export interface TemplateTask { key: string; title: string; team: string; duration_days: number; depends_on: string[]; needs_approval: boolean; fallback_title?: string | null; fallback_days?: number | null }
-export interface OnboardingTemplate { id: number | null; role_key: string; version: number; tasks: TemplateTask[]; active: boolean; created_at: string | null }
+export interface OnboardingTemplate { id: string | null; role_key: string; version: number; tasks: TemplateTask[]; active: boolean; created_at: string | null }
 export interface AuditRecord { id: string; kind: string; actor: string; target: string; detail: string; created_at: string; source: string }
-export interface ExperimentRecord { id: number; parameters: ExperimentParams; result: { static_checklist_readiness_pct: number; orchestrator_readiness_pct: number; improvement_pct: number }; created_at: string }
-export interface MailRecord { id: number; recipient: string; subject: string; body: string; created_at: string }
+export interface ExperimentRecord { id: string; parameters: ExperimentParams; result: { static_checklist_readiness_pct: number; orchestrator_readiness_pct: number; improvement_pct: number }; created_at: string }
+export interface MailRecord { id: string; recipient: string; subject: string; body: string; created_at: string }
 export interface WhatIfResult { baseline_ready_day: number; projected_ready_day: number; delta_days: number; critical_path: string[]; tasks: Array<{ key: string; es: number; ef: number; slack: number; critical: boolean }> }

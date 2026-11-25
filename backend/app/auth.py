@@ -563,9 +563,9 @@ def deactivate_user(user_id: UUID, admin: User = Depends(require_roles("ADMIN"))
 
 
 @mail_router.get("/mail")
-def get_dev_mail(_admin: User = Depends(require_roles("ADMIN")), session: Session = Depends(get_session)) -> list[dict[str, str | int]]:
+def get_dev_mail(_admin: User = Depends(require_roles("ADMIN")), session: Session = Depends(get_session)) -> list[dict[str, str]]:
     if not settings.DEMO_MODE:
         raise HTTPException(status_code=404, detail="Not found")
-    return [{"id": item.id, "recipient": item.recipient, "subject": item.subject,
+    return [{"id": item.public_id, "recipient": item.recipient, "subject": item.subject,
              "body": item.body, "created_at": item.created_at.isoformat()}
             for item in session.exec(select(MailOutbox).order_by(MailOutbox.created_at.desc())).all()]

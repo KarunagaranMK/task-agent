@@ -287,3 +287,9 @@
 - **Decision:** Add persisted UUID resource IDs to tickets and comments while keeping the opaque ITSM `ticket_id` as the integration reference used by ticket actions and MCP calls.
 - **Why:** API responses can avoid leaking sequential database keys without changing vendor-facing identifiers, idempotency behavior, or existing ticket workflow routes.
 - **Alternative considered:** Replace the ITSM reference in all routes and service calls with the UUID. That would create unnecessary coupling between the local API identity and the external ticket system.
+
+## 2026-11-25 — Use UUIDs for persisted audit and supporting records
+
+- **Decision:** Give audit entries, published templates, experiment history, and development outbox messages persisted UUID identifiers; return those IDs and UUID references from public API responses. Keep code-defined template fallbacks without IDs because they are not persisted resources.
+- **Why:** These records appear in the UI and API just like primary resources; sequential database keys are not useful public contracts. UUID foreign references also keep hire and actor links consistent with other API records.
+- **Alternative considered:** Expose internal integer IDs for read-only or admin-only resources. They still cross the API boundary and would make identifier behavior inconsistent across the product.

@@ -113,6 +113,7 @@ class OutboxItem(SQLModel, table=True):
 class AuditEvent(SQLModel, table=True):
     __tablename__ = "audit_events"
     id: Optional[int] = Field(default=None, primary_key=True)
+    public_id: str = Field(default_factory=lambda: str(uuid4()), unique=True, index=True)
     day: int
     hire_id: int
     level: str  # info, warning, critical
@@ -208,6 +209,7 @@ class OneTimeToken(SQLModel, table=True):
 class MailOutbox(SQLModel, table=True):
     __tablename__ = "mail_outbox"
     id: Optional[int] = Field(default=None, primary_key=True)
+    public_id: str = Field(default_factory=lambda: str(uuid4()), unique=True, index=True)
     recipient: str
     subject: str
     body: str
@@ -218,6 +220,7 @@ class MailOutbox(SQLModel, table=True):
 class SecurityAudit(SQLModel, table=True):
     __tablename__ = "security_audit"
     id: Optional[int] = Field(default=None, primary_key=True)
+    public_id: str = Field(default_factory=lambda: str(uuid4()), unique=True, index=True)
     actor_id: Optional[int] = Field(default=None, foreign_key="users.id")
     action: str
     target: Optional[str] = None
@@ -236,6 +239,7 @@ class SchedulerLease(SQLModel, table=True):
 class OnboardingTemplate(SQLModel, table=True):
     __tablename__ = "onboarding_templates"
     id: Optional[int] = Field(default=None, primary_key=True)
+    public_id: str = Field(default_factory=lambda: str(uuid4()), unique=True, index=True)
     role_key: str = Field(index=True)
     version: int = 1
     tasks_json: str = "[]"
@@ -253,6 +257,7 @@ class AppSetting(SQLModel, table=True):
 class ExperimentRun(SQLModel, table=True):
     __tablename__ = "experiment_runs"
     id: Optional[int] = Field(default=None, primary_key=True)
+    public_id: str = Field(default_factory=lambda: str(uuid4()), unique=True, index=True)
     parameters_json: str
     result_json: str
     created_at: datetime = Field(default_factory=datetime.utcnow)

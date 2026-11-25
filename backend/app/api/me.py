@@ -68,4 +68,4 @@ def report_issue(data: IssueRequest, session: Session = Depends(get_session), us
     session.add(notification)
     session.commit()
     session.refresh(notification)
-    return {"id": notification.id, "received": True}
+    return {"id": notification.public_id, "received": True}

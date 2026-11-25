@@ -48,6 +48,8 @@ def test_new_hire_can_report_issue_to_hr(client, session):
 
     assert response.status_code == 201
     item = session.exec(select(Notification)).one()
+    assert response.json()["id"] == item.public_id
+    assert str(UUID(response.json()["id"])) == response.json()["id"]
     assert item.for_role == "HR"
     assert item.hire_id == hire.id
     assert "first-day schedule" in item.message

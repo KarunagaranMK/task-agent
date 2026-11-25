@@ -11,7 +11,7 @@ from sqlmodel import Session, select
 
 from app.auth import require_roles
 from app.db.database import get_session
-from app.domain.models import AppSetting, AuditEvent, ExperimentRun, OnboardingTemplate, SecurityAudit
+from app.domain.models import AppSetting, AuditEvent, ExperimentRun, Hire, OnboardingTemplate, SecurityAudit, User
 from app.services.planner import PlanSpec, ROLE_TEMPLATES
 
 router = APIRouter(tags=["administration"])
@@ -39,9 +39,20 @@ class SettingsUpdate(BaseModel):
 
 
 def _template_out(item: OnboardingTemplate) -> dict[str, Any]:
-    return {"id": item.id, "role_key": item.role_key, "version": item.version,
+    return {"id": item.public_id, "role_key": item.role_key, "version": item.version,
             "tasks": json.loads(item.tasks_json), "active": item.active,
             "created_at": item.created_at.isoformat()}
+
+
+def _public_actor(session: Session, actor: str) -> str:
+    if not actor.startswith("user:"):
+        return actor
+    try:
+        user_id = int(actor.removeprefix("user:"))
+    except ValueError:
+        return actor
+    user = session.get(User, user_id)
+    return f"user:{user.public_id}" if user else "user:unknown"
 
 
 @router.get("/templates")
@@ -120,11 +131,13 @@ def get_audit(limit: int = Query(default=100, ge=1, le=500), search: str = "",
               _viewer=Depends(require_roles("ADMIN", "HR")), session: Session = Depends(get_session)):
     security = session.exec(select(SecurityAudit).order_by(SecurityAudit.created_at.desc()).limit(limit)).all()
     activity = session.exec(select(AuditEvent).order_by(AuditEvent.created_at.desc()).limit(limit)).all()
-    rows = ([{"id": f"security-{row.id}", "kind": row.action, "actor": str(row.actor_id or "system"),
+    rows = ([{"id": row.public_id, "kind": row.action,
+              "actor": f"user:{(session.get(User, row.actor_id).public_id if session.get(User, row.actor_id) else 'unknown')}" if row.actor_id else "system",
               "target": row.target or "", "detail": row.detail, "created_at": row.created_at.isoformat(), "source": "security"}
              for row in security] +
-            [{"id": f"activity-{row.id}", "kind": row.level, "actor": row.actor_agent,
-              "target": f"hire:{row.hire_id}", "detail": row.message, "created_at": row.created_at.isoformat(), "source": "workflow"}
+            [{"id": row.public_id, "kind": row.level, "actor": _public_actor(session, row.actor_agent),
+              "target": f"hire:{(session.get(Hire, row.hire_id).public_id if session.get(Hire, row.hire_id) else 'unknown')}",
+              "detail": row.message, "created_at": row.created_at.isoformat(), "source": "workflow"}
              for row in activity])
     if search.strip():
         needle = search.strip().casefold()
@@ -136,7 +149,7 @@ def get_audit(limit: int = Query(default=100, ge=1, le=500), search: str = "",
 def experiment_history(limit: int = Query(default=20, ge=1, le=100),
                        _viewer=Depends(require_roles("ADMIN", "HR")), session: Session = Depends(get_session)):
     rows = session.exec(select(ExperimentRun).order_by(ExperimentRun.created_at.desc()).limit(limit)).all()
-    return [{"id": row.id, "parameters": json.loads(row.parameters_json),
+    return [{"id": row.public_id, "parameters": json.loads(row.parameters_json),
              "result": json.loads(row.result_json), "created_at": row.created_at.isoformat()} for row in rows]
 
 

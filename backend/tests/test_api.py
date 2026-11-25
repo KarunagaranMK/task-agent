@@ -380,4 +380,6 @@ def test_audit_trail(client):
     hid = r.json()["id"]
     audit = client.get(f"/hires/{hid}/audit").json()
     assert len(audit) >= 1  # at least the plan_generator event
+    from uuid import UUID
+    assert all(str(UUID(row["id"])) == row["id"] for row in audit)
     assert audit[0]["actor"] == "agent:plan_generator"

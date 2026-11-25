@@ -358,7 +358,7 @@ This file records verified state against the phases in the product brief. A gate
 - CPM and monitor internals still use a simulation-relative integer day index; real dates are persisted and mapped to that index at the API boundary.
 - Template dependencies support draggable edge handles, click-to-connect, keyboard task selection, and prerequisite controls; templates remain below the 40-task API limit.
 - Role changes are allowed only before work starts: all tasks must remain pending with no tickets or approvals. After any work begins, the role stays locked; name, department, manager and joining date remain audited edits.
-- Other unauthenticated endpoints remain without rate limits; login and recovery limits are in-memory per process. Public UUID identifiers now cover hire, task, notification, user, ticket, and ticket-comment resources plus their related links and manager assignments. Other secondary API entity identifiers remain open; request-wide transaction semantics remain open hardening work.
+- Other unauthenticated endpoints remain without rate limits; login and recovery limits are in-memory per process. Public UUID identifiers now cover all persisted resource IDs returned by the product APIs, including hires, tasks, notifications, users, tickets, comments, audit entries, templates, experiments, and development mail. Code-defined template fallbacks intentionally have no persisted ID; request-wide transaction semantics remain open hardening work.
 - Core backend coverage is **90.6%** across CPM, planner, clock, and experiment modules. A repeatable local authenticated API load profile now exists; production infrastructure/SLO profiling and dedicated Vitest component tests have not been added. The GNU Make target mirror has not been independently exercised because GNU Make is unavailable on this Windows machine.
 - The app uses local/mock ITSM and HRIS, local development mail, and an in-process deterministic layout/orchestrator; no LangGraph adapter or production vendor integration is claimed.
 
@@ -474,3 +474,10 @@ This file records verified state against the phases in the product brief. A gate
 - Ticket list and work-note create/list responses now expose UUID resource IDs; frontend ticket/comment contracts use strings. Added regression assertions for canonical, stable UUIDs across comment creation and listing.
 - Verification: `python run.py --test` passed **136 backend tests** and the strict TypeScript/Vite production build; Ruff passed; Playwright passed **11/11**, including ticket comment entry and the full Priya ITSM recovery scenario.
 - **Gate: passed for ticket and comment API identifiers.** Other secondary API entity IDs and request-wide transaction semantics remain open.
+
+### Public UUIDs for audit and supporting records — 2026-11-25
+
+- Added migration `0015_secondary_resource_public_uuid` for workflow/security audit events, published templates, experiment runs, and local development mail. Fixed the new-hire issue receipt to return the notification UUID.
+- Audit responses now use UUID IDs and UUID hire/user references, including the hire-specific audit endpoint. Frontend record contracts now consistently type public resource IDs as strings.
+- Verification: `python run.py --test` passed **136 backend tests** and the strict TypeScript/Vite production build; Ruff passed across app, tests, and migrations; Playwright passed **11/11** including the admin audit/template screens and new-hire issue flow.
+- **Gate: passed for public IDs across persisted API resources.** Request-wide transaction semantics and production integrations remain open.

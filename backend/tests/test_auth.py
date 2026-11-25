@@ -182,6 +182,8 @@ def test_admin_can_invite_change_role_and_deactivate(client, session):
     assert invited.json()["must_change_password"] is True
     from uuid import UUID
     UUID(invited.json()["id"])
+    mail = client.get("/dev/mail").json()
+    assert mail and str(UUID(mail[0]["id"])) == mail[0]["id"]
     assert client.get("/users").status_code == 200
     assert client.patch("/users/1", json={"role": "HR"}).status_code == 422
     assert client.patch(f"/users/{invited.json()['id']}", json={"role": "HR"}).json()["role"] == "HR"

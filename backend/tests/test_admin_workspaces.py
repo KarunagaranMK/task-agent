@@ -1,4 +1,5 @@
 import json
+from uuid import UUID
 
 from app.auth import get_current_user
 from app.domain.models import AppSetting, ExperimentRun, OnboardingTemplate, SecurityAudit, User
@@ -14,6 +15,7 @@ def test_templates_validate_version_and_audit_publish(client, session):
     task = ROLE_TEMPLATES["default"][0]
     created = client.post("/templates", json={"role_key": "Default", "tasks": [task]})
     assert created.status_code == 201
+    assert str(UUID(created.json()["id"])) == created.json()["id"]
     assert created.json()["version"] == 1
     created2 = client.post("/templates", json={"role_key": "Default", "tasks": [task]})
     assert created2.json()["version"] == 2
@@ -65,7 +67,9 @@ def test_experiment_is_deterministic_and_saved_to_history(client, session):
     experiments = session.exec(select(ExperimentRun)).all()
     assert len(experiments) == 2
     assert json.loads(experiments[0].parameters_json) == params
-    assert len(client.get("/experiments").json()) == 2
+    history = client.get("/experiments").json()
+    assert len(history) == 2
+    assert all(str(UUID(row["id"])) == row["id"] for row in history)
 
 
 def test_audit_filter_returns_security_actions(client, session):
@@ -73,3 +77,4 @@ def test_audit_filter_returns_security_actions(client, session):
     session.commit()
     rows = client.get("/audit?search=monitor").json()
     assert any(row["kind"] == "settings_updated" for row in rows)
+    assert all(str(UUID(row["id"])) == row["id"] for row in rows)

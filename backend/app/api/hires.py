@@ -457,7 +457,7 @@ def get_hire_audit(hire_id: UUID, session: Session = Depends(get_session), user=
     ).all()
     return [
         {
-            "id": e.id,
+            "id": e.public_id,
             "day": e.day,
             "level": e.level,
             "message": e.message,

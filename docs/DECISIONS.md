@@ -215,3 +215,9 @@
 - **Decision:** Let HR select hires on the current page and bulk pause or resume eligible selections through the existing per-hire lifecycle endpoints. Clear selection when the query/page changes and report partial success counts.
 - **Why:** Each lifecycle route already reconciles tickets and writes an audit event. Keeping one request per hire preserves those safeguards while making multi-hire follow-up faster; page-local selection avoids accidentally acting on unseen records.
 - **Alternative considered:** Add a batch endpoint and select all filtered hires across pages. A new transaction boundary would be misleading because ITSM reconciliation can partially fail, so this UI reports independent outcomes using the existing single-hire behavior.
+
+## 2026-11-25 — Edit hire details without mutating the generated role plan
+
+- **Decision:** Add an audited HR/Admin patch for name, department, manager and joining date. Validate managers as active MANAGER users; validate new joining dates against the organization calendar; recompute CPM and projected readiness immediately. Keep role changes unavailable after plan creation.
+- **Why:** Each hire's role identifies the task snapshot and its dispatched tickets. Editing the role alone would leave the visible role and coordinated work out of sync; replacing a live plan needs a separate safe migration workflow.
+- **Alternative considered:** Regenerate tasks when the role changes. Existing approvals, completed tasks, and external tickets would need reconciliation, so the edit flow protects the current plan while enabling operational detail corrections and date changes.

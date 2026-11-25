@@ -35,6 +35,7 @@ api.interceptors.response.use(response => response, async error => {
 
 export type AuthUser = components['schemas']['UserOut']
 export type HireCreate = components['schemas']['HireCreate']
+export type HireUpdate = components['schemas']['HireUpdate']
 export type Hire = components['schemas']['HireOut']
 export type Task = components['schemas']['TaskOut']
 export async function login(email: string, password: string) {
@@ -82,6 +83,7 @@ export const getHirePage = (params: { page: number; page_size: number; search?: 
 export const createHire = (data: HireCreate) => api.post<Hire>('/hires', data).then(r => r.data)
 export const planPreview = (role: string) => api.post('/hires/plan-preview', { role }).then(r => r.data)
 export const getHire = (id: number) => api.get<Hire>(`/hires/${id}`).then(r => r.data)
+export const updateHireDetails = (id: number, data: HireUpdate) => api.patch<Hire>(`/hires/${id}`, data).then(r => r.data)
 export const getHireTasks = (id: number) => api.get<Task[]>(`/hires/${id}/tasks`).then(r => r.data)
 export const getHireAudit = (id: number) => api.get(`/hires/${id}/audit`).then(r => r.data)
 export const pauseHire = (id: number) => api.post(`/hires/${id}/pause`).then(r => r.data)

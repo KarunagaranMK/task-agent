@@ -6,6 +6,7 @@ export interface components {
     "HTTPValidationError": { "detail"?: Array<components['schemas']["ValidationError"]>; }
     "HireCreate": { "name": string; "role": string; "department": string; "start_day"?: (number) | (null); "start_date"?: (string) | (null); "manager_id"?: (number) | (null); }
     "HireOut": { "id": number; "name": string; "role": string; "department": string; "start_day": number; "start_date": (string) | (null); "status": string; "readiness": number; "projected_day": (number) | (null); "projected_ready_date": (string) | (null); "manager_id"?: (number) | (null); }
+    "HireUpdate": { "name"?: (string) | (null); "department"?: (string) | (null); "manager_id"?: (number) | (null); "start_date"?: (string) | (null); }
     "InviteRequest": { "email": string; "name": string; "role": string; "team"?: (string) | (null); }
     "IssueRequest": { "message": string; }
     "LoginOut": { "access_token": string; "token_type"?: string; "user": components['schemas']["UserOut"]; }
@@ -80,6 +81,24 @@ export interface paths {
       operationId: "get_hire_hires__hire_id__get"
       parameters: {
         path: { "hire_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": components['schemas']["HireOut"]; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+    patch: {
+      operationId: "update_hire_details_hires__hire_id__patch"
+      parameters: {
+        path: { "hire_id": number }
+      }
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["HireUpdate"]; }
       }
       responses: {
         "200": {
@@ -271,6 +290,24 @@ export interface paths {
         }
       }
     }
+    patch: {
+      operationId: "update_hire_details_api_hires__hire_id__patch"
+      parameters: {
+        path: { "hire_id": number }
+      }
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["HireUpdate"]; }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": components['schemas']["HireOut"]; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
   }
   "/api/hires/{hire_id}/tasks": {
     get: {
@@ -442,6 +479,24 @@ export interface paths {
       operationId: "get_hire_api_v1_hires__hire_id__get"
       parameters: {
         path: { "hire_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": components['schemas']["HireOut"]; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+    patch: {
+      operationId: "update_hire_details_api_v1_hires__hire_id__patch"
+      parameters: {
+        path: { "hire_id": number }
+      }
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["HireUpdate"]; }
       }
       responses: {
         "200": {
@@ -2677,6 +2732,36 @@ export interface paths {
   "/health": {
     get: {
       operationId: "health_health_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/api/v1/ready": {
+    get: {
+      operationId: "ready_api_v1_ready_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/api/ready": {
+    get: {
+      operationId: "ready_api_ready_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/ready": {
+    get: {
+      operationId: "ready_ready_get"
       responses: {
         "200": {
           content: { "application/json": unknown; }

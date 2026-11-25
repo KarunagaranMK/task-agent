@@ -325,6 +325,8 @@ This file records verified state against the phases in the product brief. A gate
 - Added server-side hire search, status filtering, stable sorting and bounded pagination with total/page response headers. HR’s portfolio query state drives the React Query cache key; summary metrics are server-wide, not page-local.
 - Synced HR portfolio search, status, sort and page state into the URL; saved named-by-filter views in local storage; added CSV export that fetches every page matching the active search and status, with spreadsheet-formula escaping.
 - Added page-local hire selection with bulk pause/resume actions through the existing audited API routes; mixed outcomes report successful and failed counts, and the selection clears when the portfolio query changes.
+- Added an HR/Admin hire detail editor for name, department, manager and joining date. The API enforces active-manager selection and business-day/future joining dates, immediately recalculates CPM and projected readiness, and audits each update.
+- Updated the API schema generator so Pydantic models that forbid extra fields do not produce an impossible `never` index signature in TypeScript.
 - Added `/ready` aliases that probe the database connection and return 503 when the database is unavailable; `/health` remains a liveness check.
 - Added independent rolling 15-minute login limits for each IP/email pair, each account, and each client IP, alongside the existing five-failure account lockout.
 - Added separate 15-minute per-IP limits for password recovery (10), reset-token submissions (30), and invitation acceptance (30); recovery responses remain generic.
@@ -345,16 +347,16 @@ This file records verified state against the phases in the product brief. A gate
 - The **198-image** role/viewport/theme matrix passed after fixing a 390px page overflow; the graph now scrolls inside its canvas while settings remain within the viewport.
 - Inspected final template screenshots at 390px light and 1440px dark. The final full matrix includes the canvas at each required admin and HR viewport/theme combination.
 
-- Full backend suite passed: **134 tests**; this includes date/calendar mapping, active-ticket pause/resume/cancel, HR/Admin permission checks, API versioning, Problem Details, hire list query/pagination behavior, database readiness aliases, login rate buckets, and public recovery rate limits.
+- Full backend suite passed: **135 tests**; this includes date/calendar mapping, hire detail edits and forecast recalculation, active-ticket pause/resume/cancel, HR/Admin permission checks, API versioning, Problem Details, hire list query/pagination behavior, database readiness aliases, login rate buckets, and public recovery rate limits.
 - `python run.py --test` passed the backend suite and strict TypeScript/Vite production build; Ruff passed (`E4,E7,E9,F`).
-- Playwright passed **11/11**, including hire search/status filters, saved-view restore and CSV download, bulk pause/resume, template dependency edits/cycle recovery, the Priya recovery-to-READY scenario, and the serious/critical axe audit.
+- Playwright passed **11/11**, including hire search/status filters, saved-view restore and CSV download, bulk pause/resume, editable hire details and joining-date changes, template dependency edits/cycle recovery, the Priya recovery-to-READY scenario, and the serious/critical axe audit.
 - Final visual matrix passed and was regenerated: **198 screenshots**; representative mobile/desktop template and HR portfolio captures plus hire graph/schedule views were opened and inspected.
 
 ### Known gaps still open against the original brief
 
 - CPM and monitor internals still use a simulation-relative integer day index; real dates are persisted and mapped to that index at the API boundary.
 - Template dependencies can be edited by click-to-connect and prerequisite controls; draggable edge handles are not implemented, and current templates remain below the 40-task API limit.
-- A full hire edit flow remains incomplete; search, status, sort, paging, saved views, URL sharing, filtered CSV export, and bulk pause/resume are implemented.
+- Changing a hire's role and regenerating its task plan after creation are unsupported; name, department, manager and joining date can be edited with audit and date forecast recalculation.
 - Other unauthenticated endpoints remain without rate limits; login and recovery limits are in-memory per process. API UUID IDs and request-wide transaction semantics also remain open hardening work.
 - Vitest component tests and production performance/load profiling have not been added; the GNU Make target mirror has not been independently exercised on this Windows machine.
 - The app uses local/mock ITSM and HRIS, local development mail, and an in-process deterministic layout/orchestrator; no LangGraph adapter or production vendor integration is claimed.
@@ -375,7 +377,15 @@ This file records verified state against the phases in the product brief. A gate
 - Portfolio filters and paging now live in query parameters so searches can be bookmarked and shared. HR can save/remove commonly used views, restore them later, and export all filtered rows to CSV.
 - Export quotes CSV cells and neutralizes leading spreadsheet formula characters. Mobile toolbar controls wrap into a three-column row; hire date and demo-day notes now have clear spacing.
 - Verification: strict TypeScript/Vite production build passed; Playwright passed **10/10**, including URL state, saved-view restore and CSV download; responsive screenshot matrix passed **198 captures** with no page overflow. Inspected HR overview at 390px light and 1440px dark.
-- **Gate: passed.** Bulk actions and full hire editing remain open. This increment is committed after verification.
+- **Gate: passed.** Bulk actions are complete for the current page; role changes and task-plan regeneration remain open. This increment is committed after verification.
+
+### Hire detail editing — 2026-11-25
+
+- Added audited `PATCH /hires/{id}` plus an HR/Admin edit dialog for the name, department, manager and joining date. Joining-date changes must be future business days and are disabled for paused, ready or cancelled plans; active plans recalculate CPM and projected readiness immediately.
+- Kept role changes locked because each hire's role is the source of its already-generated task snapshot; changing it without replacing tickets/tasks would misrepresent the plan.
+- Corrected generated OpenAPI typing for closed Pydantic request models (`additionalProperties: false`).
+- Verification: `python run.py --test` passed **135 backend tests** and the production build; Ruff passed; Playwright passed **11/11** including edit/save and date movement; the refreshed **198-capture** screenshot matrix passed, and the hire detail was inspected at 390px light and 1440px dark.
+- **Gate: passed.** Role changes and task-plan regeneration remain outside this safe edit flow. This increment is committed after verification.
 
 ### HR bulk portfolio actions — 2026-11-25
 

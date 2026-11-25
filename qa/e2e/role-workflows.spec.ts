@@ -50,6 +50,22 @@ test('HR can preview and create a role-specific onboarding plan', async ({ page 
   expect((await createdHire.json()).start_date).toBe(joiningDate)
   await expect(page.getByRole('status')).toContainText('QA Example')
   await page.getByRole('link', { name: 'Open QA Example' }).click()
+  await page.getByRole('button', { name: 'Edit details' }).click()
+  const editDialog = page.getByRole('dialog', { name: 'Edit QA Example' })
+  await editDialog.getByLabel('Department').fill('Operations')
+  await editDialog.getByLabel('Manager').selectOption({ label: 'Alex Morgan' })
+  const movedJoiningDate = await page.evaluate(value => {
+    const date = new Date(`${value}T12:00:00`)
+    let remaining = 2
+    while (remaining > 0) { date.setDate(date.getDate() + 1); if (date.getDay() !== 0 && date.getDay() !== 6) remaining -= 1 }
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  }, joiningDate)
+  await editDialog.getByLabel('Joining date').fill(movedJoiningDate)
+  await editDialog.getByRole('button', { name: 'Save details' }).click()
+  await expect(editDialog).toHaveCount(0)
+  await expect(page.locator('.hire-hero-heading p')).toContainText('Operations')
+  const movedJoiningDateLabel = await page.evaluate(value => new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(`${value}T12:00:00`)), movedJoiningDate)
+  await expect(page.locator('.hire-kpis article').nth(1)).toContainText(movedJoiningDateLabel)
   await page.getByRole('button', { name: 'Pause' }).click()
   await expect(page.locator('.hire-hero .status-pill')).toHaveText(/Paused/i)
   await expect(page.getByText('Work is paused. Resume the plan when teams are ready.')).toBeVisible()

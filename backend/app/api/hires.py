@@ -2,12 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlmodel import Session, select, func
 from app.db.database import get_session
 from app.domain.models import Hire, Task, TaskStatus, HireStatus, AuditEvent, User, Ticket, OutboxItem
-from app.services.orchestrator import audit, create_hire_with_plan, get_current_day
+from app.services.orchestrator import audit, compute_readiness, create_hire_with_plan, get_current_day, run_cpm_for_hire, update_hire_status
 from app.auth import require_roles
 from app.services.cpm import CPMTask, compute_cpm, compute_what_if, get_remaining_days
 from app.services.planner import try_llm_plan
 from app.mcp_clients.tools import cancel_ticket as mcp_cancel_ticket, update_ticket_status as mcp_update_ticket_status
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing import Optional, List, Literal
 from datetime import date, datetime
 from app.services.clock import load_clock
@@ -28,6 +28,20 @@ class HireCreate(BaseModel):
     def require_start_target(self):
         if (self.start_day is None) == (self.start_date is None):
             raise ValueError("Provide exactly one of start_day or start_date")
+        return self
+
+
+class HireUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: Optional[str] = Field(default=None, min_length=2, max_length=120)
+    department: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    manager_id: Optional[int] = None
+    start_date: Optional[date] = None
+
+    @model_validator(mode="after")
+    def require_editable_field(self):
+        if not self.model_fields_set:
+            raise ValueError("Provide at least one hire detail to update")
         return self
 
 
@@ -175,6 +189,54 @@ def get_hire(hire_id: int, session: Session = Depends(get_session), user=Depends
         raise HTTPException(404, "Hire not found")
     if user.role == "MANAGER" and hire.manager_id != user.id:
         raise HTTPException(404, "Hire not found")
+    return _hire_out(hire, session)
+
+
+@router.patch("/{hire_id}", response_model=HireOut)
+def update_hire_details(
+    hire_id: int,
+    data: HireUpdate,
+    session: Session = Depends(get_session),
+    user=Depends(require_roles("ADMIN", "HR")),
+):
+    hire = _get_editable_hire(hire_id, session)
+    changes = data.model_dump(exclude_unset=True)
+    if any(changes.get(field) is None for field in ("name", "department") if field in changes):
+        raise HTTPException(422, "Name and department cannot be empty")
+    if "manager_id" in changes and changes["manager_id"] is not None:
+        manager = session.get(User, changes["manager_id"])
+        if manager is None or not manager.is_active or manager.role != "MANAGER":
+            raise HTTPException(422, "Choose an active manager")
+
+    date_changed = "start_date" in changes
+    if date_changed:
+        if changes["start_date"] is None:
+            raise HTTPException(422, "Joining date cannot be empty")
+        if hire.status in (HireStatus.ready, HireStatus.cancelled, HireStatus.paused):
+            raise HTTPException(409, "Resume the plan before changing its joining date")
+        current_day = get_current_day(session)
+        clock = load_clock(session, current_day)
+        joining_date = changes["start_date"]
+        if not clock.calendar.is_business_day(joining_date):
+            raise HTTPException(422, "Joining date must be a business day in the organization calendar")
+        days_until_start = clock.calendar.business_days_between(clock.today(), joining_date)
+        if days_until_start < 1:
+            raise HTTPException(422, "Joining date must be after the current organization date")
+        hire.start_date = joining_date
+        hire.start_day = current_day + days_until_start
+
+    for field in ("name", "department", "manager_id"):
+        if field in changes:
+            value = changes[field]
+            setattr(hire, field, value.strip() if isinstance(value, str) else value)
+
+    if date_changed:
+        _tasks, min_slack = run_cpm_for_hire(session, hire)
+        update_hire_status(session, hire, min_slack, compute_readiness(session, hire))
+    changed = ", ".join(sorted(changes))
+    audit(session, hire.id, f"Hire details updated by {user.name}: {changed}", "info", f"user:{user.id}")
+    session.add(hire)
+    session.commit()
     return _hire_out(hire, session)
 
 

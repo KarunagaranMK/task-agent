@@ -38,7 +38,7 @@ def ts_type(schema: dict[str, Any] | bool | None) -> str:
             for name, value in properties.items()
         ]
         extra = schema.get("additionalProperties")
-        if extra is not None:
+        if extra is not None and extra is not False:
             entries.append(f"[key: string]: {ts_type(extra)}")
         result = "{ " + "; ".join(entries) + ("; " if entries else "") + "}"
     else:

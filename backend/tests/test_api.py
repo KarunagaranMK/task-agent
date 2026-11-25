@@ -1,3 +1,6 @@
+from sqlmodel import select
+
+
 def test_health(client):
     r = client.get("/health")
     assert r.status_code == 200
@@ -60,6 +63,35 @@ def test_create_hire_uses_organization_business_calendar(client, session, monkey
         "name": "Past QA", "role": "default", "department": "Ops", "start_date": "2026-11-23",
     })
     assert past.status_code == 422
+
+
+def test_hr_can_edit_hire_details_and_recalculate_joining_date(client, session, monkeypatch):
+    from datetime import date
+    from app.domain.models import AuditEvent, User
+    from app.services.clock import Clock
+
+    monkeypatch.setattr(Clock, "local_today", lambda _self: date(2026, 11, 24))
+    manager = User(email="manager-edit@example.local", name="Edit Manager", role="MANAGER", password_hash="unused")
+    session.add(manager)
+    session.commit()
+    session.refresh(manager)
+    hire = client.post("/hires", json={"name": "Edit Me", "role": "Analyst", "department": "Data", "start_day": 8}).json()
+
+    updated = client.patch(f"/api/v1/hires/{hire['id']}", json={
+        "name": "Edited Name", "department": "Analytics", "manager_id": manager.id, "start_date": "2026-12-07",
+    })
+    assert updated.status_code == 200
+    assert updated.json()["name"] == "Edited Name"
+    assert updated.json()["department"] == "Analytics"
+    assert updated.json()["manager_id"] == manager.id
+    assert updated.json()["start_date"] == "2026-12-07"
+    assert updated.json()["start_day"] == 9
+    assert session.exec(select(AuditEvent).where(AuditEvent.hire_id == hire["id"], AuditEvent.actor_agent == "user:1")).first()
+
+    weekend = client.patch(f"/hires/{hire['id']}", json={"start_date": "2026-11-28"})
+    assert weekend.status_code == 422
+    invalid_role = client.patch(f"/hires/{hire['id']}", json={"role": "Manager"})
+    assert invalid_role.status_code == 422
 
 
 def test_plan_preview_returns_validated_role_template(client):

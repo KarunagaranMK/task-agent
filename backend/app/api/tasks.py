@@ -116,7 +116,7 @@ def list_tickets(session: Session = Depends(get_session), user=Depends(require_r
     tickets = session.exec(query).all()
     return [
         {
-            "id": t.id,
+            "id": t.public_id,
             "ticket_id": t.ticket_id,
             "title": t.title,
             "team": t.team,
@@ -178,7 +178,7 @@ def list_ticket_comments(ticket_id: str, session: Session = Depends(get_session)
     ticket = _get_team_ticket(session, ticket_id, user)
     comments = session.exec(select(TicketComment).where(TicketComment.ticket_id == ticket.id).order_by(TicketComment.created_at)).all()
     return [
-        {"id": item.id, "author": (session.get(User, item.author_id).name if session.get(User, item.author_id) else "Team member"),
+        {"id": item.public_id, "author": (session.get(User, item.author_id).name if session.get(User, item.author_id) else "Team member"),
          "body": item.body, "created_at": item.created_at.isoformat()}
         for item in comments
     ]
@@ -196,7 +196,7 @@ def add_ticket_comment(ticket_id: str, data: TicketCommentRequest, session: Sess
         audit(session, ticket.hire_id, f"Comment added to {ticket.ticket_id}", "info", f"user:{user.id}")
     session.commit()
     session.refresh(comment)
-    return {"id": comment.id, "author": user.name, "body": comment.body, "created_at": comment.created_at.isoformat()}
+    return {"id": comment.public_id, "author": user.name, "body": comment.body, "created_at": comment.created_at.isoformat()}
 
 
 @router.post("/tickets/{ticket_id}/stall")

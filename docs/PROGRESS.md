@@ -358,7 +358,7 @@ This file records verified state against the phases in the product brief. A gate
 - CPM and monitor internals still use a simulation-relative integer day index; real dates are persisted and mapped to that index at the API boundary.
 - Template dependencies support draggable edge handles, click-to-connect, keyboard task selection, and prerequisite controls; templates remain below the 40-task API limit.
 - Role changes are allowed only before work starts: all tasks must remain pending with no tickets or approvals. After any work begins, the role stays locked; name, department, manager and joining date remain audited edits.
-- Other unauthenticated endpoints remain without rate limits; login and recovery limits are in-memory per process. Public UUID identifiers now cover hire, task, notification, and user resources plus their related links and manager assignments. Ticket and comment IDs, and other secondary API entity identifiers, remain open; request-wide transaction semantics remain open hardening work.
+- Other unauthenticated endpoints remain without rate limits; login and recovery limits are in-memory per process. Public UUID identifiers now cover hire, task, notification, user, ticket, and ticket-comment resources plus their related links and manager assignments. Other secondary API entity identifiers remain open; request-wide transaction semantics remain open hardening work.
 - Core backend coverage is **90.6%** across CPM, planner, clock, and experiment modules. A repeatable local authenticated API load profile now exists; production infrastructure/SLO profiling and dedicated Vitest component tests have not been added. The GNU Make target mirror has not been independently exercised because GNU Make is unavailable on this Windows machine.
 - The app uses local/mock ITSM and HRIS, local development mail, and an in-process deterministic layout/orchestrator; no LangGraph adapter or production vendor integration is claimed.
 
@@ -467,3 +467,10 @@ This file records verified state against the phases in the product brief. A gate
 - Updated the guided-demo, recovery, accessibility, and screenshot workflows to resolve hire routes from the visible Priya row instead of assuming `/hire/1` or `/hires/1`.
 - Verification: all **11/11 Playwright end-to-end tests passed** after the UUID migration. The responsive light/dark screenshot suite produced **198 captures** with no horizontal page overflow. Inspected the 390px light insights dashboard, hire graph, and admin template editor.
 - **Gate: passed for UUID-aware frontend navigation and screenshot capture.** Ticket/comment identifiers and request-wide transaction semantics remain open.
+
+### Public UUIDs for tickets and work notes — 2026-11-25
+
+- Added Alembic migration `0014_ticket_comment_public_uuid` to backfill stable UUIDs on ticket and comment records. Existing relational keys and ITSM `ticket_id` integration references remain unchanged.
+- Ticket list and work-note create/list responses now expose UUID resource IDs; frontend ticket/comment contracts use strings. Added regression assertions for canonical, stable UUIDs across comment creation and listing.
+- Verification: `python run.py --test` passed **136 backend tests** and the strict TypeScript/Vite production build; Ruff passed; Playwright passed **11/11**, including ticket comment entry and the full Priya ITSM recovery scenario.
+- **Gate: passed for ticket and comment API identifiers.** Other secondary API entity IDs and request-wide transaction semantics remain open.

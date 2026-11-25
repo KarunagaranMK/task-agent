@@ -1,4 +1,5 @@
 from datetime import date
+from uuid import UUID
 
 from sqlmodel import select
 
@@ -80,6 +81,7 @@ def test_ticket_console_start_block_and_comments(client):
     client.post("/monitor/tick")
     tickets = client.get("/tickets").json()
     assert tickets
+    assert str(UUID(tickets[0]["id"])) == tickets[0]["id"]
     ticket_id = tickets[0]["ticket_id"]
 
     started = client.post(f"/tickets/{ticket_id}/start")
@@ -87,7 +89,10 @@ def test_ticket_console_start_block_and_comments(client):
     assert started.json()["status"] == "in_progress"
     comment = client.post(f"/tickets/{ticket_id}/comments", json={"body": "Laptop imaging has started."})
     assert comment.status_code == 201
-    assert client.get(f"/tickets/{ticket_id}/comments").json()[0]["body"] == "Laptop imaging has started."
+    assert str(UUID(comment.json()["id"])) == comment.json()["id"]
+    comments = client.get(f"/tickets/{ticket_id}/comments").json()
+    assert comments[0]["id"] == comment.json()["id"]
+    assert comments[0]["body"] == "Laptop imaging has started."
     blocked = client.post(f"/tickets/{ticket_id}/block")
     assert blocked.status_code == 200
     assert blocked.json()["status"] == "blocked"

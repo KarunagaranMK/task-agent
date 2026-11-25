@@ -128,12 +128,12 @@ export const setDemoClock = (day: number) => api.post(`/admin/clock?day=${day}`)
 
 export interface ExperimentParams { n_hires: number; stall_probability: number; seed: number }
 export interface Ticket {
-  id: number; ticket_id: string; title: string; team: string;
+  id: string; ticket_id: string; title: string; team: string;
   status: string; hire_id: string | null; task_id: string | null; estimate_days: number; created_at: string
 }
 export interface AuditEvent { id: number; day: number; level: string; message: string; actor: string; created_at: string }
 export interface Notification { id: string; for_role: string; message: string; hire_id: string | null; task_id: string | null; read: boolean; created_at: string }
-export interface TicketComment { id: number; author: string; body: string; created_at: string }
+export interface TicketComment { id: string; author: string; body: string; created_at: string }
 export interface MyOnboarding {
   hire: { name: string; role: string; department: string; start_day: number; start_date: string | null; status: string; readiness: number; projected_day: number | null; projected_ready_date: string | null } | null
   tasks: Array<{ title: string; status: string; eta_day: number | null }>

@@ -136,6 +136,7 @@ class Notification(SQLModel, table=True):
 class Ticket(SQLModel, table=True):
     __tablename__ = "tickets"
     id: Optional[int] = Field(default=None, primary_key=True)
+    public_id: str = Field(default_factory=lambda: str(uuid4()), unique=True, index=True)
     ticket_id: str = Field(unique=True)
     idempotency_key: str = Field(unique=True)
     title: str
@@ -151,6 +152,7 @@ class Ticket(SQLModel, table=True):
 class TicketComment(SQLModel, table=True):
     __tablename__ = "ticket_comments"
     id: Optional[int] = Field(default=None, primary_key=True)
+    public_id: str = Field(default_factory=lambda: str(uuid4()), unique=True, index=True)
     ticket_id: int = Field(foreign_key="tickets.id", index=True)
     author_id: int = Field(foreign_key="users.id", index=True)
     body: str

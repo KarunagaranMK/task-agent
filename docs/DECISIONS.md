@@ -281,3 +281,9 @@
 - **Decision:** Treat hire URLs as opaque public identifiers in frontend walkthroughs, end-to-end tests, and screenshot capture. Resolve the demo hire from the loaded portfolio instead of embedding a database key.
 - **Why:** Public UUIDs may change across seeded or user-created records; UI navigation and QA should follow the same route contract as real users.
 - **Alternative considered:** Keep numeric fixture paths in demo and test code. That would hide routing regressions after the API stopped accepting sequential IDs.
+
+## 2026-11-25 — Separate public ticket IDs from ITSM references
+
+- **Decision:** Add persisted UUID resource IDs to tickets and comments while keeping the opaque ITSM `ticket_id` as the integration reference used by ticket actions and MCP calls.
+- **Why:** API responses can avoid leaking sequential database keys without changing vendor-facing identifiers, idempotency behavior, or existing ticket workflow routes.
+- **Alternative considered:** Replace the ITSM reference in all routes and service calls with the UUID. That would create unnecessary coupling between the local API identity and the external ticket system.

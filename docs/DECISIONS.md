@@ -227,3 +227,9 @@
 - **Decision:** Supersede the role-lock portion of the hire edit decision above. HR/Admin may replace a role's task plan only while the hire is active and every existing task is pending, ticket-free, and approval-free. Reject the change once a ticket, approval, or completed work exists. Audit the old/new role and rebuild tasks from the active validated template or planner fallback.
 - **Why:** Before dispatch, the generated tasks have not escaped into team systems and can be replaced coherently. Once work starts, deleting or remapping tickets and approvals would risk losing operational history.
 - **Alternative considered:** Allow unrestricted plan regeneration, or keep roles permanently immutable. Unrestricted regeneration is unsafe after dispatch; permanent immutability blocks valid corrections before anyone starts work.
+
+## 2026-11-25 — Support direct dependency editing with graph handles
+
+- **Decision:** Keep the deterministic SVG template canvas and add draggable source/target ports for creating prerequisite edges. Retain click-to-connect and keyboard selection alongside dragging; keep edge-click removal and task inspector controls.
+- **Why:** Dragging directly communicates dependency direction and makes edits faster to discover, while the existing alternatives preserve keyboard access and precise checkbox editing. No graph package is needed for the current template size.
+- **Alternative considered:** Replace the current layout with a graph library. The existing SVG layout already supports small DAGs and avoids a new dependency; the current template sizes do not yet justify graph-library overhead.

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Activity, Archive, Check, Download, Mail, Plus, Save, Shield, Users, Workflow, Link2, MousePointer2, Trash2, TriangleAlert } from 'lucide-react'
@@ -63,9 +63,34 @@ function TemplateGraph({ tasks, selectedKey, onSelect, onConnect, onDisconnect, 
   const taskByKey = new Map(tasks.map(task => [task.key, task]))
   const edges = tasks.flatMap(task => task.depends_on.filter(dep => positions.has(dep) && positions.has(task.key)).map(dep => ({ source: dep, target: task.key })))
   const invalidKeys = new Set(tasks.filter(task => task.depends_on.some(dep => !keys.has(dep) || dep === task.key)).flatMap(task => [task.key, ...task.depends_on]))
+  const svgRef = useRef<SVGSVGElement>(null)
+  const [dragSource, setDragSource] = useState('')
+  const [dragCursor, setDragCursor] = useState<{ x: number; y: number } | null>(null)
+  const pointFromEvent = (event: PointerEvent<SVGSVGElement>) => {
+    const svg = svgRef.current
+    if (!svg) return null
+    const point = svg.createSVGPoint()
+    point.x = event.clientX
+    point.y = event.clientY
+    const matrix = svg.getScreenCTM()
+    return matrix ? point.matrixTransform(matrix.inverse()) : null
+  }
+  const finishConnectionDrag = (event: PointerEvent<SVGSVGElement>) => {
+    if (!dragSource) return
+    const point = pointFromEvent(event)
+    if (point) {
+      const target = [...positions.entries()]
+        .filter(([key]) => key !== dragSource)
+        .map(([key, position]) => ({ key, x: position.x, y: position.y + nodeHeight / 2 }))
+        .find(candidate => Math.hypot(candidate.x - point.x, candidate.y - point.y) <= 30)
+      if (target) onConnect(dragSource, target.key)
+    }
+    setDragSource('')
+    setDragCursor(null)
+  }
   return <div className="template-graph-shell">
     <div className="template-graph-scroll" role="region" aria-label="Interactive task dependency graph" tabIndex={0}>
-      <svg className="template-graph" viewBox={`0 0 ${width} ${height}`} style={{ minWidth: width }} aria-label="Task dependency graph">
+      <svg ref={svgRef} className="template-graph" viewBox={`0 0 ${width} ${height}`} style={{ minWidth: width }} aria-label="Task dependency graph" onPointerMove={event => { if (dragSource) setDragCursor(pointFromEvent(event)) }} onPointerUp={finishConnectionDrag} onPointerCancel={() => { setDragSource(''); setDragCursor(null) }}>
         <defs><marker id="template-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="currentColor" /></marker></defs>
         {[...groups.keys()].sort((a, b) => a - b).map(column => <text key={column} className="template-lane-label" x={left + column * columnGap} y="18">{column === 0 ? 'START' : `AFTER ${column === 1 ? 'PREREQUISITES' : `${column} STEPS`}`}</text>)}
         {edges.map(({ source, target }) => {
@@ -74,16 +99,17 @@ function TemplateGraph({ tasks, selectedKey, onSelect, onConnect, onDisconnect, 
           const bend = Math.max(34, (x2 - x1) * .48)
           return <path key={`${source}-${target}`} className={`template-edge ${invalidKeys.has(source) || invalidKeys.has(target) ? 'invalid' : ''}`} d={`M${x1} ${y1} C${x1 + bend} ${y1},${x2 - bend} ${y2},${x2} ${y2}`} markerEnd="url(#template-arrow)" onClick={() => onDisconnect(source, target)} role="button" tabIndex={0} aria-label={`Remove dependency ${source} to ${target}`} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') onDisconnect(source, target) }} />
         })}
+        {dragSource && dragCursor && positions.has(dragSource) && (() => { const from = positions.get(dragSource)!; const x1 = from.x + nodeWidth, y1 = from.y + nodeHeight / 2, bend = Math.max(34, (dragCursor.x - x1) * .48); return <path className="template-edge template-edge-preview" d={`M${x1} ${y1} C${x1 + bend} ${y1},${dragCursor.x - bend} ${dragCursor.y},${dragCursor.x} ${dragCursor.y}`} /> })()}
         {connecting && sourceKey && positions.has(sourceKey) && <text className="template-connect-hint" x="18" y={height - 15}>Choose a downstream task to depend on {taskByKey.get(sourceKey)?.title || sourceKey}</text>}
         {tasks.map(task => {
           const point = positions.get(task.key)!
           const active = selectedKey === task.key
           const duration = `${task.duration_days} DAY${task.duration_days === 1 ? '' : 'S'}`
-          return <foreignObject key={`${task.key}-${point.x}-${point.y}`} x={point.x} y={point.y} width={nodeWidth} height={nodeHeight}><button type="button" className={`template-node-card ${active ? 'selected' : ''} ${invalidKeys.has(task.key) ? 'invalid' : ''} ${connecting && task.key === sourceKey ? 'connect-source' : ''}`} aria-pressed={active} onClick={() => connecting ? (sourceKey && sourceKey !== task.key ? onConnect(sourceKey, task.key) : onSelect(task.key)) : onSelect(task.key)}><span className={`template-node-team team-${task.team.toLowerCase()}`}><i />{task.team.toUpperCase()} · {duration}</span><strong className="template-node-title">{task.title || 'Untitled task'}</strong><small className="template-node-key">{task.key}</small>{task.needs_approval && <span className="template-node-approval">APPROVAL</span>}</button></foreignObject>
+          return <g key={`${task.key}-${point.x}-${point.y}`}><foreignObject x={point.x} y={point.y} width={nodeWidth} height={nodeHeight}><button type="button" className={`template-node-card ${active ? 'selected' : ''} ${invalidKeys.has(task.key) ? 'invalid' : ''} ${connecting && task.key === sourceKey ? 'connect-source' : ''}`} aria-pressed={active} onClick={() => connecting ? (sourceKey && sourceKey !== task.key ? onConnect(sourceKey, task.key) : onSelect(task.key)) : onSelect(task.key)}><span className={`template-node-team team-${task.team.toLowerCase()}`}><i />{task.team.toUpperCase()} · {duration}</span><strong className="template-node-title">{task.title || 'Untitled task'}</strong><small className="template-node-key">{task.key}</small>{task.needs_approval && <span className="template-node-approval">APPROVAL</span>}</button></foreignObject><circle className={`template-port template-port-in ${dragSource && dragSource !== task.key ? 'drop-target' : ''}`} cx={point.x} cy={point.y + nodeHeight / 2} r="7" aria-hidden="true" /><circle className={`template-port template-port-out ${dragSource === task.key ? 'dragging' : ''}`} cx={point.x + nodeWidth} cy={point.y + nodeHeight / 2} r="7" aria-hidden="true" onPointerDown={event => { if (connecting) return; event.preventDefault(); event.stopPropagation(); const svg = svgRef.current; if (svg) svg.setPointerCapture(event.pointerId); setDragSource(task.key); setDragCursor({ x: point.x + nodeWidth, y: point.y + nodeHeight / 2 }) }} /></g>
         })}
       </svg>
     </div>
-    <div className="template-graph-legend"><span><i className="team-dot it" /> IT</span><span><i className="team-dot hr" /> HR</span><span><i className="team-dot facilities" /> Facilities</span><span><Link2 size={13} /> Arrow means prerequisite · click arrow to remove</span></div>
+    <div className="template-graph-legend"><span><i className="team-dot it" /> IT</span><span><i className="team-dot hr" /> HR</span><span><i className="team-dot facilities" /> Facilities</span><span><Link2 size={13} /> Drag right handle to a left handle · click arrow to remove</span></div>
     {cyclic && <div className="template-graph-warning" role="alert"><TriangleAlert size={15} /> A dependency cycle is present. Remove a connection before publishing.</div>}
     {invalid && <div className="template-graph-warning" role="alert"><TriangleAlert size={15} /> Task keys must be unique and dependencies must point to another task.</div>}
   </div>

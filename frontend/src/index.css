@@ -547,6 +547,11 @@ kbd { height: 20px; min-width: 22px; display: inline-flex; justify-content: cent
 .template-edge { fill:none; stroke:color-mix(in srgb,var(--teal) 55%,var(--border)); stroke-width:2; cursor:pointer; transition:stroke .16s ease,stroke-width .16s ease; }
 .template-edge:hover,.template-edge:focus { stroke:#b42332; stroke-width:4; outline:0; }
 .template-edge.invalid { stroke:#b42332; stroke-dasharray:5 4; }
+.template-edge-preview { stroke:#d28536; stroke-dasharray:6 5; pointer-events:none; }
+.template-port { fill:var(--surface); stroke:color-mix(in srgb,var(--teal) 70%,var(--border)); stroke-width:2; opacity:.32; transition:opacity .14s ease,fill .14s ease; }
+.template-graph g:hover .template-port,.template-port.drop-target,.template-port.dragging { opacity:1; }
+.template-port-out { cursor:crosshair; pointer-events:all; touch-action:none; }
+.template-port-out:hover,.template-port-out.dragging,.template-port.drop-target { fill:color-mix(in srgb,var(--teal) 22%,var(--surface)); }
 .template-connect-hint { fill:var(--teal); font:700 10px Inter,'Segoe UI',sans-serif; }
 .template-node-card { position:relative; display:block; width:190px; height:92px; padding:11px 13px; overflow:hidden; border:1.2px solid var(--border); border-radius:12px; color:var(--ink); background:var(--surface); box-shadow:0 3px 7px rgba(15,30,50,.07); text-align:left; cursor:pointer; outline:none; transition:border-color .16s ease,box-shadow .16s ease; }
 .template-node-card:hover,.template-node-card:focus-visible { border-color:color-mix(in srgb,var(--teal) 65%,var(--border)); box-shadow:0 5px 12px rgba(15,30,50,.13); }

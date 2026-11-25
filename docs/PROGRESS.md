@@ -356,7 +356,7 @@ This file records verified state against the phases in the product brief. A gate
 ### Known gaps still open against the original brief
 
 - CPM and monitor internals still use a simulation-relative integer day index; real dates are persisted and mapped to that index at the API boundary.
-- Template dependencies can be edited by click-to-connect and prerequisite controls; draggable edge handles are not implemented, and current templates remain below the 40-task API limit.
+- Template dependencies support draggable edge handles, click-to-connect, keyboard task selection, and prerequisite controls; templates remain below the 40-task API limit.
 - Role changes are allowed only before work starts: all tasks must remain pending with no tickets or approvals. After any work begins, the role stays locked; name, department, manager and joining date remain audited edits.
 - Other unauthenticated endpoints remain without rate limits; login and recovery limits are in-memory per process. API UUID IDs and request-wide transaction semantics also remain open hardening work.
 - Vitest component tests and production performance/load profiling have not been added; the GNU Make target mirror has not been independently exercised on this Windows machine.
@@ -401,3 +401,9 @@ This file records verified state against the phases in the product brief. A gate
 - The hire editor enables the role selector only when the loaded task state meets those rules and explains why it becomes locked. The browser flow now changes the role, confirms the new role-specific nine-task plan, then exercises pause/resume/cancel.
 - Verification: `python run.py --test` passed **135 backend tests** plus the strict TypeScript/Vite production build; Ruff passed; Playwright passed **11/11**, including the HR create/edit flow with role-specific plan replacement. The 198-image matrix was last run immediately before this UI change.
 - **Gate: passed for this increment.** The feature remains in progress against the original brief; the open hardening, CPM, template-handle, test-framework, performance, and production-integration gaps above remain.
+
+### Draggable template dependencies — 2026-11-25
+
+- Added visible source/target ports to the admin task canvas. Dragging from a task's right handle to another task's left handle previews and creates a prerequisite edge; existing click-to-connect and keyboard selection remain available. Invalid graph structures continue to block publish.
+- Verification: strict TypeScript/Vite build passed; Playwright passed **11/11**, including a drag gesture that verifies the dependency in the task inspector; responsive screenshot matrix passed **198 captures** with no overflow. Inspected the 390px light and 1440px dark template canvases.
+- **Gate: passed for this increment.** The 40-task cap and remaining hardening, CPM, load-test, test-framework, and production-integration work remain open against the original brief.

@@ -357,7 +357,7 @@ This file records verified state against the phases in the product brief. A gate
 
 - CPM and monitor internals still use a simulation-relative integer day index; real dates are persisted and mapped to that index at the API boundary.
 - Template dependencies can be edited by click-to-connect and prerequisite controls; draggable edge handles are not implemented, and current templates remain below the 40-task API limit.
-- Changing a hire's role and regenerating its task plan after creation are unsupported; name, department, manager and joining date can be edited with audit and date forecast recalculation.
+- Role changes are allowed only before work starts: all tasks must remain pending with no tickets or approvals. After any work begins, the role stays locked; name, department, manager and joining date remain audited edits.
 - Other unauthenticated endpoints remain without rate limits; login and recovery limits are in-memory per process. API UUID IDs and request-wide transaction semantics also remain open hardening work.
 - Vitest component tests and production performance/load profiling have not been added; the GNU Make target mirror has not been independently exercised on this Windows machine.
 - The app uses local/mock ITSM and HRIS, local development mail, and an in-process deterministic layout/orchestrator; no LangGraph adapter or production vendor integration is claimed.
@@ -394,3 +394,10 @@ This file records verified state against the phases in the product brief. A gate
 - Actions use the existing per-hire audited lifecycle routes. Each request can succeed or fail independently, and the completion notice reports both counts.
 - Verification: frontend build passed; Playwright passed **11/11**, including a browser pause/resume round trip; the refreshed **198-capture** screenshot matrix passed with no overflow, and HR portfolio captures at 390px light and 1440px dark were inspected.
 - **Gate: passed.** A full hire edit flow remains open. This increment is committed after verification.
+
+### Safe role change and plan regeneration — 2026-11-25
+
+- HR/Admin can change a hire's role while every task is still pending and no ticket or approval exists. The API rebuilds the plan from that role's active template (with the existing validated fallback), updates the mock HRIS record, and records an audit event. It rejects role changes on paused/terminal plans or after work starts.
+- The hire editor enables the role selector only when the loaded task state meets those rules and explains why it becomes locked. The browser flow now changes the role, confirms the new role-specific nine-task plan, then exercises pause/resume/cancel.
+- Verification: `python run.py --test` passed **135 backend tests** plus the strict TypeScript/Vite production build; Ruff passed; Playwright passed **11/11**, including the HR create/edit flow with role-specific plan replacement. The 198-image matrix was last run immediately before this UI change.
+- **Gate: passed for this increment.** The feature remains in progress against the original brief; the open hardening, CPM, template-handle, test-framework, performance, and production-integration gaps above remain.

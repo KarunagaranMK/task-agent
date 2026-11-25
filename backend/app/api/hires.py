@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlmodel import Session, select, func
 from app.db.database import get_session
 from app.domain.models import Hire, Task, TaskStatus, HireStatus, AuditEvent, User, Ticket, OutboxItem
-from app.services.orchestrator import audit, compute_readiness, create_hire_with_plan, get_current_day, run_cpm_for_hire, update_hire_status
+from app.services.orchestrator import audit, compute_readiness, create_hire_with_plan, get_current_day, replace_hire_plan_before_work_starts, run_cpm_for_hire, update_hire_status
 from app.auth import require_roles
 from app.services.cpm import CPMTask, compute_cpm, compute_what_if, get_remaining_days
 from app.services.planner import try_llm_plan
@@ -34,6 +34,7 @@ class HireCreate(BaseModel):
 class HireUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: Optional[str] = Field(default=None, min_length=2, max_length=120)
+    role: Optional[str] = Field(default=None, min_length=1, max_length=120)
     department: Optional[str] = Field(default=None, min_length=1, max_length=120)
     manager_id: Optional[int] = None
     start_date: Optional[date] = None
@@ -211,6 +212,13 @@ def update_hire_details(
         if manager is None or not manager.is_active or manager.role != "MANAGER":
             raise HTTPException(422, "Choose an active manager")
 
+    role_changed = "role" in changes and changes["role"] != hire.role
+    if "role" in changes:
+        if not isinstance(changes["role"], str) or not changes["role"].strip():
+            raise HTTPException(422, "Role cannot be empty")
+        changes["role"] = changes["role"].strip()
+        role_changed = changes["role"] != hire.role
+
     date_changed = "start_date" in changes
     if date_changed:
         if changes["start_date"] is None:
@@ -227,6 +235,13 @@ def update_hire_details(
             raise HTTPException(422, "Joining date must be after the current organization date")
         hire.start_date = joining_date
         hire.start_day = current_day + days_until_start
+
+    if role_changed:
+        try:
+            replace_hire_plan_before_work_starts(session, hire, changes["role"], f"user:{user.id}")
+        except ValueError as exc:
+            session.rollback()
+            raise HTTPException(409, str(exc)) from exc
 
     for field in ("name", "department", "manager_id"):
         if field in changes:

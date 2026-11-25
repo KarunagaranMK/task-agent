@@ -13,6 +13,7 @@ from app.domain.models import (
 )
 from app.services.cpm import CPMTask, compute_cpm, get_remaining_days, is_stalled
 from app.services.llm import draft_escalation_message
+from app.services.planner import PlanSpec
 import logging
 from app.mcp_clients.tools import (
     create_ticket as mcp_create_ticket,
@@ -520,6 +521,69 @@ def monitor_tick(session: Session) -> bool:
         _release_monitor_lease(session, owner_id)
 
 
+def plan_spec_for_role(session: Session, role: str, hire_id: int) -> PlanSpec:
+    """Load the active role template or generate a validated template fallback."""
+    import json
+    from app.config import settings
+    from app.domain.models import OnboardingTemplate
+    from app.services.planner import PlanSpec, try_llm_plan
+
+    saved_template = session.exec(
+        select(OnboardingTemplate)
+        .where(OnboardingTemplate.role_key == role, OnboardingTemplate.active.is_(True))
+        .order_by(OnboardingTemplate.version.desc())
+    ).first()
+    if saved_template:
+        return PlanSpec.model_validate({"tasks": json.loads(saved_template.tasks_json)})
+    return try_llm_plan(role, hire_id, settings.GEMINI_API_KEY)
+
+
+def replace_hire_plan_before_work_starts(
+    session: Session, hire: Hire, role: str, actor: str
+) -> int:
+    """Replace pending tasks only while no approvals or external work exist."""
+    if hire.status not in (HireStatus.on_track, HireStatus.at_risk):
+        raise ValueError("The role can only change on an active plan")
+    existing = session.exec(select(Task).where(Task.hire_id == hire.id)).all()
+    if any(
+        task.status != TaskStatus.pending
+        or task.ticket_id is not None
+        or task.approval_state != ApprovalState.none
+        for task in existing
+    ):
+        raise ValueError("The role is locked after tickets, approvals, or completed work begin")
+
+    plan = plan_spec_for_role(session, role, hire.id)
+    for task in existing:
+        session.delete(task)
+    for item in plan.tasks:
+        task = Task(
+            hire_id=hire.id,
+            key=item.key,
+            title=item.title,
+            team=item.team,
+            duration_days=item.duration_days,
+            needs_approval=item.needs_approval,
+            fallback_title=item.fallback_title,
+            fallback_days=item.fallback_days,
+        )
+        task.set_depends_on(item.depends_on)
+        session.add(task)
+    old_role = hire.role
+    hire.role = role
+    session.add(hire)
+    session.flush()
+    mcp_upsert_new_hire(hire.id, hire.name, hire.role, hire.department, hire.start_day)
+    audit(
+        session,
+        hire.id,
+        f"Role changed from {old_role} to {role}; replaced the unstarted plan with {len(plan.tasks)} tasks",
+        "warning",
+        actor,
+    )
+    return len(plan.tasks)
+
+
 # ---------------------------------------------------------------------------
 # Create hire with plan
 # ---------------------------------------------------------------------------
@@ -534,10 +598,6 @@ def create_hire_with_plan(
     start_date: Optional[date] = None,
 ) -> Hire:
     """Create a hire and generate their task plan from role template (+ optional LLM)."""
-    import json
-    from app.services.planner import PlanSpec, try_llm_plan
-    from app.config import settings
-    from app.domain.models import OnboardingTemplate
     from app.services.clock import load_clock
 
     if start_date is None:
@@ -551,14 +611,7 @@ def create_hire_with_plan(
 
     mcp_upsert_new_hire(hire.id, hire.name, hire.role, hire.department, hire.start_day)
 
-    saved_template = session.exec(
-        select(OnboardingTemplate).where(OnboardingTemplate.role_key == role, OnboardingTemplate.active.is_(True))
-        .order_by(OnboardingTemplate.version.desc())
-    ).first()
-    if saved_template:
-        plan = PlanSpec.model_validate({"tasks": json.loads(saved_template.tasks_json)})
-    else:
-        plan = try_llm_plan(role, hire.id, settings.GEMINI_API_KEY)
+    plan = plan_spec_for_role(session, role, hire.id)
 
     for ts in plan.tasks:
         task = Task(

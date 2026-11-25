@@ -78,22 +78,34 @@ def test_hr_can_edit_hire_details_and_recalculate_joining_date(client, session, 
     hire = client.post("/hires", json={"name": "Edit Me", "role": "Analyst", "department": "Data", "start_day": 8}).json()
 
     updated = client.patch(f"/api/v1/hires/{hire['id']}", json={
-        "name": "Edited Name", "department": "Analytics", "manager_id": manager.id, "start_date": "2026-12-07",
+        "name": "Edited Name", "role": "Software Engineer", "department": "Analytics", "manager_id": manager.id, "start_date": "2026-12-07",
     })
     assert updated.status_code == 200
     assert updated.json()["name"] == "Edited Name"
+    assert updated.json()["role"] == "Software Engineer"
     assert updated.json()["department"] == "Analytics"
     assert updated.json()["manager_id"] == manager.id
     assert updated.json()["start_date"] == "2026-12-07"
     assert updated.json()["start_day"] == 9
     assert session.exec(select(AuditEvent).where(AuditEvent.hire_id == hire["id"], AuditEvent.actor_agent == "user:1")).first()
+    tasks = client.get(f"/hires/{hire['id']}/tasks").json()
+    assert len(tasks) == 9
+    assert {task["key"] for task in tasks} >= {"it:repo_access", "it:laptop"}
+
+    from app.domain.models import Task, TaskStatus
+    first_task = session.exec(select(Task).where(Task.hire_id == hire["id"])).first()
+    first_task.status = TaskStatus.dispatched
+    session.add(first_task)
+    session.commit()
+    locked_role = client.patch(f"/hires/{hire['id']}", json={"role": "Data Analyst"})
+    assert locked_role.status_code == 409
 
     weekend = client.patch(f"/hires/{hire['id']}", json={"start_date": "2026-11-28"})
     assert weekend.status_code == 422
     whitespace_name = client.patch(f"/hires/{hire['id']}", json={"name": "  "})
     assert whitespace_name.status_code == 422
-    invalid_role = client.patch(f"/hires/{hire['id']}", json={"role": "Manager"})
-    assert invalid_role.status_code == 422
+    unexpected_field = client.patch(f"/hires/{hire['id']}", json={"unexpected": "value"})
+    assert unexpected_field.status_code == 422
 
 
 def test_plan_preview_returns_validated_role_template(client):

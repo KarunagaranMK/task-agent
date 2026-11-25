@@ -221,3 +221,9 @@
 - **Decision:** Add an audited HR/Admin patch for name, department, manager and joining date. Validate managers as active MANAGER users; validate new joining dates against the organization calendar; recompute CPM and projected readiness immediately. Keep role changes unavailable after plan creation.
 - **Why:** Each hire's role identifies the task snapshot and its dispatched tickets. Editing the role alone would leave the visible role and coordinated work out of sync; replacing a live plan needs a separate safe migration workflow.
 - **Alternative considered:** Regenerate tasks when the role changes. Existing approvals, completed tasks, and external tickets would need reconciliation, so the edit flow protects the current plan while enabling operational detail corrections and date changes.
+
+## 2026-11-25 — Allow role changes only before onboarding work starts
+
+- **Decision:** Supersede the role-lock portion of the hire edit decision above. HR/Admin may replace a role's task plan only while the hire is active and every existing task is pending, ticket-free, and approval-free. Reject the change once a ticket, approval, or completed work exists. Audit the old/new role and rebuild tasks from the active validated template or planner fallback.
+- **Why:** Before dispatch, the generated tasks have not escaped into team systems and can be replaced coherently. Once work starts, deleting or remapping tickets and approvals would risk losing operational history.
+- **Alternative considered:** Allow unrestricted plan regeneration, or keep roles permanently immutable. Unrestricted regeneration is unsafe after dispatch; permanent immutability blocks valid corrections before anyone starts work.

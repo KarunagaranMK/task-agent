@@ -326,6 +326,7 @@ This file records verified state against the phases in the product brief. A gate
 - Synced HR portfolio search, status, sort and page state into the URL; saved named-by-filter views in local storage; added CSV export that fetches every page matching the active search and status, with spreadsheet-formula escaping.
 - Added page-local hire selection with bulk pause/resume actions through the existing audited API routes; mixed outcomes report successful and failed counts, and the selection clears when the portfolio query changes.
 - Added an HR/Admin hire detail editor for name, department, manager and joining date. The API enforces active-manager selection and business-day/future joining dates, immediately recalculates CPM and projected readiness, and audits each update.
+- Rejected whitespace-only name/department edits before trimming so required hire labels cannot become empty.
 - Updated the API schema generator so Pydantic models that forbid extra fields do not produce an impossible `never` index signature in TypeScript.
 - Added `/ready` aliases that probe the database connection and return 503 when the database is unavailable; `/health` remains a liveness check.
 - Added independent rolling 15-minute login limits for each IP/email pair, each account, and each client IP, alongside the existing five-failure account lockout.
@@ -384,7 +385,7 @@ This file records verified state against the phases in the product brief. A gate
 - Added audited `PATCH /hires/{id}` plus an HR/Admin edit dialog for the name, department, manager and joining date. Joining-date changes must be future business days and are disabled for paused, ready or cancelled plans; active plans recalculate CPM and projected readiness immediately.
 - Kept role changes locked because each hire's role is the source of its already-generated task snapshot; changing it without replacing tickets/tasks would misrepresent the plan.
 - Corrected generated OpenAPI typing for closed Pydantic request models (`additionalProperties: false`).
-- Verification: `python run.py --test` passed **135 backend tests** and the production build; Ruff passed; Playwright passed **11/11** including edit/save and date movement; the refreshed **198-capture** screenshot matrix passed, and the hire detail was inspected at 390px light and 1440px dark.
+- Verification: `python run.py --test` passed **135 backend tests** and the production build; Ruff passed; Playwright passed **11/11** including edit/save and date movement; the refreshed **198-capture** screenshot matrix passed, and the hire detail was inspected at 390px light and 1440px dark. Whitespace-only edit validation also passed its API regression test.
 - **Gate: passed.** Role changes and task-plan regeneration remain outside this safe edit flow. This increment is committed after verification.
 
 ### HR bulk portfolio actions — 2026-11-25

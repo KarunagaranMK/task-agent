@@ -90,6 +90,8 @@ def test_hr_can_edit_hire_details_and_recalculate_joining_date(client, session, 
 
     weekend = client.patch(f"/hires/{hire['id']}", json={"start_date": "2026-11-28"})
     assert weekend.status_code == 422
+    whitespace_name = client.patch(f"/hires/{hire['id']}", json={"name": "  "})
+    assert whitespace_name.status_code == 422
     invalid_role = client.patch(f"/hires/{hire['id']}", json={"role": "Manager"})
     assert invalid_role.status_code == 422
 

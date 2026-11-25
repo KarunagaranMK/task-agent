@@ -201,7 +201,10 @@ def update_hire_details(
 ):
     hire = _get_editable_hire(hire_id, session)
     changes = data.model_dump(exclude_unset=True)
-    if any(changes.get(field) is None for field in ("name", "department") if field in changes):
+    if any(
+        field in changes and (not isinstance(changes[field], str) or not changes[field].strip())
+        for field in ("name", "department")
+    ):
         raise HTTPException(422, "Name and department cannot be empty")
     if "manager_id" in changes and changes["manager_id"] is not None:
         manager = session.get(User, changes["manager_id"])

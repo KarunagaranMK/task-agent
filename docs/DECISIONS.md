@@ -263,3 +263,9 @@
 - **Decision:** Add persisted UUIDv4 public identifiers for tasks, expose them from task responses and approval routes, and use them in API task references. Preserve integer keys for database joins, outbox idempotency, and internal orchestration.
 - **Why:** Approval actions and task links are externally addressable API resources and should not reveal sequential database keys. Keeping internal keys avoids unnecessary foreign-key and retry-key rewrites.
 - **Alternative considered:** Convert all task references in the database and MCP contracts to UUIDs. The service layer is already based on relational keys; an API-boundary UUID preserves its established transactions while remaining interoperable with external consumers.
+
+## 2026-11-25 — Use stable UUIDs for public notifications
+
+- **Decision:** Expose a persisted UUID for notification IDs in polling responses, the read endpoint, and SSE JSON payloads. Keep the event-stream `id:` cursor numeric so reconnect replay can continue using the existing monotonically increasing internal database cursor.
+- **Why:** UI actions need a stable, non-sequential notification identifier, while SSE replay needs an ordered cursor independent of the public resource ID.
+- **Alternative considered:** Use UUIDs as SSE replay cursors. UUIDs do not preserve event ordering; separating the JSON resource ID from the protocol cursor keeps both guarantees clear.

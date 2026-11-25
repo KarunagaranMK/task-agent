@@ -96,7 +96,7 @@ async def event_stream(
             items, cursor = _role_filter(session, user, cursor)
             for item in items[:max_events]:
                 data = json.dumps({
-                    "id": item.id,
+                    "id": item.public_id,
                     "for_role": item.for_role,
                     "message": item.message,
                     "hire_id": _public_hire_id(session, item),
@@ -111,7 +111,7 @@ async def event_stream(
             for item in items:
                 cursor = max(cursor, item.id or cursor)
                 data = json.dumps({
-                    "id": item.id,
+                    "id": item.public_id,
                     "for_role": item.for_role,
                     "message": item.message,
                     "hire_id": _public_hire_id(session, item),

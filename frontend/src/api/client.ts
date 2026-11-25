@@ -107,7 +107,7 @@ export const runExperiment = (params: ExperimentParams) => api.post('/experiment
 export const getMetrics = () => api.get('/metrics').then(r => r.data)
 export const getNotifications = (role?: string) =>
   api.get(`/notifications${role ? `?role=${role}` : ''}`).then(r => r.data)
-export const markNotificationRead = (id: number) => api.post(`/notifications/${id}/read`).then(r => r.data)
+export const markNotificationRead = (id: string) => api.post(`/notifications/${id}/read`).then(r => r.data)
 export const markAllNotificationsRead = () => api.post('/notifications/read-all').then(r => r.data)
 export const resetAll = () => api.post('/reset').then(r => r.data)
 export const getManagers = () => api.get<AuthUser[]>('/users/managers').then(r => r.data)
@@ -132,7 +132,7 @@ export interface Ticket {
   status: string; hire_id: string | null; task_id: string | null; estimate_days: number; created_at: string
 }
 export interface AuditEvent { id: number; day: number; level: string; message: string; actor: string; created_at: string }
-export interface Notification { id: number; for_role: string; message: string; hire_id: string | null; task_id: string | null; read: boolean; created_at: string }
+export interface Notification { id: string; for_role: string; message: string; hire_id: string | null; task_id: string | null; read: boolean; created_at: string }
 export interface TicketComment { id: number; author: string; body: string; created_at: string }
 export interface MyOnboarding {
   hire: { name: string; role: string; department: string; start_day: number; start_date: string | null; status: string; readiness: number; projected_day: number | null; projected_ready_date: string | null } | null

@@ -1176,7 +1176,7 @@ export interface paths {
     post: {
       operationId: "mark_read_notifications__nid__read_post"
       parameters: {
-        path: { "nid": number }
+        path: { "nid": string }
       }
       responses: {
         "200": {
@@ -1292,7 +1292,7 @@ export interface paths {
     post: {
       operationId: "mark_read_api_notifications__nid__read_post"
       parameters: {
-        path: { "nid": number }
+        path: { "nid": string }
       }
       responses: {
         "200": {
@@ -1408,7 +1408,7 @@ export interface paths {
     post: {
       operationId: "mark_read_api_v1_notifications__nid__read_post"
       parameters: {
-        path: { "nid": number }
+        path: { "nid": string }
       }
       responses: {
         "200": {

@@ -358,7 +358,7 @@ This file records verified state against the phases in the product brief. A gate
 - CPM and monitor internals still use a simulation-relative integer day index; real dates are persisted and mapped to that index at the API boundary.
 - Template dependencies support draggable edge handles, click-to-connect, keyboard task selection, and prerequisite controls; templates remain below the 40-task API limit.
 - Role changes are allowed only before work starts: all tasks must remain pending with no tickets or approvals. After any work begins, the role stays locked; name, department, manager and joining date remain audited edits.
-- Other unauthenticated endpoints remain without rate limits; login and recovery limits are in-memory per process. Public UUID identifiers now cover hire and task resources plus their related links. User, notification, ticket, comment, and other API entity identifiers remain integer-based; request-wide transaction semantics remain open hardening work.
+- Other unauthenticated endpoints remain without rate limits; login and recovery limits are in-memory per process. Public UUID identifiers now cover hire, task, and notification resources plus their related links. User, ticket, comment, and other API entity identifiers still use integer keys where exposed; request-wide transaction semantics remain open hardening work.
 - Core backend coverage is **90.6%** across CPM, planner, clock, and experiment modules. A repeatable local authenticated API load profile now exists; production infrastructure/SLO profiling and dedicated Vitest component tests have not been added. The GNU Make target mirror has not been independently exercised because GNU Make is unavailable on this Windows machine.
 - The app uses local/mock ITSM and HRIS, local development mail, and an in-process deterministic layout/orchestrator; no LangGraph adapter or production vendor integration is claimed.
 
@@ -446,3 +446,10 @@ This file records verified state against the phases in the product brief. A gate
 - Task list responses, approval/reject/undo routes and results, ticket references, notification payloads, and SSE links now use task UUIDs. Regenerated OpenAPI TypeScript types and updated manager action typings.
 - Verification: full `python run.py --test` passed **136 backend tests**, including migration, approval, notification, and SSE regressions; strict TypeScript/Vite build and configured Ruff checks passed.
 - **Gate: passed for task API identifiers.** User, notification, ticket, and comment primary IDs still need public UUIDs; request-wide transaction semantics remain open.
+
+### Public UUIDs for notifications — 2026-11-25
+
+- Added migration `0012_notification_public_uuid` and stable UUIDs to notification list results, read actions, and the notification JSON carried by SSE. The stream's numeric `Last-Event-ID` cursor remains internal to its replay protocol.
+- Notification hire/task links already use public UUIDs; the frontend notification contract and generated route types now match.
+- Verification: full `python run.py --test` passed **136 backend tests** plus the production frontend build, including UUID read-action and SSE payload checks; the migration upgraded both local startup databases.
+- **Gate: passed for notification API identifiers.** User, ticket, and comment IDs are the next remaining public-ID gaps; request-wide transaction semantics remain open.

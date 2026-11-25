@@ -13,6 +13,7 @@ from app.services.clock import load_clock
 from pydantic import BaseModel, Field
 import json
 from typing import Optional
+from uuid import UUID
 
 
 router = APIRouter(tags=["sim"])
@@ -139,7 +140,7 @@ def get_notifications(role: Optional[str] = None, session: Session = Depends(get
     notifications = _notifications_for_user(session, user)
     return [
         {
-            "id": n.id,
+            "id": n.public_id,
             "for_role": n.for_role,
             "message": n.message,
             "hire_id": (
@@ -156,8 +157,8 @@ def get_notifications(role: Optional[str] = None, session: Session = Depends(get
 
 
 @router.post("/notifications/{nid}/read")
-def mark_read(nid: int, session: Session = Depends(get_session), user=Depends(get_current_user)):
-    n = session.get(Notification, nid)
+def mark_read(nid: UUID, session: Session = Depends(get_session), user=Depends(get_current_user)):
+    n = session.exec(select(Notification).where(Notification.public_id == str(nid))).first()
     own_role = user.team if user.role == "IT_STAFF" else user.role
     if n is None:
         raise HTTPException(404, "Notification not found")
@@ -172,7 +173,7 @@ def mark_read(nid: int, session: Session = Depends(get_session), user=Depends(ge
     n.read = True
     session.add(n)
     session.commit()
-    return {"id": nid, "read": True}
+    return {"id": n.public_id, "read": True}
 
 
 @router.post("/notifications/read-all")

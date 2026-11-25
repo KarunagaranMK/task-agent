@@ -124,6 +124,7 @@ class AuditEvent(SQLModel, table=True):
 class Notification(SQLModel, table=True):
     __tablename__ = "notifications"
     id: Optional[int] = Field(default=None, primary_key=True)
+    public_id: str = Field(default_factory=lambda: str(uuid4()), unique=True, index=True)
     for_role: str  # Manager, IT, HR, Facilities
     hire_id: Optional[int] = None
     task_id: Optional[int] = None

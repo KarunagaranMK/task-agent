@@ -64,9 +64,16 @@ def test_notification_hire_links_use_public_uuid(client, session):
     session.commit()
 
     notification = next(item for item in client.get("/notifications").json() if item["message"] == "Hire update")
+    from uuid import UUID
+    UUID(notification["id"])
     assert notification["hire_id"] == hire.public_id
     assert notification["task_id"] == task.public_id
+    marked = client.post(f"/notifications/{notification['id']}/read")
+    assert marked.status_code == 200
+    assert marked.json() == {"id": notification["id"], "read": True}
+    assert client.post("/notifications/1/read").status_code == 422
 
     event = client.get("/events/stream", params={"ticket": ticket, "max_events": 10}).text
+    assert f'"id":"{notification["id"]}"' in event
     assert f'"hire_id":"{hire.public_id}"' in event
     assert f'"task_id":"{task.public_id}"' in event

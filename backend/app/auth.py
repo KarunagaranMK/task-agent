@@ -153,8 +153,9 @@ def _audit(session: Session, action: str, actor_id: int | None = None, target: s
     session.add(SecurityAudit(actor_id=actor_id, action=action, target=target, detail=detail[:500]))
 
 
-def in_app_notifications_enabled(session: Session, user: User) -> bool:
-    item = session.get(AppSetting, f"notification_preferences:{user.id}")
+def in_app_notifications_enabled(session: Session, user: User | int) -> bool:
+    user_id = user if isinstance(user, int) else user.id
+    item = session.get(AppSetting, f"notification_preferences:{user_id}")
     if item is None:
         return True
     try:

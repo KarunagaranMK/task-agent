@@ -510,3 +510,9 @@ This file records verified state against the phases in the product brief. A gate
 - Opened the local app in the browser and inspected the role-specific dashboard; the live preview remains open. The 198-capture responsive screenshot matrix was already verified earlier today and the visual layout did not change in this increment.
 - GNU Make is not installed in this Windows environment, so `make verify` itself could not be invoked. Its `test`, `coverage`, `lint`, and `e2e` commands were run individually with passing results.
 - **Gate: shared frontend component tests and accessible role flows passed.** External vendor connectors and production multi-worker coordination remain outside the local demo's verified scope.
+
+### SSE stream lifetime hardening — 2026-11-25
+
+- Fixed the long-lived notification stream to snapshot the ticket cursor and authenticated user identity before the ticket commit. The event generator now filters notifications without retaining ORM instances that can be expired or detached when request dependencies close.
+- Verification: `python run.py --test` passed **140 backend tests**, **5/5 component tests**, and the production frontend build; Ruff passed; Playwright passed **11/11**, including the role workflow and axe audit.
+- **Gate: stream identity survives the commit boundary, and all current local test suites pass.**

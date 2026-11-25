@@ -317,3 +317,9 @@
 - **Decision:** Keep the SVG schedule as a labeled diagram and provide a visually hidden, keyboard-accessible inspection button for each task. The dependency graph continues to expose its task nodes as keyboard-operable controls.
 - **Why:** Putting focusable buttons inside an SVG marked as one image produced nested-interactive and accessible-name axe violations. The separate button list preserves keyboard task inspection while leaving the visual schedule semantics accurate.
 - **Alternative considered:** Mark each SVG row as a button. Current axe results show SVG text rows do not reliably satisfy the label-content-name rule across browser accessibility trees.
+
+## 2026-11-25 — Snapshot identity before opening an SSE stream
+
+- **Decision:** Copy the stream ticket cursor and the authenticated user's ID, role, and team into plain values before committing the single-use ticket. Use that immutable principal in the long-lived event generator.
+- **Why:** Committing expires ORM instances, and FastAPI can close request-scoped dependencies before a streaming response finishes. A stream must not read fields from a `User` or `StreamTicket` object after the commit/response boundary.
+- **Alternative considered:** Keep the ORM objects alive by extending the request session through the stream. That holds database resources for each connected browser and couples a long-lived response to request transaction cleanup.

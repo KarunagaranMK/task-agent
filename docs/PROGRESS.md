@@ -359,12 +359,12 @@ This file records verified state against the phases in the product brief. A gate
 - Template dependencies support draggable edge handles, click-to-connect, keyboard task selection, and prerequisite controls; templates remain below the 40-task API limit.
 - Role changes are allowed only before work starts: all tasks must remain pending with no tickets or approvals. After any work begins, the role stays locked; name, department, manager and joining date remain audited edits.
 - API traffic now has a bounded per-client in-memory throttle (health/readiness probes are exempt), with tighter login and recovery limits also in memory. These limits coordinate within one process only; multi-worker deployments need a shared store. Public UUID identifiers now cover all persisted resource IDs returned by product APIs, including hires, tasks, notifications, users, tickets, comments, audit entries, templates, experiments, and development mail. Code-defined template fallbacks intentionally have no persisted ID. Cross-service MCP effects still rely on idempotency/outbox recovery rather than a distributed transaction.
-- Core backend coverage is **90.6%** across CPM, planner, clock, and experiment modules. A repeatable local authenticated API load profile now exists; production infrastructure/SLO profiling and dedicated Vitest component tests have not been added. The GNU Make target mirror has not been independently exercised because GNU Make is unavailable on this Windows machine.
+- Core backend coverage is **90.6%** across CPM, planner, clock, and experiment modules. A repeatable local authenticated API load profile and dedicated Vitest component tests are in place; production infrastructure/SLO profiling remains outside the local MVP. The GNU Make target mirror has not been invoked because GNU Make is unavailable on this Windows machine; its constituent commands pass individually.
 - The app uses local/mock ITSM and HRIS, local development mail, and an in-process deterministic layout/orchestrator; no LangGraph adapter or production vendor integration is claimed.
 
 ### Gate
 
-- **P11 audit follow-up gate: passed** for the shipped visualization, lifecycle, API versioning, template editor, and hardening changes listed above. The P10 clean-copy gate now passes; the remaining product gaps in this section mean the overall brief is still in progress.
+- **P11 audit follow-up gate: passed** for the shipped visualization, lifecycle, API versioning, template editor, and hardening changes listed above. The P10 clean-copy gate now passes; the remaining platform and production limits are documented in `docs/SECURITY.md` and the verification notes below.
 - **Implementation commits:** `2509f0f feat: persist joining dates with business calendar`; `42243e0 feat: add interactive onboarding template canvas`; `07a90ef feat: add server-side hire portfolio queries`; `9d454ac feat: expose database readiness checks`; `5532a6b fix: throttle login by account and client ip`.
 
 ### Public authentication throttling follow-up — 2026-11-24
@@ -411,8 +411,8 @@ This file records verified state against the phases in the product brief. A gate
 ### Core coverage verification — 2026-11-25
 
 - Ran the Makefile's exact core coverage command directly under the project virtual environment. All **135 backend tests passed**, and CPM, planner, clock, and experiment report **90.6% combined coverage** (minimum required: 80%).
-- The remaining Phase 9 gaps are the dedicated frontend component-test suite and performance/load profiling. GNU Make is not installed here, so `make verify` itself remains unverified; its component commands (backend tests, core coverage, Ruff lint/build, and Playwright E2E) have been run separately across this and the preceding increments.
-- **Gate: coverage threshold passed.** The overall P9 gate remains open until the remaining quality work is completed and the aggregate target is exercised in a GNU Make environment.
+- The dedicated component suite, local authenticated load profile, backend tests, core coverage, Ruff lint/build, and Playwright E2E have all passed. GNU Make is not installed here, so the `make verify` wrapper itself could not be invoked; each target it aggregates was run separately and passed.
+- **Gate: all P9 constituent quality checks passed.** The aggregate shell wrapper remains unverified because GNU Make is unavailable in this Windows environment.
 
 ### Local API load profile — 2026-11-25
 

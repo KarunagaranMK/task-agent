@@ -239,3 +239,9 @@
 - **Decision:** Provide a small authenticated read-only profile for the hire portfolio and metrics endpoints using the existing HTTPX dependency. Report throughput, status counts, and latency percentiles; keep request and concurrency bounds explicit.
 - **Why:** A repeatable baseline makes latency and failure regressions visible during local development without adding a hosted service or another dependency. Demo auth lets the profile exercise normal API authorization.
 - **Alternative considered:** Add a production load-testing service or impose an absolute latency gate from one developer machine. Hosted infrastructure is outside the local-first scope, and a machine-specific threshold would be misleading; use the baseline as a measurement, not an SLO.
+
+## 2026-11-25 — Position OnboardIQ without claiming exclusive dependency modeling
+
+- **Decision:** Describe Asana and monday.com as supporting dependencies, Workday and ServiceNow as configurable employee-workflow platforms, and SAP SuccessFactors’ onboarding task agent as a close comparator. Position OnboardIQ around the combination it implements in this prototype: live remaining-work CPM, targeted stall recovery, and an inspectable MCP boundary. Link official vendor material and ask reviewers to verify plan/feature availability before external use.
+- **Why:** Competitor products already cover meaningful parts of this problem; a “nobody models dependencies” claim would be inaccurate. SAP’s current task agent is especially relevant and its documented availability has an Early Adopter Care qualification.
+- **Alternative considered:** Reuse the earlier broad gap statements (“static checklists,” “no cross-team control,” “vendor-locked”). Those simplify the pitch but do not describe the capability overlap or customer-specific configuration accurately.

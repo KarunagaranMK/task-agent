@@ -419,3 +419,10 @@ This file records verified state against the phases in the product brief. A gate
 - Added `scripts/profile_api.py`, an authenticated concurrent read-only profile for the hire portfolio and metrics endpoints, with bounded workload options and JSON throughput/status/p50/p95/max latency output. README documents the command and clearly scopes results to the local machine.
 - Ran 100 requests at concurrency 10 against the actual local app on Windows 10 / Python 3.11.4: **0 failures**, **64.79 requests/second** overall; hire portfolio p95 **309.85 ms**, metrics p95 **308.84 ms**. These are a local baseline, not production SLO evidence.
 - **Gate: local profile verified.** Production-scale load testing and the frontend component-test suite remain open.
+
+### Product review accuracy — 2026-11-25
+
+- Replaced prototype-era claims in `docs/REVIEW.md` with a current implementation summary, exactly six required sections, explicit mock/known-gap boundaries, and official vendor-source links.
+- The competitive summary acknowledges Asana and monday.com dependency features, configurable Workday/ServiceNow journeys, and SAP’s overlapping task-risk agent with its documented EAC availability qualification. It no longer implies that dependency modeling is unique to OnboardIQ.
+- Verification: checked the six `##` headings, searched for stale prototype claims, and ran `git diff --check`.
+- **Gate: review artifact updated and structurally verified.** Vendor editions and availability still need confirmation before external publication, as stated in the document.

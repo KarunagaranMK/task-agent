@@ -460,3 +460,10 @@ This file records verified state against the phases in the product brief. A gate
 - Hire create/update inputs and hire response manager references now use manager UUIDs. The HR hire wizard, hire editor, and admin user management use the generated UUID types.
 - Verification: full `python run.py --test` passed **136 backend tests** plus the strict TypeScript/Vite build; tests cover UUID user IDs, rejection of legacy numeric user/hire routes, user-management updates, and manager-scoped hire access. Both local databases upgraded through migration 0013.
 - **Gate: passed for user API identifiers.** Ticket/comment identifiers and request-wide transaction semantics remain open.
+
+### UUID-aware guided demo and visual QA — 2026-11-25
+
+- Updated the guided walkthrough to fetch the public hire list and navigate to Priya's UUID route. The first step waits for the hire data before enabling Continue, so the route cannot fall back to a stale numeric ID.
+- Updated the guided-demo, recovery, accessibility, and screenshot workflows to resolve hire routes from the visible Priya row instead of assuming `/hire/1` or `/hires/1`.
+- Verification: all **11/11 Playwright end-to-end tests passed** after the UUID migration. The responsive light/dark screenshot suite produced **198 captures** with no horizontal page overflow. Inspected the 390px light insights dashboard, hire graph, and admin template editor.
+- **Gate: passed for UUID-aware frontend navigation and screenshot capture.** Ticket/comment identifiers and request-wide transaction semantics remain open.

@@ -7,9 +7,9 @@ test('capture all role routes at required sizes and themes', async ({ browser })
   const output = resolve(process.cwd(), '..', 'docs', 'screenshots')
   await mkdir(output, { recursive: true })
   const roles = [
-    { name: 'Admin', routes: ['/', '/hire/1', '/manager', '/it', '/insights', '/templates', '/users', '/audit', '/settings', '/app/dev/mail'] },
-    { name: 'HR', routes: ['/', '/hire/1', '/insights', '/templates', '/audit'] },
-    { name: 'Manager', routes: ['/', '/manager', '/hire/1'] },
+    { name: 'Admin', routes: ['/', '/hire/:id', '/manager', '/it', '/insights', '/templates', '/users', '/audit', '/settings', '/app/dev/mail'] },
+    { name: 'HR', routes: ['/', '/hire/:id', '/insights', '/templates', '/audit'] },
+    { name: 'Manager', routes: ['/', '/manager', '/hire/:id'] },
     { name: 'IT', routes: ['/it'] },
     { name: 'Facilities', routes: ['/it'] },
     { name: 'New hire', routes: ['/my-onboarding'] },
@@ -28,11 +28,14 @@ test('capture all role routes at required sizes and themes', async ({ browser })
         await page.getByRole('button', { name: 'Sign in' }).click()
         await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
         for (const route of role.routes) {
-          if (route !== '/') {
+          const routePath = route === '/hire/:id'
+            ? await page.locator('a.hire-name-link').filter({ hasText: 'Priya Sharma' }).getAttribute('href')
+            : route
+          if (routePath && routePath !== '/') {
             await page.evaluate(path => {
               window.history.pushState({}, '', path)
               window.dispatchEvent(new PopStateEvent('popstate'))
-            }, route)
+            }, routePath)
           }
           await page.locator('.page-skeleton').waitFor({ state: 'detached' }).catch(() => undefined)
           await page.getByRole('heading').first().waitFor()
@@ -40,7 +43,7 @@ test('capture all role routes at required sizes and themes', async ({ browser })
             await expect(page.getByText('Hire portfolio')).toBeVisible()
             await expect(page.getByText('Priya Sharma')).toBeVisible()
           }
-          if (route === '/hire/1') {
+          if (route === '/hire/:id') {
             await expect(page.getByRole('heading', { name: 'Priya Sharma' })).toBeVisible()
             await expect(page.getByText('Provision Laptop (High RAM)', { exact: true }).first()).toBeVisible()
           }
@@ -58,8 +61,9 @@ test('capture all role routes at required sizes and themes', async ({ browser })
           await page.waitForTimeout(250)
           const documentWidth = await page.evaluate(() => document.documentElement.scrollWidth)
           expect(documentWidth, `${role.name} ${route} overflows at ${width}px`).toBeLessThanOrEqual(width)
-          await page.screenshot({ path: resolve(output, `${safe(role.name)}-${safe(route === '/' ? 'overview' : route.slice(1))}-${width}-${theme}.png`), fullPage: true, animations: 'disabled' })
-          if (route === '/hire/1') {
+          const routeName = route === '/hire/:id' ? 'hire-1' : route === '/' ? 'overview' : route.slice(1)
+          await page.screenshot({ path: resolve(output, `${safe(role.name)}-${safe(routeName)}-${width}-${theme}.png`), fullPage: true, animations: 'disabled' })
+          if (route === '/hire/:id') {
             await page.getByRole('button', { name: 'Graph' }).click()
             await expect(page.getByRole('heading', { name: 'How the work connects' })).toBeVisible()
             await page.screenshot({ path: resolve(output, `${safe(role.name)}-hire-1-graph-${width}-${theme}.png`), fullPage: true, animations: 'disabled' })

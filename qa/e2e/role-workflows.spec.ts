@@ -190,7 +190,7 @@ test('admin guided walkthrough navigates the real product surfaces', async ({ pa
   await page.getByRole('button', { name: /Play guided demo/ }).click()
   await expect(page.getByText('Start with Priya’s plan')).toBeVisible()
   await page.getByRole('button', { name: 'Continue to next step' }).click()
-  await expect(page).toHaveURL(/\/hire\/1$/)
+  await expect(page).toHaveURL(/\/hire\/[0-9a-f-]{36}$/i)
   await expect(page.getByText('Review the access gate')).toBeVisible()
   await page.getByRole('button', { name: 'Continue to next step' }).click()
   await expect(page).toHaveURL(/\/it$/)
@@ -299,7 +299,7 @@ test('Priya demo recovers from a stalled laptop and ITSM outage through her new-
   }
   await page.locator('.demo-drawer-head').getByRole('button', { name: 'Close demo controls' }).click()
   await page.getByRole('link', { name: 'Overview', exact: true }).click()
-  const readyResponse = page.waitForResponse(response => response.url().endsWith('/hires/1') && response.request().method() === 'GET')
+  const readyResponse = page.waitForResponse(response => /\/hires\/[0-9a-f-]{36}$/i.test(new URL(response.url()).pathname) && response.request().method() === 'GET')
   await page.locator('a.hire-name-link').filter({ hasText: 'Priya Sharma' }).click()
   expect(await (await readyResponse).json()).toMatchObject({ status: 'ready', readiness: 100 })
   await expect(page.locator('.hire-hero .status-pill')).toHaveText(/Ready/i, { timeout: 30_000 })
@@ -311,10 +311,10 @@ test('Priya demo recovers from a stalled laptop and ITSM outage through her new-
 
 test('primary role pages have no serious or critical axe findings', async ({ page }) => {
   await signIn(page, 'Admin')
-  const paths = ['/', '/hire/1', '/insights', '/templates', '/users', '/audit', '/settings']
+  const paths = ['/', '/hire/:id', '/insights', '/templates', '/users', '/audit', '/settings']
   const findings: string[] = []
   for (const path of paths) {
-    if (path === '/hire/1') await page.locator('a[href="/hire/1"]').first().click()
+    if (path === '/hire/:id') await page.locator('a.hire-name-link').filter({ hasText: 'Priya Sharma' }).click()
     else if (path !== '/') await page.locator(`a[href="${path}"]`).first().click()
     await page.getByRole('heading').first().waitFor()
     await page.addScriptTag({ path: axeScript })
@@ -325,7 +325,7 @@ test('primary role pages have no serious or critical axe findings', async ({ pag
       return result.violations.filter(item => item.impact === 'serious' || item.impact === 'critical').map(item => `${item.impact}:${item.id} ${item.nodes.map(node => `${node.target.join(',')} ${node.failureSummary ?? ''} ${node.html}`).join(';')}`)
     })
     findings.push(...serious.map(item => `${path} ${item}`))
-    if (path === '/hire/1') {
+    if (path === '/hire/:id') {
       await page.getByRole('button', { name: 'Graph' }).click()
       await expect(page.getByRole('heading', { name: 'How the work connects' })).toBeVisible()
       await page.locator('.graph-node.is-critical').first().click()

@@ -275,3 +275,9 @@
 - **Decision:** Expose UUIDs for user records and user-management route IDs, and use UUIDs for hire manager assignment inputs/outputs. Keep JWT subjects and relational foreign keys as internal integers.
 - **Why:** User IDs are public through auth, admin, and manager-selection APIs; hire manager references must use the same public identifier. Internal token and relationship consumers can continue using stable database keys without a risky schema-wide foreign-key conversion.
 - **Alternative considered:** Change JWT subjects and all user foreign keys to UUIDs. This would require rotating/invalidating every session and rebuilding dependent tables; public UUIDs provide the API contract without changing identity storage semantics.
+
+## 2026-11-25 — Resolve guided-demo and QA routes from public hire IDs
+
+- **Decision:** Treat hire URLs as opaque public identifiers in frontend walkthroughs, end-to-end tests, and screenshot capture. Resolve the demo hire from the loaded portfolio instead of embedding a database key.
+- **Why:** Public UUIDs may change across seeded or user-created records; UI navigation and QA should follow the same route contract as real users.
+- **Alternative considered:** Keep numeric fixture paths in demo and test code. That would hide routing regressions after the API stopped accepting sequential IDs.

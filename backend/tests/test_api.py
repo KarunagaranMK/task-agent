@@ -162,10 +162,21 @@ def test_hire_list_server_search_sort_filter_and_pagination(client):
     assert [hire["name"] for hire in second.json()] == ["Charlie"]
     assert second.headers["x-page"] == "2"
 
+    offset_page = client.get("/hires", params={"limit": 1, "offset": 1, "sort_by": "name", "sort_order": "asc"})
+    assert [hire["name"] for hire in offset_page.json()] == ["Bravo"]
+    assert offset_page.headers["x-total-count"] == "3"
+    assert offset_page.headers["x-limit"] == "1"
+    assert offset_page.headers["x-offset"] == "1"
+    assert offset_page.headers["x-page"] == "2"
+    first_offset = client.get("/hires", params={"limit": 1, "sort_by": "name", "sort_order": "asc"})
+    assert [hire["name"] for hire in first_offset.json()] == ["Alpha"]
+
     filtered = client.get("/hires", params={"search": "brav", "status": "on_track"})
     assert [hire["name"] for hire in filtered.json()] == ["Bravo"]
     assert filtered.headers["x-total-count"] == "1"
     assert client.get("/hires", params={"page_size": 101}).status_code == 422
+    assert client.get("/hires", params={"limit": 101}).status_code == 422
+    assert client.get("/hires", params={"offset": -1}).status_code == 422
 
 
 def test_get_hire_tasks(client):

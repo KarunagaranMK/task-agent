@@ -63,7 +63,7 @@ export interface paths {
     get: {
       operationId: "list_hires_hires_get"
       parameters: {
-        query: { "page"?: number; "page_size"?: number; "search"?: string; "status"?: ("on_track" | "at_risk" | "ready" | "started" | "paused" | "cancelled") | (null); "sort_by"?: "created_at" | "name" | "start_date" | "readiness" | "status"; "sort_order"?: "asc" | "desc" }
+        query: { "page"?: number; "page_size"?: number; "limit"?: (number) | (null); "offset"?: (number) | (null); "search"?: string; "status"?: ("on_track" | "at_risk" | "ready" | "started" | "paused" | "cancelled") | (null); "sort_by"?: "created_at" | "name" | "start_date" | "readiness" | "status"; "sort_order"?: "asc" | "desc" }
         __optional: true
       }
       responses: {
@@ -262,7 +262,7 @@ export interface paths {
     get: {
       operationId: "list_hires_api_hires_get"
       parameters: {
-        query: { "page"?: number; "page_size"?: number; "search"?: string; "status"?: ("on_track" | "at_risk" | "ready" | "started" | "paused" | "cancelled") | (null); "sort_by"?: "created_at" | "name" | "start_date" | "readiness" | "status"; "sort_order"?: "asc" | "desc" }
+        query: { "page"?: number; "page_size"?: number; "limit"?: (number) | (null); "offset"?: (number) | (null); "search"?: string; "status"?: ("on_track" | "at_risk" | "ready" | "started" | "paused" | "cancelled") | (null); "sort_by"?: "created_at" | "name" | "start_date" | "readiness" | "status"; "sort_order"?: "asc" | "desc" }
         __optional: true
       }
       responses: {
@@ -461,7 +461,7 @@ export interface paths {
     get: {
       operationId: "list_hires_api_v1_hires_get"
       parameters: {
-        query: { "page"?: number; "page_size"?: number; "search"?: string; "status"?: ("on_track" | "at_risk" | "ready" | "started" | "paused" | "cancelled") | (null); "sort_by"?: "created_at" | "name" | "start_date" | "readiness" | "status"; "sort_order"?: "asc" | "desc" }
+        query: { "page"?: number; "page_size"?: number; "limit"?: (number) | (null); "offset"?: (number) | (null); "search"?: string; "status"?: ("on_track" | "at_risk" | "ready" | "started" | "paused" | "cancelled") | (null); "sort_by"?: "created_at" | "name" | "start_date" | "readiness" | "status"; "sort_order"?: "asc" | "desc" }
         __optional: true
       }
       responses: {

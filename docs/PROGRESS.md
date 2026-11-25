@@ -426,3 +426,9 @@ This file records verified state against the phases in the product brief. A gate
 - The competitive summary acknowledges Asana and monday.com dependency features, configurable Workday/ServiceNow journeys, and SAP’s overlapping task-risk agent with its documented EAC availability qualification. It no longer implies that dependency modeling is unique to OnboardIQ.
 - Verification: checked the six `##` headings, searched for stale prototype claims, and ran `git diff --check`.
 - **Gate: review artifact updated and structurally verified.** Vendor editions and availability still need confirmation before external publication, as stated in the document.
+
+### Hire API limit/offset pagination — 2026-11-25
+
+- Added bounded `limit` and nonnegative `offset` parameters to `GET /hires`, with `X-Total-Count`, `X-Limit`, and `X-Offset` headers. Existing `page`/`page_size` clients and metadata remain supported.
+- Verification: the focused search/sort/filter/pagination API regression passed for both pagination styles, their total metadata, and invalid bounds; Ruff passed.
+- **Gate: passed for pagination compatibility.** API UUID identifiers and request-wide transaction boundaries remain separate hardening gaps.

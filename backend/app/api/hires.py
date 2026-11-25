@@ -148,6 +148,8 @@ def list_hires(
     response: Response,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
+    limit: Optional[int] = Query(default=None, ge=1, le=100),
+    offset: Optional[int] = Query(default=None, ge=0),
     search: str = Query(default="", max_length=120),
     status: Optional[Literal["on_track", "at_risk", "ready", "started", "paused", "cancelled"]] = None,
     sort_by: Literal["created_at", "name", "start_date", "readiness", "status"] = "created_at",
@@ -173,13 +175,18 @@ def list_hires(
         "status": Hire.status,
     }[sort_by]
     ordering = sort_column.asc() if sort_order == "asc" else sort_column.desc()
-    query = select(Hire).where(*filters).order_by(ordering, Hire.id.asc()).offset((page - 1) * page_size).limit(page_size)
+    effective_limit = limit if limit is not None else page_size
+    effective_offset = offset if offset is not None else (0 if limit is not None else (page - 1) * page_size)
+    effective_page = effective_offset // effective_limit + 1
+    query = select(Hire).where(*filters).order_by(ordering, Hire.id.asc()).offset(effective_offset).limit(effective_limit)
     hires = session.exec(query).all()
-    total_pages = (total + page_size - 1) // page_size
+    total_pages = (total + effective_limit - 1) // effective_limit
     response.headers["X-Total-Count"] = str(total)
     response.headers["X-Total-Pages"] = str(total_pages)
-    response.headers["X-Page"] = str(page)
-    response.headers["X-Page-Size"] = str(page_size)
+    response.headers["X-Page"] = str(effective_page)
+    response.headers["X-Page-Size"] = str(effective_limit)
+    response.headers["X-Limit"] = str(effective_limit)
+    response.headers["X-Offset"] = str(effective_offset)
     return [_hire_out(h, session) for h in hires]
 
 

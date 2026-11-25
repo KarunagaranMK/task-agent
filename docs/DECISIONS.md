@@ -245,3 +245,9 @@
 - **Decision:** Describe Asana and monday.com as supporting dependencies, Workday and ServiceNow as configurable employee-workflow platforms, and SAP SuccessFactors’ onboarding task agent as a close comparator. Position OnboardIQ around the combination it implements in this prototype: live remaining-work CPM, targeted stall recovery, and an inspectable MCP boundary. Link official vendor material and ask reviewers to verify plan/feature availability before external use.
 - **Why:** Competitor products already cover meaningful parts of this problem; a “nobody models dependencies” claim would be inaccurate. SAP’s current task agent is especially relevant and its documented availability has an Early Adopter Care qualification.
 - **Alternative considered:** Reuse the earlier broad gap statements (“static checklists,” “no cross-team control,” “vendor-locked”). Those simplify the pitch but do not describe the capability overlap or customer-specific configuration accurately.
+
+## 2026-11-25 — Accept limit/offset as well as page-based hire pagination
+
+- **Decision:** Add bounded `limit` and nonnegative `offset` query parameters to the authorized hire collection, retain `page`/`page_size` for existing clients, and return `X-Total-Count`, `X-Limit`, and `X-Offset` alongside the existing pagination headers.
+- **Why:** The API convention calls for limit/offset pagination with a total, while the current portfolio is URL-synced to page/page_size and expects an array response. Supporting both contracts lets the API meet the convention without breaking the shipped UI.
+- **Alternative considered:** Replace page-based queries and the array response immediately. That would create unnecessary client churn; new API consumers can use limit/offset and current clients remain compatible.

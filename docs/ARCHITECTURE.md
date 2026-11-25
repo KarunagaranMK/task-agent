@@ -1,224 +1,216 @@
-# Architecture — Cross-Team Employee Onboarding Orchestrator
+# OnboardFlow AI: architecture and how it works
 
-## Layered View
+## In plain English
 
-```mermaid
-graph TD
-    subgraph Frontend["React Frontend (Vite + TypeScript)"]
-        HR["HR Workspace\n(hire wizard, portfolio)"]
-        HD["Hire Detail\n(CPM, audit, explain)"]
-        MGR["Manager Inbox\n(approvals, notifications)"]
-        IT["Team Queue\n(ticket actions, work notes)"]
-        NEW["New Hire Portal\n(personal timeline, issue report)"]
-        ADMIN["Admin Workspaces\n(templates, users, audit, settings)"]
-        INS["Insights\n(metrics, experiments)"]
-        DP["Demo Panel\n(advance day, guided tour)"]
-    end
+OnboardFlow AI is a shared work tracker for the teams preparing a new employee's first day. HR creates an onboarding record. The app turns the role template into dependent tasks, works out which tasks can delay Day 1, and gives each team its own queue. A scheduled monitor keeps the record in sync with the task systems. A manager must approve sensitive work. The app records decisions and keeps retries safe if an integration is offline.
 
-    subgraph Backend["FastAPI Backend (Python 3.11)"]
-        PLAN["plan_generator\n(role template + optional LLM)"]
-        SUPER["supervisor\n(dispatch unblocked tasks)"]
-        GATE["approval_gate\n(await manager decision)"]
-        MON["progress_monitor\n(CPM + stall detection)"]
-        CPM["CPM Engine\n(forward/backward pass)"]
-        EXP["Experiment\n(Monte Carlo simulation)"]
-        OB["Idempotent Outbox\n(survives outage)"]
-        AUDIT["Audit Log\n(every agent action)"]
-    end
+The AI model is optional. It may suggest wording or tasks. Normal access, approval, scheduling, ticket, readiness, and recovery decisions are made by validated application code.
 
-    subgraph DB["SQLite (SQLModel)"]
-        HIRE["Hire"]
-        TASK["Task"]
-        TICKET["Ticket"]
-        NOTIF["Notification"]
-    end
+## Technology in this repository
 
-    subgraph MCP["MCP Servers (FastMCP stdio)"]
-        ITSM["itsm-mcp\n(create_ticket\nget_ticket_status)"]
-        HRIS["hris-mcp\n(get_new_hire\nupdate_onboarding_status)"]
-    end
+- **Web UI:** React 19, Vite, TypeScript, React Router, TanStack Query, Tailwind CSS, React Hook Form, Zod, React Flow, Recharts, and Lucide icons.
+- **API:** Python 3.11, FastAPI, Pydantic 2, SQLModel/SQLAlchemy, and Alembic.
+- **Workflow runtime:** LangGraph supervisor graph with `langgraph-checkpoint-sqlite`; checkpoints are stored separately from business records.
+- **Database:** SQLite by default. Docker Compose and the Render blueprint persist it on a volume. The current deployment shape is a single backend process.
+- **MCP:** Official MCP Python SDK with local ITSM and HRIS mock servers launched over stdio. The mock is simulated; it is not a real ServiceNow, Workday, or vendor account.
+- **Model:** Optional Google Gemini `gemini-2.5-flash`. With no API key or an invalid response, the planner uses validated role templates and text explanations use safe fallbacks.
+- **Reliability:** Idempotency keys, persistent outbox, monitor lease, retry counts, audit records, SSE notifications, and persisted graph checkpoints.
 
-    Frontend -->|REST JSON| Backend
-    PLAN -->|generates| TASK
-    SUPER -->|dispatches| ITSM
-    SUPER -->|queues| OB
-    GATE -->|approves| TASK
-    MON --> CPM
-    MON --> OB
-    MON --> AUDIT
-    Backend --> DB
-    OB -->|drains to| ITSM
-    SUPER --> HRIS
-    NEW -->|scoped API| Backend
-```
-
----
-
-## Monitor Cycle (Sequence)
-
-```mermaid
-sequenceDiagram
-    participant UI as Demo Panel
-    participant API as FastAPI /sim/advance
-    participant ORCH as Orchestrator
-    participant CPM as CPM Engine
-    participant ITSM as ITSM MCP
-
-    UI->>API: POST /sim/advance
-    API->>ORCH: advance_day()
-    API->>ORCH: monitor_tick()
-
-    alt ITSM is online
-        ORCH->>ORCH: drain_outbox()
-        ORCH->>ITSM: create_ticket(idempotency_key)
-        ITSM-->>ORCH: {ticket_id}
-    end
-
-    loop Each Active Hire
-        ORCH->>ORCH: Dispatch pending tasks (deps satisfied)
-        ORCH->>ITSM: create_ticket() OR queue to outbox
-        ORCH->>CPM: compute_cpm(open_tasks, deadline)
-        CPM-->>ORCH: slack, critical per task
-
-        loop Each Stalled Task
-            alt slack <= min_slack + 1 (critical/near-critical)
-                ORCH->>ORCH: flag = escalated
-                ORCH->>ORCH: notify Manager + IT
-                alt has fallback
-                    ORCH->>ORCH: swap title, reduce duration
-                    ORCH->>ORCH: flag = rescheduled, re-dispatch
-                end
-            else not critical
-                ORCH->>ORCH: flag = watch (no alert)
-            end
-        end
-
-        ORCH->>ORCH: compute readiness %
-        ORCH->>ORCH: update hire.status (on_track / at_risk / ready)
-    end
-
-    API-->>UI: {current_day, ...}
-```
-
----
-
-## Domain Model
-
-```mermaid
-erDiagram
-    Hire {
-        int id PK
-        string name
-        string role
-        string department
-        int start_day
-        date start_date
-        string status
-        float readiness
-        int projected_day
-        date projected_ready_date
-    }
-    Task {
-        int id PK
-        int hire_id FK
-        string key
-        string title
-        string team
-        int duration_days
-        string depends_on
-        bool needs_approval
-        string approval_state
-        string status
-        string ticket_id
-        int dispatched_day
-        int last_activity_day
-        float slack
-        bool critical
-        string flag
-    }
-    Ticket {
-        int id PK
-        string ticket_id
-        string idempotency_key
-        string title
-        string team
-        string status
-        int hire_id FK
-        int task_id FK
-    }
-    AuditEvent {
-        int id PK
-        int hire_id FK
-        int day
-        string level
-        string message
-        string actor_agent
-    }
-    Notification {
-        int id PK
-        string for_role
-        string message
-        bool read
-    }
-    Hire ||--o{ Task : "has"
-    Task ||--o| Ticket : "creates"
-    Hire ||--o{ AuditEvent : "logged under"
-```
-
----
-
-## CPM Algorithm
+## System architecture
 
 ```mermaid
 flowchart LR
-    A["Open tasks\n(pending/queued/dispatched)"] --> B["Kahn Topological Sort\n(cycle detection)"]
-    B --> C["Forward Pass\nES = max(pred.EF)\nEF = ES + remaining"]
-    C --> D["Backward Pass\nLF = min(succ.LS)\nLS = LF - remaining"]
-    D --> E["slack = LF - EF\ncritical = slack == min_slack"]
-    E --> F{"min_slack < 0?"}
-    F -- Yes --> G["hire.status = at_risk\nprojected_day = start_day + |min_slack|"]
-    F -- No --> H["hire.status = on_track"]
+  Browser[React and TypeScript browser UI] -->|REST and SSE| API[FastAPI API]
+  API --> Auth[Authentication and role checks]
+  API --> Domain[Hire, task, CPM and readiness services]
+  Domain --> DB[(SQLite business database)]
+  API --> Graph[LangGraph supervisor]
+  Graph --> Planner[Role planner]
+  Graph --> Monitor[Progress monitor]
+  Graph --> Approval[Manager approval interrupt]
+  Graph --> IT[IT worker]
+  Graph --> Facilities[Facilities worker]
+  Graph --> HRIS[HRIS worker]
+  Graph --> CP[(SQLite checkpoints)]
+  IT --> MCP[ITSM MCP server]
+  Facilities --> MCP
+  HRIS --> HRISMCP[HRIS MCP server]
+  MCP --> TicketDB[(Mock ticket store)]
+  HRISMCP --> HRISDB[(Mock HRIS store)]
+  Planner -. optional suggestions .-> Gemini[Google Gemini]
 ```
 
----
+## What happens when HR starts onboarding
 
-## Task State Machine
+1. HR fills in the guided hire form. React Hook Form and Zod validate it in the browser; the API validates it again with Pydantic.
+2. The API requests a role plan. LangGraph routes the request to the planner node. The planner loads a published role template, optionally asks Gemini for suggestions, validates the result as a dependency graph, then falls back to the deterministic template if needed.
+3. The app saves the hire and task rows in SQLite. Task dependencies and durations feed the Critical Path Method (CPM), which calculates schedule slack and projected readiness.
+4. The monitor runs on the APScheduler interval or an authorized manual action. A database lease prevents two processes from doing the same monitor tick at once.
+5. The monitor identifies work that can start, waits for approvals where required, dispatches team tickets, checks for stalls, and applies only configured deterministic recovery rules.
+6. IT and Facilities tickets are created through the ITSM MCP service. HRIS status is reconciled through the HRIS MCP service. If the ticket system is unavailable, the request stays in the outbox and can be retried safely.
+7. The API saves agent execution summaries, business audit events, and notifications. SSE events tell open clients to refresh their API data. The dashboard, task graph, team queue, approval center, and agent center all read the persisted state.
+
+## LangGraph supervisor and workers
 
 ```mermaid
-stateDiagram-v2
-    [*] --> pending
-    pending --> awaiting_approval: sensitive task
-    awaiting_approval --> pending: manager approves
-    awaiting_approval --> blocked: manager rejects
-    pending --> dispatched: dependencies ready and MCP accepts
-    pending --> queued: ITSM unavailable
-    queued --> dispatched: outbox drains after recovery
-    dispatched --> in_progress: team starts work
-    dispatched --> done: team completes work
-    in_progress --> done: team completes work
-    dispatched --> blocked: team blocks request
-    in_progress --> blocked: team blocks request
-    dispatched --> stalled: demo or monitor flags no activity
-    stalled --> dispatched: critical fallback updates existing ticket
-    blocked --> pending: approved workflow retry
+flowchart TD
+  Start([Start]) --> Supervisor[Supervisor routes operation]
+  Supervisor -->|plan| Planner[Plan generator]
+  Planner --> DonePlan([Return validated plan])
+  Supervisor -->|monitor| Monitor[Deterministic progress monitor]
+  Monitor --> Prep[Find pending manager decisions]
+  Prep -->|none pending| IT[IT ticket reconciler]
+  Prep -->|approval needed| Gate{{Pause and checkpoint}}
+  Gate -->|manager approves or rejects| IT
+  IT --> Facilities[Facilities ticket reconciler]
+  Facilities --> HRIS[HRIS record reconciler]
+  HRIS --> Done([Complete run])
 ```
 
----
+The graph state contains identifiers and workflow summaries, not database sessions or secrets. A checkpoint thread ID is generated for each plan/monitor run. An approval uses LangGraph's interrupt mechanism; the manager endpoint records the decision, resumes the same thread, and allows the monitor to continue.
 
-## Login and Refresh Sequence
+## Employee onboarding workflow
+
+```mermaid
+flowchart LR
+  Employee[HR registers employee] --> Plan[Review generated role plan]
+  Plan --> CPM[Calculate dependencies and critical path]
+  CPM --> Approval{Sensitive task?}
+  Approval -->|yes| Manager[Manager approves or rejects]
+  Approval -->|no| Ready[Task becomes dispatchable]
+  Manager --> Ready
+  Ready --> Teams[IT, HR, Facilities queues]
+  Teams --> Monitor[Progress and integration monitor]
+  Monitor -->|stalled| Risk[Escalate or apply configured fallback]
+  Risk --> Teams
+  Monitor -->|mandatory tasks complete| Day1[Mark ready for Day 1]
+```
+
+## MCP request and response
 
 ```mermaid
 sequenceDiagram
-    participant Browser
-    participant API as FastAPI Auth
-    participant DB as SQLite
-    Browser->>API: POST /auth/login (email, password)
-    API->>DB: Verify Argon2id hash, persist hashed refresh token
-    API-->>Browser: Access JWT in JSON + httpOnly refresh cookie + CSRF cookie
-    Browser->>API: API request with in-memory bearer JWT
-    API-->>Browser: Protected response
-    Browser->>API: POST /auth/refresh + CSRF header + Origin
-    API->>DB: Validate old refresh, rotate token, revoke old row
-    API-->>Browser: New access JWT + rotated cookies
-    Note over Browser,API: Reuse of revoked token revokes its token family
+  participant Worker as LangGraph worker
+  participant Client as MCP stdio client
+  participant Server as Mock MCP server
+  participant Store as Mock service database
+  Worker->>Client: Call tool with validated arguments
+  Client->>Server: JSON-RPC over stdio
+  Server->>Store: Read or update service record
+  Store-->>Server: Ticket or employee status
+  Server-->>Client: MCP tool result
+  Client-->>Worker: Normalized result or service error
+  Worker->>Worker: Update app records and execution log
 ```
+
+The MCP client starts its event-loop worker only on the first real stdio call. The mock servers run as subprocesses in the backend container, so they do not need separate containers.
+
+## Critical path and dependency graph
+
+```mermaid
+flowchart LR
+  Account[Create account] --> Access[Approve secure access]
+  Account --> Laptop[Provision laptop]
+  Access --> Apps[Configure applications]
+  Laptop --> Ready[Confirm first-day setup]
+  Apps --> Ready
+```
+
+This diagram illustrates the idea only. The app's React Flow graph uses task rows returned by the backend. The backend CPM calculation determines critical-path flags and slack; the browser does not infer them from colors.
+
+## Human approval pause and resume
+
+```mermaid
+sequenceDiagram
+  participant Monitor
+  participant Graph as LangGraph checkpoint
+  participant Manager
+  participant DB as SQLite business records
+  Monitor->>Graph: Run monitor thread
+  Graph->>DB: Detect approval-required task
+  Graph->>Graph: Save interrupt state
+  Graph-->>Manager: Show pending approval
+  Manager->>DB: Approve or reject task
+  Manager->>Graph: Resume original thread
+  Graph->>Graph: Continue team reconciliation
+```
+
+The decision in the database remains the business record; the graph checkpoint records where orchestration paused.
+
+## Outbox retry and idempotency
+
+```mermaid
+flowchart TD
+  Dispatch[Attempt ticket creation] -->|accepted| Ticket[Save ticket and update task]
+  Dispatch -->|service unavailable| Queue[Save outbox item and idempotency key]
+  Queue --> Recovery[ITSM reports online]
+  Recovery --> Retry[Retry individual item or monitor queue]
+  Retry --> Exists{Ticket already exists?}
+  Exists -->|yes| Remove[Remove duplicate queue item]
+  Exists -->|no| Create[Create ticket with same key]
+  Create --> Ticket
+  Create -->|still unavailable| Count[Increment retry count]
+  Count --> Queue
+```
+
+## Database relationships
+
+```mermaid
+erDiagram
+  USER ||--o{ HIRE : manages
+  HIRE ||--o{ TASK : contains
+  HIRE ||--o{ AUDIT_EVENT : records
+  HIRE ||--o{ NOTIFICATION : relates_to
+  HIRE ||--o{ TICKET : requests
+  TASK ||--o| TICKET : dispatches
+  TASK ||--o{ OUTBOX_ITEM : queues
+  AGENT_EXECUTION }o--o| HIRE : summarizes
+  USER {
+    int id PK
+    string public_id
+    string email
+    string role
+  }
+  HIRE {
+    int id PK
+    string public_id
+    string role
+    string status
+    float readiness
+    bool archived
+  }
+  TASK {
+    int id PK
+    string public_id
+    string dependency_keys
+    string status
+    float slack
+    bool critical
+  }
+  AGENT_EXECUTION {
+    int id PK
+    string thread_id
+    string agent_name
+    string operation
+    string status
+  }
+```
+
+LangGraph checkpoints are in a separate SQLite file. That separation lets the app keep workflow recovery state independent from employee and task records.
+
+## How to use the website
+
+- **HR:** Open **Overview**, choose **Create hire**, check the role plan, then open a hire to review its overview, schedule, dependency graph, task list, what-if simulator, and activity.
+- **Manager:** Open **Approvals**, review the employee and requested task, then approve or reject it. Decisions are recorded and sent back into the paused workflow.
+- **IT or Facilities:** Open **Team queue** and update the tickets your team owns. The monitor reconciles those changes into the employee plan.
+- **Admin:** Use **Agent center** to review node runs or manually start a monitor. Use **Integrations** to check MCP/model/scheduler status and retry queued ITSM work. Use **Audit trail** to review decisions.
+- **New hire:** Open **My onboarding** to see assigned progress and report an issue to HR.
+- **Everyone:** Use **Project guide** for the in-app tour and **Profile & preferences** for profile and notification settings.
+
+## What is simulated and what is real
+
+- Authentication, authorization, employee/task records, task graph, CPM, manager decisions, audit log, notifications, database checkpoints, ticket outbox, and workflow monitor are application features backed by this codebase.
+- ITSM and HRIS are local mock servers accessed through real MCP stdio sessions. The mock is useful for development and demonstrations but does not contact enterprise vendor accounts.
+- Gemini is optional. It is not the source of approval, access, readiness, schedule, or retry decisions.
+- The Monte Carlo readiness comparison is illustrative simulation output, not a measured production result.
+- The deployment files are templates. Creating public services requires the user's Render/Vercel accounts, environment variables, and a Render persistent disk. The Render blueprint is a paid single-instance shape because its SQLite business store and checkpoint store need persistent storage.

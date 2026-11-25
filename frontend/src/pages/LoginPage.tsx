@@ -42,11 +42,11 @@ export default function LoginPage({ onAuthenticated }: { onAuthenticated: (user:
   return (
     <main className="login-layout">
       <section className="login-story">
-        <div className="login-brand"><span className="login-brand-mark"><Workflow size={20} /></span><strong>onboard<span>iq</span></strong></div>
+        <div className="login-brand"><span className="login-brand-mark"><Workflow size={20} /></span><strong>Onboard<span>Flow AI</span></strong></div>
         <div className="login-story-copy">
           <span className="login-kicker"><span /> CROSS-TEAM ONBOARDING</span>
           <h1>Every team in sync.<br /><em>Every new hire ready.</em></h1>
-          <p>Coordinate the work behind a great first day, from approved access to the laptop on their desk.</p>
+          <p>Intelligent onboarding. Connected teams. Day-1 readiness—from approved access to the laptop on their desk.</p>
           <div className="login-flow" aria-label="Onboarding flow">
             <div className="flow-step completed"><span><Check size={13} /></span><div><strong>Plan created</strong><small>Role-specific tasks mapped</small></div></div>
             <div className="flow-connector" />
@@ -62,7 +62,7 @@ export default function LoginPage({ onAuthenticated }: { onAuthenticated: (user:
       <section className="login-panel">
         <div className="login-panel-top"><span className="login-workspace"><span className="workspace-dot">N</span> Northstar Labs</span><Link className="login-help" to="/guide" title="Project guide" aria-label="Open the project guide"><CircleHelp size={16} /></Link></div>
         <div className="login-card">
-          <div className="login-heading"><span className="login-eyebrow">WELCOME BACK</span><h2>Sign in to your workspace</h2><p>Use your work email to continue to OnboardIQ.</p></div>
+          <div className="login-heading"><span className="login-eyebrow">WELCOME BACK</span><h2>Sign in to your workspace</h2><p>Use your work email to continue to OnboardFlow AI.</p></div>
           <form onSubmit={submit} className="login-form">
             <label htmlFor="login-email">Work email</label>
             <div className="login-input-wrap"><Mail size={16} /><input id="login-email" type="email" autoComplete="username" value={email} onChange={event => setEmail(event.target.value)} placeholder="name@company.com" required /></div>
@@ -78,7 +78,7 @@ export default function LoginPage({ onAuthenticated }: { onAuthenticated: (user:
           </div>
           <div className="login-trust"><LockKeyhole size={13} /><span>Session protected with rotating, httpOnly refresh cookies</span></div>
         </div>
-        <div className="login-panel-footer"><span>© 2026 OnboardIQ</span><span>Privacy <i>·</i> Support <i>·</i> System status</span></div>
+        <div className="login-panel-footer"><span>© 2026 OnboardFlow AI</span><span>CAT2-029 <i>·</i> HR workflow demo</span></div>
       </section>
     </main>
   )

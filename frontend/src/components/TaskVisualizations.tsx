@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Clock3, Minus, Plus, X } from 'lucide-react'
+import { Background, Controls, MiniMap, ReactFlow, type Edge, type Node } from '@xyflow/react'
 import type { Task } from '../api/client'
 
 type ScheduledTask = Task & {
@@ -30,8 +31,7 @@ function TaskInspector({ task, onClose }: { task: ScheduledTask | null; onClose:
 
 export function DependencyGraph({ tasks }: { tasks: ScheduledTask[] }) {
   const [selected, setSelected] = useState<ScheduledTask | null>(null)
-  const [scale, setScale] = useState(1)
-  const layout = useMemo(() => {
+  const flow = useMemo(() => {
     const taskByKey = new Map(tasks.map(task => [task.key, task]))
     const rank = new Map(tasks.map(task => [task.key, 0]))
     for (let pass = 0; pass < tasks.length; pass += 1) {
@@ -45,10 +45,22 @@ export function DependencyGraph({ tasks }: { tasks: ScheduledTask[] }) {
       const column = rank.get(task.key) ?? 0
       columns.set(column, [...(columns.get(column) ?? []), task])
     }
-    const xGap = 258, yGap = 94, nodeWidth = 218, nodeHeight = 68, left = 24, top = 30
     const positions = new Map<string, { x: number; y: number }>()
-    for (const [column, rows] of columns) rows.forEach((task, row) => positions.set(task.key, { x: left + column * xGap, y: top + row * yGap }))
-    return { columns, positions, width: left * 2 + Math.max(1, columns.size) * xGap, height: top * 2 + Math.max(1, ...[...columns.values()].map(rows => rows.length)) * yGap, nodeWidth, nodeHeight }
+    for (const [column, rows] of columns) rows.forEach((task, row) => positions.set(task.key, { x: 40 + column * 280, y: 40 + row * 110 }))
+    const nodes: Node[] = tasks.flatMap(task => {
+      const position = positions.get(task.key)
+      if (!position) return []
+      const stalled = isStalled(task)
+      return [{ id: task.key, position, data: { label: `${task.title}\n${task.team} · ${statusLabel(task.status)}${task.critical ? ' · CRITICAL PATH' : ''}` }, className: `task-flow-node${task.critical ? ' is-critical' : ''}${stalled ? ' is-stalled' : ''}${task.status === 'done' ? ' is-complete' : ''}`, style: { width: 220 } }]
+    })
+    const edges: Edge[] = tasks.flatMap(task => task.depends_on.filter(key => taskByKey.has(key)).map(dependency => ({
+      id: `${dependency}-${task.key}`, source: dependency, target: task.key,
+      animated: isStalled(task),
+      style: { stroke: task.critical && taskByKeyCritical(tasks, dependency) ? '#0c1b3a' : '#94a3b8', strokeWidth: task.critical ? 2.5 : 1.5 },
+      label: task.critical && taskByKeyCritical(tasks, dependency) ? 'critical' : undefined,
+      labelStyle: { fill: '#596778', fontSize: 10 },
+    })))
+    return { nodes, edges }
   }, [tasks])
 
   const related = useMemo(() => {
@@ -67,34 +79,10 @@ export function DependencyGraph({ tasks }: { tasks: ScheduledTask[] }) {
 
   return <section className="visual-card" aria-label="Task dependency graph">
     <div className="visual-heading"><div><span className="eyebrow">DEPENDENCY MAP</span><h2>How the work connects</h2><p>Select a task to trace its upstream and downstream work.</p></div><div className="visual-legend"><span><i className="legend-critical" />Critical path</span><span><i className="legend-standard" />Other work</span><span><i className="legend-stalled" />Needs attention</span></div></div>
-    <div className="graph-canvas" tabIndex={0} role="region" aria-label="Scrollable task dependency graph"><svg role="group" aria-label="Dependency graph with task nodes and connecting arrows" viewBox={`0 0 ${layout.width} ${layout.height}`} style={{ width: layout.width * scale, height: layout.height * scale }}>
-      <defs><marker id="task-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#8797a9" /></marker><marker id="task-arrow-critical" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#0c1b3a" /></marker></defs>
-      {tasks.flatMap(task => task.depends_on.flatMap(dependency => {
-        const from = layout.positions.get(dependency), to = layout.positions.get(task.key)
-        if (!from || !to) return []
-        const active = !selected || (related.has(task.key) && related.has(dependency))
-        const critical = task.critical && (taskByKeyCritical(tasks, dependency))
-        const startX = from.x + layout.nodeWidth, startY = from.y + layout.nodeHeight / 2, endX = to.x, endY = to.y + layout.nodeHeight / 2, bend = Math.max(28, (endX - startX) / 2)
-        return <path key={`${dependency}-${task.key}`} d={`M ${startX} ${startY} C ${startX + bend} ${startY}, ${endX - bend} ${endY}, ${endX} ${endY}`} fill="none" stroke={critical ? '#0c1b3a' : '#94a3b8'} strokeWidth={critical ? 2.5 : 1.5} strokeDasharray={isStalled(task) ? '6 5' : undefined} opacity={active ? 1 : .16} markerEnd={`url(#${critical ? 'task-arrow-critical' : 'task-arrow'})`} />
-      }))}
-      {tasks.map(task => {
-        const point = layout.positions.get(task.key)
-        if (!point) return null
-        const active = !selected || related.has(task.key)
-        const stalled = isStalled(task)
-        const nodeClass = `graph-node${task.critical ? ' is-critical' : ''}${stalled ? ' is-stalled' : ''}${task.status === 'done' ? ' is-complete' : ''}`
-        const visibleTitle = task.title.length > 25 ? `${task.title.slice(0, 24)}…` : task.title
-        const visibleStatus = `${task.team} · ${statusLabel(task.status)}`
-        const visibleCritical = task.critical ? 'CRITICAL' : ''
-        return <g key={task.key} className={nodeClass} role="button" tabIndex={0} aria-label={[visibleTitle, visibleStatus, visibleCritical].filter(Boolean).join(' · ')} onClick={() => setSelected(task)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelected(task) } }} opacity={active ? 1 : .36}>
-          <rect x={point.x} y={point.y} width={layout.nodeWidth} height={layout.nodeHeight} rx="11" />
-          <text x={point.x + 13} y={point.y + 24} className="graph-node-title">{visibleTitle}</text>
-          <text x={point.x + 13} y={point.y + 46} className="graph-node-meta">{visibleStatus}</text>
-          {task.critical && <text x={point.x + layout.nodeWidth - 14} y={point.y + 23} textAnchor="end" className="graph-critical-mark">CRITICAL</text>}
-        </g>
-      })}
-    </svg></div>
-    <div className="graph-controls"><span>{tasks.length} tasks · {tasks.reduce((sum, task) => sum + task.depends_on.length, 0)} dependencies <small className="graph-pan-hint">Scroll to follow dependencies →</small></span><div><button className="icon-button" aria-label="Zoom out graph" onClick={() => setScale(value => Math.max(.65, value - .15))}><Minus size={15} /></button><button className="icon-button" aria-label="Zoom in graph" onClick={() => setScale(value => Math.min(1.6, value + .15))}><Plus size={15} /></button><button className="text-action" onClick={() => { setScale(1); setSelected(null) }}>Fit view</button></div></div>
+    <div className="graph-canvas" role="region" aria-label="Interactive task dependency graph"><ReactFlow nodes={flow.nodes.map(node => ({ ...node, style: { ...node.style, opacity: selected && !related.has(node.id) ? .3 : 1 } }))} edges={flow.edges.map(edge => ({ ...edge, style: { ...edge.style, opacity: selected && !(related.has(edge.source) && related.has(edge.target)) ? .15 : 1 } }))} fitView fitViewOptions={{ padding: 0.22 }} minZoom={0.35} maxZoom={1.8} nodesDraggable={false} nodesConnectable={false} onNodeClick={(_, node) => setSelected(tasks.find(task => task.key === node.id) ?? null)} aria-label="Task dependency graph">
+      <Background color="#cbd5e1" gap={22} size={1} /><MiniMap pannable zoomable /><Controls showInteractive={false} />
+    </ReactFlow></div>
+    <div className="graph-controls"><span>{tasks.length} tasks · {tasks.reduce((sum, task) => sum + task.depends_on.length, 0)} dependencies <small className="graph-pan-hint">Drag to pan · scroll to zoom</small></span><div><span>Use controls on canvas to zoom and fit the graph</span></div></div>
     <TaskInspector task={selected} onClose={() => setSelected(null)} />
   </section>
 }

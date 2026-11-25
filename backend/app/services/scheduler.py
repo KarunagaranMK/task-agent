@@ -54,3 +54,14 @@ def stop_scheduler() -> None:
     if _scheduler is not None and _scheduler.running:
         _scheduler.shutdown(wait=False)
     _scheduler = None
+
+
+def scheduler_status() -> dict[str, object]:
+    running = bool(_scheduler is not None and _scheduler.running)
+    job = _scheduler.get_job("onboardiq-monitor") if running and _scheduler else None
+    return {
+        "enabled": settings.SCHEDULER_ENABLED,
+        "running": running,
+        "next_run_at": job.next_run_time.isoformat() if job and job.next_run_time else None,
+        "interval_minutes": max(1, int(job.trigger.interval.total_seconds() / 60)) if job else settings.MONITOR_INTERVAL_MINUTES,
+    }

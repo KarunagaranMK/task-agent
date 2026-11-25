@@ -1,16 +1,16 @@
-# Cross-Team Employee Onboarding Orchestrator
+# OnboardFlow AI
 
 > **CAT2-029** · Local onboarding orchestration demo · November 2026
 
-A cross-team onboarding workflow app for HR, managers, IT, and Facilities. It coordinates onboarding tasks with **critical-path scheduling**, **stall monitoring**, **configured fallbacks**, and an audit trail. Integrations use MCP adapters so the local demo systems can later be replaced.
+A cross-team onboarding workflow app for HR, managers, IT, and Facilities. It coordinates onboarding tasks with **critical-path scheduling**, **stall monitoring**, **configured fallbacks**, and an audit trail. A supervised LangGraph workflow records durable checkpoints, while business decisions remain deterministic and integrations use MCP adapters.
 
 HR creates plans against a real joining date. The organization timezone and editable holiday calendar drive business-day mapping and projected-ready dates, while the demo clock keeps the scheduling scenario deterministic.
 
 ## Explain the project in one minute
 
-OnboardIQ gives the teams involved in a new hire's first day one shared plan. HR creates the hire, the planner builds dependent tasks, and the Critical Path Method (CPM) estimates which tasks can delay Day 1. Managers approve sensitive access; IT and Facilities process their assigned work. A monitor checks progress, records changes, and can escalate a stalled critical task or apply a configured fallback. The dashboard updates readiness and notifications.
+OnboardFlow AI gives the teams involved in a new hire's first day one shared plan. HR creates the hire, the planner builds dependent tasks, and the Critical Path Method (CPM) estimates which tasks can delay Day 1. Managers approve sensitive access; IT and Facilities process their assigned work. A LangGraph supervisor routes planning and monitoring work to specialized nodes. A monitor checks progress, records changes, and can escalate a stalled critical task or apply a configured fallback. The dashboard updates readiness and notifications.
 
-The application is a **workflow orchestrator**, not a group of autonomous AI agents. Normal workflow decisions use explicit application rules. Optional Gemini calls help draft text or suggest tasks; they do not approve access or decide schedules.
+The application uses a **supervised agent workflow**, not an unconstrained autonomous agent. LangGraph routes tasks, persists checkpoints in SQLite, and pauses a workflow at the manager approval gate. Normal workflow decisions use explicit application rules. Optional Gemini calls help draft text or suggest tasks; they do not approve access or decide schedules.
 
 For the interactive walkthrough, open **Project guide** from the sign-in screen or go to `/guide`. It covers the workflow, architecture, model boundary, and a four-step demo.
 
@@ -37,7 +37,14 @@ python run.py --no-browser     # start without opening a browser
 python run.py --prod --no-browser  # serve the built UI and API on :8000
 make verify                    # backend tests, frontend build, browser E2E + axe
 npm --prefix frontend run qa:shots  # responsive screenshot matrix
+docker compose up --build      # run frontend + API containers on port 3000
 ```
+
+For the container setup, put `JWT_SECRET` in the project `.env` file before `docker compose up --build`. Compose runs with `DEMO_MODE=false` and does not seed public demo users; after startup, create the first administrator with `docker compose exec backend python -m app.cli create-admin`. Set `COOKIE_SECURE=true` when serving the frontend over HTTPS. An optional `GEMINI_API_KEY` enables Gemini suggestions. Docker Compose stores the app database, LangGraph checkpoints, and mock MCP data in the persistent `backend_data` volume. This is a single-instance deployment; public production use still needs a selected hosting provider, HTTPS termination, and an appropriate managed database/backup plan.
+
+### Vercel + Render deployment template
+
+The repository includes a Vercel SPA/API proxy config at [`frontend/vercel.json`](frontend/vercel.json) and a Render Docker blueprint at [`render.yaml`](render.yaml). In Vercel, set the project root to `frontend` and connect the GitHub repository. In Render, create a Blueprint from the repository; the blueprint uses a persistent disk for SQLite and checkpoints, which requires a paid single-instance service. Set `FRONTEND_ORIGINS` in Render to the exact Vercel production origin (and any custom frontend origin), then deploy. The Vercel rewrite targets `https://onboardflow-ai-api.onrender.com`; update it if the Render service receives a different hostname. Create the first admin through the Render shell with `python -m app.cli create-admin`. Configure optional `GEMINI_API_KEY` in Render if you want model suggestions.
 
 For a repeatable local API baseline, start the app with `python run.py --no-browser`, then run
 `python scripts/profile_api.py --requests 100 --concurrency 10` in another terminal. The profile logs in as the seeded
@@ -54,7 +61,7 @@ In demo mode, use the account chips on `/login`. All six seeded accounts share `
 | Missing virtual environment | Run `python run.py` again; it creates `.venv` automatically. |
 | SQLite database is locked | Close another app instance using `backend/onboarding.db`; then retry. Use `--reset` only when you want to recreate the demo data. |
 
-No API key is required; unavailable LLM features use deterministic template text.
+No API key is required; unavailable LLM features use deterministic template text. LangGraph checkpoints are stored in `onboarding.checkpoints.sqlite` by default; set `LANGGRAPH_CHECKPOINT_DB` to move that file.
 
 ---
 
@@ -68,22 +75,32 @@ No API key is required; unavailable LLM features use deterministic template text
 └───────────────────────────┬──────────────────────────────────────┘
                             │  REST / JSON
 ┌───────────────────────────▼──────────────────────────────────────┐
-│                    FastAPI Backend                               │
-│  ┌───────────┐  ┌──────────┐  ┌───────────┐  ┌─────────────┐  │
-│  │  Planner  │  │  CPM     │  │ Monitor   │  │ Experiment  │  │
-│  │ (DAG gen) │  │ Engine   │  │  Tick     │  │ Simulation  │  │
-│  └───────────┘  └──────────┘  └───────────┘  └─────────────┘  │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │  SQLite · Idempotent Outbox · Audit Log · Notifications    │ │
-│  └────────────────────────────────────────────────────────────┘ │
-└───────────────────────────┬──────────────────────────────────────┘
-              MCP stdio      │
-        ┌────────────────────┼────────────────┐
-        ▼                    ▼                ▼
-    ITSM-MCP             HRIS-MCP       (plug in real
-    (mock)               (mock)          ServiceNow/
-                                         Workday MCP)
+│                   React + TypeScript UI                         │
+│ Dashboard · Hire plan · approvals · agent center · integrations │
+│ React Flow dependency canvas · roles · notifications · insights │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │ REST / JSON + SSE
+┌───────────────────────────▼─────────────────────────────────────┐
+│                    FastAPI + SQLModel                            │
+│ Auth/RBAC · hire/task APIs · CPM · audit · outbox · notifications │
+│        LangGraph supervisor + SQLite checkpointer                │
+│   Planner → approval interrupt → monitor → workers               │
+└───────────────┬────────────────────────────────┬─────────────────┘
+                │ MCP stdio                      │ Optional LLM
+      ┌─────────▼────────┐             ┌────────▼──────────┐
+      │ ITSM + HRIS mocks │             │ Gemini suggestions │
+      │   Python MCP      │             │  safe fallback     │
+      └───────────────────┘             └───────────────────┘
 ```
+
+### What happens when HR creates a hire
+
+1. The API validates the hire data and gets a role plan from a published template. Gemini may suggest task wording when configured; validation and template fallback remain authoritative.
+2. CPM orders tasks by dependency, estimates remaining work, and calculates slack against the joining date.
+3. The monitor workflow is invoked by the scheduler or an authorized manual action. The supervisor routes it to the deterministic monitor node.
+4. Sensitive work pauses at the approval gate. LangGraph saves the workflow state and thread ID in SQLite; the manager's decision resumes that thread.
+5. Specialized IT, Facilities, and HRIS nodes reconcile system state through MCP stdio tools. Retryable ticket creation is persisted in the idempotent outbox.
+6. The API records agent executions, audit events, and notifications. The UI receives live events and shows readiness, critical work, integrations, and agent activity.
 
 ---
 
@@ -93,12 +110,12 @@ No API key is required; unavailable LLM features use deterministic template text
 |---------|-------------|
 | **U1 CPM Engine** | Forward/backward pass on live remaining durations; slack per task; negative slack = Day-1 at risk |
 | **U2 Self-Healing** | Stall ≥ 2 idle days → escalate to Manager + IT → reschedule with fallback (loaner laptop = 1 day) |
-| **U3 Vendor-Neutral** | Every external call goes through MCP stdio tools; swap mock for real in zero agent code changes |
+| **U3 Vendor-Neutral** | ITSM and HRIS tasks use MCP stdio tools; replace mock servers with vendor adapters |
 | **U4 Reliability** | Idempotency key = `hire{id}:{task_key}`; outbox queue survives ITSM outage; zero duplicate tickets |
 | **U5 Governance** | Manager approval gate for sensitive access; full audit log (day, actor, level, message) |
 | **U6 Evidence** | 200-hire Monte Carlo: Orchestrator **~22 pp better** Day-1 readiness vs static checklist |
 
-**LLM boundary:** Gemini is optional and used only for role-specific task suggestions, risk explanations, and escalation drafts. Validated deterministic fallbacks keep the product usable without a key. Scheduling, authorization, dispatch, and recovery decisions are code-driven.
+**LLM boundary:** Gemini is optional and used only for role-specific task suggestions, risk explanations, and escalation drafts. Validated deterministic fallbacks keep the product usable without a key. LangGraph routes work and checkpoints approvals; scheduling, authorization, dispatch, and recovery decisions are code-driven.
 
 ---
 
@@ -125,14 +142,16 @@ No API key is required; unavailable LLM features use deterministic template text
 
 The API schema is available at **http://localhost:8000/docs** while the app is running. TypeScript API contracts are generated from FastAPI OpenAPI with `npm --prefix frontend run typegen:api`.
 
+For the complete architecture walkthrough, Mermaid diagrams, model boundaries, and role-by-role user guide, read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
 ## 🧰 Technology and model details
 
 - **Backend:** Python 3.11+, FastAPI for HTTP APIs and SSE events, Pydantic for request/response validation, SQLModel for persistence models, Alembic for schema migrations, APScheduler for monitoring, and SQLite for local demo data.
-- **Frontend:** React, Vite, strict TypeScript, Tailwind CSS, TanStack Query for API state, Recharts for charts, and React Router for role workspaces.
+- **Frontend:** React, Vite, strict TypeScript, Tailwind CSS, TanStack Query for API state, React Hook Form + Zod for hire form validation, React Flow (`@xyflow/react`) for dependency visualization, Recharts for charts, and React Router for role workspaces.
 - **Integrations:** FastMCP stdio clients with local mock ITSM and HRIS servers; the outbox records retryable ticket work.
 - **Model:** Google Gemini `gemini-2.5-flash` is optional and configured by `GEMINI_MODEL`. With `GEMINI_API_KEY`, it can suggest role-specific tasks and draft risk explanations or escalation messages. The app validates responses and falls back to templates when the model is unavailable. Without an API key, the demo still works.
 - **Deterministic application logic:** CPM scheduling, business-day calculations, authentication and role checks, manager approvals, ticket dispatch, duplicate protection, stall thresholds, recovery choices, and audit events do not depend on a model.
-- **No model framework is required:** there is no active LangGraph or autonomous multi-agent runtime in the implemented workflow.
+- **Agent orchestration:** LangGraph's supervisor graph routes planning and monitor operations, calls specialized worker nodes, persists checkpoints in SQLite, and pauses/resumes sensitive approvals. The graph is supervised and does not replace deterministic business rules with model output.
 - **Quality:** pytest, Ruff, Playwright, axe-core, coverage gate, and responsive screenshot matrix.
 
 This is a local-first demonstration. The ITSM and HRIS services are mocks, outbound email is a local database outbox, and the experiment results are illustrative simulation data. Real vendor systems, SMTP delivery, production SSO, and production performance/security certification are not configured.
@@ -149,7 +168,7 @@ See [`docs/DEMO.md`](docs/DEMO.md) for the step-by-step Priya Sharma demo.
 
 The responsive matrix (all role routes at 390/768/1440 px, light and dark, plus the hire Graph and Schedule views) contains **198 screenshots** in [`docs/screenshots/`](docs/screenshots/).
 
-![OnboardIQ overview at desktop width](docs/screenshots/admin-overview-1440-light.png)
+![OnboardFlow AI overview at desktop width](docs/screenshots/admin-overview-1440-light.png)
 
 ![New hire onboarding timeline in dark mode](docs/screenshots/new-hire-my-onboarding-1440-dark.png)
 

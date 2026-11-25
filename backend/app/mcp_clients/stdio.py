@@ -111,5 +111,28 @@ class PersistentMCPClients:
         self._thread.join(timeout=5)
 
 
-clients = PersistentMCPClients()
+class LazyPersistentMCPClients:
+    """Only create the event-loop thread when stdio transport is actually used."""
+
+    def __init__(self) -> None:
+        self._client: PersistentMCPClients | None = None
+        self._lock = threading.Lock()
+
+    def _get_client(self) -> PersistentMCPClients:
+        with self._lock:
+            if self._client is None:
+                self._client = PersistentMCPClients()
+            return self._client
+
+    def call(self, service: str, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        return self._get_client().call(service, tool_name, arguments)
+
+    def close(self) -> None:
+        with self._lock:
+            if self._client is not None:
+                self._client.close()
+                self._client = None
+
+
+clients = LazyPersistentMCPClients()
 atexit.register(clients.close)

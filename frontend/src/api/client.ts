@@ -89,6 +89,7 @@ export const getHireAudit = (id: string) => api.get(`/hires/${id}/audit`).then(r
 export const pauseHire = (id: string) => api.post(`/hires/${id}/pause`).then(r => r.data)
 export const resumeHire = (id: string) => api.post(`/hires/${id}/resume`).then(r => r.data)
 export const cancelHire = (id: string) => api.post(`/hires/${id}/cancel`).then(r => r.data)
+export const archiveHire = (id: string) => api.post(`/hires/${id}/archive`).then(r => r.data as { status: string; hire_id: string })
 export const explainRisk = (id: string) => api.get(`/hires/${id}/explain`).then(r => r.data)
 export const approveTask = (id: string) => api.post(`/tasks/${id}/approve`).then(r => r.data)
 export const rejectTask = (id: string) => api.post(`/tasks/${id}/reject`).then(r => r.data)
@@ -125,6 +126,28 @@ export const getAudit = (search = '') => api.get<AuditRecord[]>('/audit', { para
 export const getExperimentHistory = () => api.get<ExperimentRecord[]>('/experiments').then(r => r.data)
 export const getDevMail = () => api.get<MailRecord[]>('/dev/mail').then(r => r.data)
 export const setDemoClock = (day: number) => api.post(`/admin/clock?day=${day}`).then(r => r.data)
+export interface AgentCard {
+  name: string; title: string; responsibility: string; status: string; last_execution_at: string | null
+  execution_count: number; successful_operations: number; partial_operations: number; failed_operations: number; recent_summary: string
+}
+export interface AgentExecution {
+  id: string; thread_id: string; hire_id: number | null; agent: string; operation: string; status: string
+  summary: string; error_code: string | null; started_at: string; completed_at: string
+}
+export interface IntegrationHealth { name: string; status: string; mock: boolean; checked_at: string; detail: string }
+export interface IntegrationStatus {
+  integrations: IntegrationHealth[]
+  scheduler: { enabled: boolean; running: boolean; next_run_at: string | null; interval_minutes: number }
+  outbox: { pending: number; retries: number }
+}
+export interface OutboxEntry { id: number; hire: string; task: string; team: string; retry_count: number; created_at: string }
+export const getAgents = () => api.get<AgentCard[]>('/agents').then(r => r.data)
+export const getAgentActivity = () => api.get<{ items: AgentExecution[]; total: number }>('/agents/activity', { params: { page: 1, page_size: 50 } }).then(r => r.data)
+export const runAgentMonitor = () => api.post('/agents/monitor/run').then(r => r.data)
+export const getIntegrationStatus = () => api.get<IntegrationStatus>('/integrations/status').then(r => r.data)
+export const testIntegrations = () => api.post<{ results: IntegrationHealth[] }>('/integrations/test').then(r => r.data)
+export const getIntegrationOutbox = () => api.get<OutboxEntry[]>('/integrations/outbox').then(r => r.data)
+export const retryOutboxItem = (id: number) => api.post<{ status: string; retry_count: number }>(`/integrations/outbox/${id}/retry`).then(r => r.data)
 
 export interface ExperimentParams { n_hires: number; stall_probability: number; seed: number }
 export interface Ticket {

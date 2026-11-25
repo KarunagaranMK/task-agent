@@ -13,7 +13,7 @@ from threading import Lock
 from time import monotonic
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
-from app.api import hires, tasks, sim
+from app.api import agents, hires, tasks, sim
 from app.api import events
 from app.api import me
 from app.api import admin
@@ -25,15 +25,18 @@ from app.db.database import get_session
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    from app.agents.workflow import get_workflow_graph, close_workflow_graph
+    get_workflow_graph()
     if settings.SCHEDULER_ENABLED:
         start_scheduler()
     try:
         yield
     finally:
         stop_scheduler()
+        close_workflow_graph()
 app = FastAPI(
-    title="Onboarding Orchestrator API",
-    description="Cross-Team Employee Onboarding Orchestrator — CAT2-029",
+    title="OnboardFlow AI API",
+    description="Supervised cross-team employee onboarding workflow API",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -70,13 +73,13 @@ def _api_rate_limited(client_ip: str, now: float) -> bool:
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:8000", "http://127.0.0.1:8000"],
+    allow_origins=settings.allowed_frontend_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-for api_router in (hires.router, tasks.router, sim.router, me.router, admin.router, auth.users_router, auth.mail_router):
+for api_router in (agents.router, hires.router, tasks.router, sim.router, me.router, admin.router, auth.users_router, auth.mail_router):
     for prefix in ("", "/api", "/api/v1"):
         app.include_router(api_router, prefix=prefix, dependencies=[Depends(auth.get_current_user)])
 # The ticket endpoint authenticates itself with a JWT. The stream endpoint must

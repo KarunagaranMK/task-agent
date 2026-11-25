@@ -171,51 +171,56 @@ def dispatch_task(session: Session, task: Task, current_day: int,
 # Outbox drain
 # ---------------------------------------------------------------------------
 
+def _retry_outbox_row(session: Session, item: OutboxItem, current_day: int) -> bool:
+    """Try one queued ticket; preserve it and count the retry on failure."""
+    existing = session.exec(select(Ticket).where(Ticket.idempotency_key == item.idempotency_key)).first()
+    if existing:
+        session.delete(item)
+        return True
+    result = mcp_create_ticket(item.idempotency_key, item.title, item.team, item.estimate_days)
+    if result.get("error") or not result.get("ticket_id"):
+        item.retry_count += 1
+        session.add(item)
+        return False
+    ticket_id = str(result["ticket_id"])
+    session.add(Ticket(
+        ticket_id=ticket_id,
+        idempotency_key=item.idempotency_key,
+        title=item.title,
+        team=item.team,
+        estimate_days=item.estimate_days,
+        hire_id=item.hire_id,
+        task_id=item.task_id,
+        status=str(result.get("status", "open")),
+    ))
+    task = session.get(Task, item.task_id)
+    if task:
+        task.ticket_id = ticket_id
+        task.status = TaskStatus.dispatched
+        task.dispatched_day = current_day
+        task.last_activity_day = current_day
+        session.add(task)
+        audit(session, item.hire_id, f"Outbox recovered: ticket {ticket_id} for '{item.title}'", "info", "supervisor")
+    session.delete(item)
+    return True
+
+
+def retry_outbox_item(session: Session, item: OutboxItem, current_day: int) -> bool:
+    """Retry a specific item after the caller verifies the ITSM service is online."""
+    set_itsm_offline(False)
+    completed = _retry_outbox_row(session, item, current_day)
+    session.flush()
+    return completed
+
+
 def drain_outbox(session: Session, current_day: int, *, commit: bool = True) -> None:
     """Drain queued outbox items — idempotent, no duplicate tickets."""
-    # Callers drain only after observing recovery. The monitor sets the outage
-    # flag before this method, and invokes it only when the service is online.
+    # Callers drain only after observing recovery. The monitor sets the ITSM
+    # service online only after observing the persisted outage flag is clear.
     set_itsm_offline(False)
     items = session.exec(select(OutboxItem)).all()
     for item in items:
-        # Double-check idempotency
-        existing = session.exec(
-            select(Ticket).where(Ticket.idempotency_key == item.idempotency_key)
-        ).first()
-        if existing:
-            session.delete(item)
-            continue
-
-        result = mcp_create_ticket(item.idempotency_key, item.title, item.team, item.estimate_days)
-        if result.get("error") == "service_unavailable" or not result.get("ticket_id"):
-            item.retry_count += 1
-            session.add(item)
-            continue
-        ticket_id = str(result["ticket_id"])
-        ticket = Ticket(
-            ticket_id=ticket_id,
-            idempotency_key=item.idempotency_key,
-            title=item.title,
-            team=item.team,
-            estimate_days=item.estimate_days,
-            hire_id=item.hire_id,
-            task_id=item.task_id,
-            status=str(result.get("status", "open")),
-        )
-        session.add(ticket)
-
-        task = session.get(Task, item.task_id)
-        if task:
-            task.ticket_id = ticket_id
-            task.status = TaskStatus.dispatched
-            task.dispatched_day = current_day
-            task.last_activity_day = current_day
-            session.add(task)
-            audit(session, item.hire_id,
-                  f"Outbox recovered: ticket {ticket_id} for '{item.title}'",
-                  "info", "supervisor")
-
-        session.delete(item)
+        _retry_outbox_row(session, item, current_day)
     if commit:
         session.commit()
 
@@ -512,8 +517,9 @@ def monitor_tick(session: Session) -> bool:
         logger.info("Monitor tick skipped; another worker owns the lease")
         return False
     try:
-        _monitor_tick_body(session)
-        return True
+        from app.agents.workflow import run_monitor_workflow
+        completed, _thread_id = run_monitor_workflow(session)
+        return completed
     except Exception:
         session.rollback()
         raise
@@ -521,7 +527,7 @@ def monitor_tick(session: Session) -> bool:
         _release_monitor_lease(session, owner_id)
 
 
-def plan_spec_for_role(session: Session, role: str, hire_id: int) -> PlanSpec:
+def _plan_spec_for_role_direct(session: Session, role: str, hire_id: int) -> PlanSpec:
     """Load the active role template or generate a validated template fallback."""
     import json
     from app.config import settings
@@ -536,6 +542,12 @@ def plan_spec_for_role(session: Session, role: str, hire_id: int) -> PlanSpec:
     if saved_template:
         return PlanSpec.model_validate({"tasks": json.loads(saved_template.tasks_json)})
     return try_llm_plan(role, hire_id, settings.GEMINI_API_KEY)
+
+
+def plan_spec_for_role(session: Session, role: str, hire_id: int) -> PlanSpec:
+    """Plan through the supervisor graph; deterministic validation remains authoritative."""
+    from app.agents.workflow import run_plan_workflow
+    return PlanSpec.model_validate({"tasks": run_plan_workflow(session, role, hire_id)})
 
 
 def replace_hire_plan_before_work_starts(

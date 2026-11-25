@@ -15,6 +15,12 @@ jobs:
         run: cd backend && pip install -r requirements.txt
       - name: Run pytest
         run: cd backend && python -m pytest tests/ -v --tb=short
+      - name: Verify fresh database migrations
+        run: cd backend && python -m alembic upgrade head
+        env:
+          DATABASE_URL: sqlite:///./migration-smoke.db
+      - name: Ruff lint
+        run: cd backend && python -m ruff check app/agents/workflow.py app/api/agents.py --ignore B008,DTZ003
 
   frontend-build:
     name: Frontend Build (Node 20)
@@ -28,3 +34,7 @@ jobs:
         run: cd frontend && npm ci
       - name: TypeScript build
         run: cd frontend && npm run build
+      - name: Install component test dependencies
+        run: cd frontend/component-tests && npm ci
+      - name: Frontend component tests
+        run: npm --prefix frontend run test:unit

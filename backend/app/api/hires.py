@@ -96,9 +96,9 @@ class HireOut(BaseModel):
 
 
 @router.post("/plan-preview")
-def plan_preview(data: PlanPreviewRequest, _user=Depends(require_roles("ADMIN", "HR"))):
-    from app.config import settings
-    plan = try_llm_plan(data.role, hire_id=0, api_key=settings.GEMINI_API_KEY)
+def plan_preview(data: PlanPreviewRequest, session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "HR"))):
+    from app.services.orchestrator import plan_spec_for_role
+    plan = plan_spec_for_role(session, data.role, hire_id=0)
     return {"role": data.role, "tasks": [task.model_dump() for task in plan.tasks]}
 
 
@@ -157,6 +157,7 @@ def list_hires(
     limit: Optional[int] = Query(default=None, ge=1, le=100),
     offset: Optional[int] = Query(default=None, ge=0),
     search: str = Query(default="", max_length=120),
+    include_archived: bool = False,
     status: Optional[Literal["on_track", "at_risk", "ready", "started", "paused", "cancelled"]] = None,
     sort_by: Literal["created_at", "name", "start_date", "readiness", "status"] = "created_at",
     sort_order: Literal["asc", "desc"] = "desc",
@@ -164,6 +165,8 @@ def list_hires(
     user=Depends(require_roles("ADMIN", "HR", "MANAGER")),
 ):
     filters = []
+    if not include_archived:
+        filters.append(Hire.archived.is_(False))
     if user.role == "MANAGER":
         filters.append(Hire.manager_id == user.id)
     if status:
@@ -194,6 +197,18 @@ def list_hires(
     response.headers["X-Limit"] = str(effective_limit)
     response.headers["X-Offset"] = str(effective_offset)
     return [_hire_out(h, session) for h in hires]
+
+
+@router.post("/{hire_id}/archive")
+def archive_hire(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR"))):
+    hire = _hire_by_public_id(hire_id, session)
+    if not hire:
+        raise HTTPException(404, "Hire not found")
+    if not hire.archived:
+        hire.archived = True
+        session.add(hire)
+        audit(session, hire.id, f"Archived employee record for {hire.name}", "info", f"user:{user.id}")
+    return {"status": "archived", "hire_id": hire.public_id}
 
 
 @router.get("/{hire_id}", response_model=HireOut)

@@ -65,7 +65,7 @@ def run_exp(req: ExperimentRequest, session: Session = Depends(get_session), use
 
 @router.get("/metrics")
 def get_metrics(session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "HR"))):
-    hires = session.exec(select(Hire)).all()
+    hires = session.exec(select(Hire).where(Hire.archived.is_(False))).all()
     total = len(hires)
     ready = sum(1 for h in hires if h.status == "ready")
     at_risk = sum(1 for h in hires if h.status == "at_risk")

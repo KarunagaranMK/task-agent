@@ -2,7 +2,7 @@ import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNaviga
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { createContext, lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Activity, ArrowUpRight, Bell, BookOpen, Check, ChevronDown, Command, Compass, LogOut,
+  Activity, ArrowUpRight, Bell, BookOpen, Bot, Check, ChevronDown, Command, Compass, LogOut, PlugZap,
   Gauge, HelpCircle, LayoutDashboard, Menu, Moon, PanelLeftClose, Search,
   ShieldCheck, Sparkles, Sun, Workflow, X,
 } from 'lucide-react'
@@ -23,6 +23,8 @@ const ManagerDashboard = lazy(() => import('./pages/ManagerDashboard'))
 const AdminPage = lazy(() => import('./pages/AdminPage'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 const GuidePage = lazy(() => import('./pages/GuidePage'))
+const AgentControlPage = lazy(() => import('./pages/AgentControlPage'))
+const IntegrationsPage = lazy(() => import('./pages/IntegrationsPage'))
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: true } } })
 
@@ -36,6 +38,8 @@ const navigation: Array<{ label: string; to: string; icon: LucideIcon; group: st
   { label: 'Approvals', to: '/manager', icon: ShieldCheck, group: 'Workspace', roles: ['ADMIN', 'MANAGER'] },
   { label: 'Team queue', to: '/it', icon: Workflow, group: 'Operations', roles: ['ADMIN', 'IT_STAFF'] },
   { label: 'Insights', to: '/insights', icon: Activity, group: 'Operations', roles: ['ADMIN', 'HR'] },
+  { label: 'Agent center', to: '/agents', icon: Bot, group: 'Operations', roles: ['ADMIN', 'HR'] },
+  { label: 'Integrations', to: '/integrations', icon: PlugZap, group: 'Operations', roles: ['ADMIN', 'HR'] },
   { label: 'My onboarding', to: '/my-onboarding', icon: Workflow, group: 'Workspace', roles: ['NEW_HIRE'] },
   { label: 'Profile & preferences', to: '/profile', icon: Gauge, group: 'Workspace', roles: ['ADMIN', 'HR', 'MANAGER', 'IT_STAFF', 'NEW_HIRE'] },
   { label: 'Project guide', to: '/guide', icon: BookOpen, group: 'Help', roles: ['ADMIN', 'HR', 'MANAGER', 'IT_STAFF', 'NEW_HIRE'] },
@@ -49,6 +53,8 @@ const routes: Array<{ label: string; to: string; description: string; roles: str
   { label: 'Manager approvals', to: '/manager', description: 'Review access requests and escalations', roles: ['ADMIN', 'MANAGER'] },
   { label: 'Team ticket queue', to: '/it', description: 'Work across IT and Facilities tasks', roles: ['ADMIN', 'IT_STAFF'] },
   { label: 'Insights and experiment', to: '/insights', description: 'Readiness metrics and policy comparison', roles: ['ADMIN', 'HR'] },
+  { label: 'Agent control center', to: '/agents', description: 'See LangGraph workflows and persisted agent activity', roles: ['ADMIN', 'HR'] },
+  { label: 'Integration health', to: '/integrations', description: 'Check MCP services, model setup, scheduler, and retries', roles: ['ADMIN', 'HR'] },
   { label: 'My onboarding', to: '/my-onboarding', description: 'Your personal first-day plan', roles: ['NEW_HIRE'] },
   { label: 'Profile and preferences', to: '/profile', description: 'Update your account and notification settings', roles: ['ADMIN', 'HR', 'MANAGER', 'IT_STAFF', 'NEW_HIRE'] },
   { label: 'Project guide', to: '/guide', description: 'Understand the workflow, technology, and demo', roles: ['ADMIN', 'HR', 'MANAGER', 'IT_STAFF', 'NEW_HIRE'] },
@@ -121,7 +127,7 @@ function AppFrame() {
   }, [])
 
   const visibleRoutes = routes.filter(item => item.roles.includes(role))
-  const current = location.pathname.startsWith('/hire/') ? 'Hire overview' : (visibleRoutes.find(item => item.to === location.pathname)?.label ?? 'OnboardIQ')
+  const current = location.pathname.startsWith('/hire/') ? 'Hire overview' : (visibleRoutes.find(item => item.to === location.pathname)?.label ?? 'OnboardFlow AI')
   const hireResults = useMemo(() => hires.filter(h => `${h.name} ${h.role} ${h.department}`.toLowerCase().includes(query.toLowerCase())), [hires, query])
 
   const go = (path: string) => { navigate(path); setPaletteOpen(false); setMobileOpen(false); setQuery('') }
@@ -132,7 +138,7 @@ function AppFrame() {
       <aside className={sidebarClass} aria-label="Main navigation">
         <div className="brand-lockup">
           <div className="brand-mark"><Workflow size={19} strokeWidth={1.8} /></div>
-          {!collapsed && <div className="brand-copy"><strong>onboard<span>iq</span></strong><small>WORKFORCE ORCHESTRATION</small></div>}
+          {!collapsed && <div className="brand-copy"><strong>Onboard<span>Flow AI</span></strong><small>WORKFORCE ORCHESTRATION</small></div>}
           <button className="icon-button sidebar-collapse" onClick={() => setCollapsed(v => !v)} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
             <PanelLeftClose size={17} />
           </button>
@@ -191,6 +197,8 @@ function AppFrame() {
             {['ADMIN', 'MANAGER'].includes(role) && <Route path="/manager" element={<ManagerPage />} />}
             {['ADMIN', 'IT_STAFF'].includes(role) && <Route path="/it" element={<ITPage />} />}
             {['ADMIN', 'HR'].includes(role) && <Route path="/insights" element={<InsightsPage />} />}
+            {['ADMIN', 'HR'].includes(role) && <Route path="/agents" element={<AgentControlPage />} />}
+            {['ADMIN', 'HR'].includes(role) && <Route path="/integrations" element={<IntegrationsPage role={role} />} />}
             {role === 'NEW_HIRE' && <Route path="/my-onboarding" element={<MyOnboardingPage />} />}
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/guide" element={<GuidePage embedded />} />
@@ -203,7 +211,7 @@ function AppFrame() {
             <Route path="*" element={<div className="empty-state"><Compass size={30} /><h1>That page is not here yet</h1><p>Choose a workspace page from the navigation.</p><button className="button-primary" onClick={() => go(role === 'IT_STAFF' ? '/it' : role === 'NEW_HIRE' ? '/my-onboarding' : '/')}>Back to overview</button></div>} />
           </Routes></Suspense>
         </main>
-        <footer className="app-footer"><span>OnboardIQ <span className="footer-separator">·</span> Workforce onboarding, in sync.</span><span><Sparkles size={13} /> AI off <span className="footer-muted">(templates)</span></span></footer>
+        <footer className="app-footer"><span>OnboardFlow AI <span className="footer-separator">·</span> Intelligent onboarding. Connected teams. Day-1 readiness.</span><span><Sparkles size={13} /> AI optional <span className="footer-muted">(template fallback ready)</span></span></footer>
       </div>
 
       {['ADMIN', 'HR'].includes(role) && <button className={`demo-fab ${demoOpen ? 'selected' : ''}`} onClick={() => setDemoOpen(value => !value)} aria-label={demoOpen ? 'Close demo controls' : 'Open demo controls'}>

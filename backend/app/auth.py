@@ -219,10 +219,7 @@ def _clear_auth_cookies(response: Response) -> None:
 def _check_csrf(request: Request, header_token: str | None) -> None:
     cookie_token = request.cookies.get("csrf_token")
     origin = request.headers.get("origin", "")
-    allowed_origins = {
-        "http://localhost:5173", "http://127.0.0.1:5173",
-        "http://localhost:8000", "http://127.0.0.1:8000",
-    }
+    allowed_origins = set(settings.allowed_frontend_origins)
     if not origin or origin not in allowed_origins or not cookie_token or not header_token:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="CSRF validation failed")
     if not secrets.compare_digest(cookie_token, header_token):

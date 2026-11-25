@@ -52,6 +52,7 @@ class Hire(SQLModel, table=True):
     name: str
     role: str
     department: str
+    archived: bool = False
     start_day: int  # joining-day index in the demo simulation
     start_date: Optional[date] = Field(default=None, index=True)
     status: HireStatus = HireStatus.on_track
@@ -120,6 +121,22 @@ class AuditEvent(SQLModel, table=True):
     message: str
     actor_agent: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class AgentExecution(SQLModel, table=True):
+    """Durable summary for one node in a supervised LangGraph run."""
+    __tablename__ = "agent_executions"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    public_id: str = Field(default_factory=lambda: str(uuid4()), unique=True, index=True)
+    thread_id: str = Field(index=True)
+    hire_id: Optional[int] = Field(default=None, foreign_key="hires.id", index=True)
+    agent_name: str = Field(index=True)
+    operation: str = Field(index=True)
+    status: str = "succeeded"
+    summary: str
+    error_code: Optional[str] = None
+    started_at: datetime = Field(default_factory=datetime.utcnow)
+    completed_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class Notification(SQLModel, table=True):

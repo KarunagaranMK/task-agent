@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     MCP_MODE: str = "stdio"
     SCHEDULER_ENABLED: bool = True
     MONITOR_INTERVAL_MINUTES: int = 15
+    LANGGRAPH_CHECKPOINT_DB: Optional[str] = None
+    FRONTEND_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000"
+
+    @property
+    def allowed_frontend_origins(self) -> list[str]:
+        return [origin.strip().rstrip("/") for origin in self.FRONTEND_ORIGINS.split(",") if origin.strip()]
 
     model_config = {"env_file": Path(__file__).resolve().parents[2] / ".env", "extra": "ignore"}
 

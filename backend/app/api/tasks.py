@@ -4,8 +4,8 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 from app.db.database import get_session
-from app.domain.models import Hire, Task, TaskStatus, ApprovalState, Ticket, TicketComment, User
-from app.services.orchestrator import audit, get_current_day
+from app.domain.models import AgentExecution, Hire, Task, TaskStatus, ApprovalState, Ticket, TicketComment, User
+from app.services.orchestrator import audit, get_current_day, monitor_tick
 from app.auth import require_roles
 from app.mcp_clients.tools import update_ticket_status as mcp_update_ticket_status
 
@@ -28,6 +28,29 @@ def _get_team_ticket(session: Session, ticket_id: str, user) -> Ticket:
     if user.role != "ADMIN" and ticket.team != user.team:
         raise HTTPException(403, "Ticket belongs to another team")
     return ticket
+
+
+def _resume_approval_workflow(session: Session, hire_id: int, decision: str) -> bool:
+    execution = session.exec(
+        select(AgentExecution)
+        .where(AgentExecution.hire_id == hire_id,
+               AgentExecution.agent_name == "approval_gate",
+               AgentExecution.status == "interrupted")
+        .order_by(AgentExecution.completed_at.desc())
+    ).first()
+    if execution is None:
+        return False
+    try:
+        from app.agents.workflow import resume_approval_workflow
+        resumed = resume_approval_workflow(session, execution.thread_id, decision)
+        if resumed and decision == "approved":
+            # The decision is persisted before the fresh planning tick dispatches newly unblocked work.
+            monitor_tick(session)
+        return resumed
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("Could not resume approval workflow %s", execution.thread_id)
+        return False
 
 
 def _sync_ticket_status(ticket: Ticket, status: str, session: Session, user) -> None:
@@ -69,7 +92,8 @@ def approve_task(task_id: UUID, session: Session = Depends(get_session), _user=D
     session.add(task)
     audit(session, task.hire_id, f"Manager approved '{task.title}'", "info", f"user:{_user.id}")
     session.commit()
-    return {"status": "approved", "task_id": task.public_id}
+    resumed = _resume_approval_workflow(session, task.hire_id, "approved")
+    return {"status": "approved", "task_id": task.public_id, "workflow_resumed": resumed}
 
 
 @router.post("/tasks/{task_id}/reject")
@@ -86,7 +110,8 @@ def reject_task(task_id: UUID, session: Session = Depends(get_session), _user=De
     session.add(task)
     audit(session, task.hire_id, f"Manager rejected '{task.title}'", "warning", f"user:{_user.id}")
     session.commit()
-    return {"status": "rejected", "task_id": task.public_id}
+    resumed = _resume_approval_workflow(session, task.hire_id, "rejected")
+    return {"status": "rejected", "task_id": task.public_id, "workflow_resumed": resumed}
 
 
 @router.post("/tasks/{task_id}/undo-approval")

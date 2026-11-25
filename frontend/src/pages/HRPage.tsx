@@ -1,19 +1,29 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { Link, useSearchParams } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
-import { ArrowDownUp, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, CircleAlert, Clock3, Download, Pause, Play, Plus, Search, Users, X } from 'lucide-react'
+import { Archive, ArrowDownUp, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, CircleAlert, Clock3, Download, Pause, Play, Plus, Search, Users, X } from 'lucide-react'
 import { DataTable, type DataTableColumn } from '../components/DataTable'
 import { StatusPill } from '../components/StatusPill'
 import {
-  createHire, getHirePage, getManagers, getMetrics, pauseHire, planPreview, resumeHire,
+  archiveHire, createHire, getHirePage, getManagers, getMetrics, pauseHire, planPreview, resumeHire,
   type Hire, type HireCreate, type HirePageResult,
 } from '../api/client'
 
 const ROLES = ['Data Analyst', 'Software Engineer', 'Product Manager', 'Customer Success Manager', 'default']
 const DEPARTMENTS = ['Analytics', 'Engineering', 'Marketing', 'HR', 'Finance', 'Operations']
 type PlanTask = { key: string; title: string; team: string; duration_days: number; depends_on: string[]; needs_approval: boolean }
-type HireForm = { name: string; role: string; department: string; start_date: string; manager_id: string | null }
+const hireFormSchema = z.object({
+  name: z.string().trim().min(2, 'Enter at least 2 characters.').max(120, 'Use 120 characters or fewer.'),
+  role: z.string().min(1, 'Choose a role.'),
+  department: z.string().trim().min(1, 'Choose a department.'),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Choose a joining date.'),
+  manager_id: z.string(),
+})
+type HireForm = z.infer<typeof hireFormSchema>
 type PortfolioState = { search: string; filter: string; sortNewest: boolean; page: number }
 type SavedView = Omit<PortfolioState, 'page'> & { id: string; label: string }
 const statusFilters = new Set(['all', 'on_track', 'at_risk', 'ready'])
@@ -30,7 +40,7 @@ function addBusinessDays(count: number, from?: string) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 const formatDate = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(`${value}T12:00:00`))
-const initialForm: HireForm = { name: '', role: ROLES[0], department: DEPARTMENTS[0], start_date: addBusinessDays(8), manager_id: null }
+const initialForm: HireForm = { name: '', role: ROLES[0], department: DEPARTMENTS[0], start_date: addBusinessDays(8), manager_id: '' }
 const statusLabel: Record<string, string> = { on_track: 'On track', at_risk: 'At risk', ready: 'Ready' }
 
 export default function HRPage() {
@@ -62,11 +72,17 @@ export default function HRPage() {
   const isError = hiresQuery.isError
   const { data: metrics } = useQuery({ queryKey: ['metrics'], queryFn: getMetrics, refetchInterval: 15_000 })
   const { data: managers = [] } = useQuery({ queryKey: ['managers'], queryFn: getManagers })
-  const [form, setForm] = useState<HireForm>(initialForm)
+  const { register, watch, setValue, getValues, trigger, reset, formState: { errors: fieldErrors } } = useForm<HireForm>({
+    resolver: zodResolver(hireFormSchema),
+    defaultValues: initialForm,
+    mode: 'onBlur',
+  })
+  const form = watch()
   const [step, setStep] = useState(0)
   const [preview, setPreview] = useState<PlanTask[]>([])
   const [previewBusy, setPreviewBusy] = useState(false)
   const [showWizard, setShowWizard] = useState(false)
+  const [archiveTarget, setArchiveTarget] = useState<Hire | null>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [portfolioError, setPortfolioError] = useState('')
@@ -138,7 +154,7 @@ export default function HRPage() {
 
   useEffect(() => {
     if (metrics?.default_joining_date && !form.name && !showWizard) {
-      setForm(current => ({ ...current, start_date: metrics.default_joining_date }))
+      setValue('start_date', metrics.default_joining_date)
     }
   }, [metrics?.default_joining_date])
 
@@ -148,11 +164,20 @@ export default function HRPage() {
       void queryClient.invalidateQueries({ queryKey: ['hires'] })
       void queryClient.invalidateQueries({ queryKey: ['metrics'] })
       setNotice(`${hire.name}’s onboarding plan is ready to coordinate.`)
-      setShowWizard(false); setForm(initialForm); setStep(0); setPreview([]); setError('')
+      setShowWizard(false); reset(initialForm); setStep(0); setPreview([]); setError('')
     },
     onError: error => {
       const message = (error as { response?: { data?: { message?: string } } }).response?.data?.message
       setError(message || 'We couldn’t create the plan. Check the details and try again.')
+    },
+  })
+  const archiveMutation = useMutation({
+    mutationFn: (id: string) => archiveHire(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['hires'] })
+      void queryClient.invalidateQueries({ queryKey: ['metrics'] })
+      setNotice(`${archiveTarget?.name ?? 'Employee'} was archived. Their workflow history is retained.`)
+      setArchiveTarget(null)
     },
   })
 
@@ -165,7 +190,7 @@ export default function HRPage() {
   const nextStep = async () => {
     setError('')
     if (step === 0) {
-      if (form.name.trim().length < 2) { setError('Enter the new hire’s full name to continue.'); return }
+      if (!await trigger(['name', 'start_date', 'role', 'department'])) { setError('Review the highlighted hire details before continuing.'); return }
       setPreviewBusy(true)
       try {
         const result = await planPreview(form.role) as { tasks?: PlanTask[] }
@@ -176,7 +201,8 @@ export default function HRPage() {
       return
     }
     if (step === 1) { setStep(2); return }
-    const payload: HireCreate = { name: form.name.trim(), role: form.role, department: form.department, start_date: form.start_date, ...(form.manager_id ? { manager_id: form.manager_id } : {}) }
+    const values = getValues()
+    const payload: HireCreate = { name: values.name.trim(), role: values.role, department: values.department, start_date: values.start_date, ...(values.manager_id ? { manager_id: values.manager_id } : {}) }
     createMutation.mutate(payload)
   }
 
@@ -190,7 +216,7 @@ export default function HRPage() {
     { key: 'day-one', header: 'Day 1', render: hire => hire.start_date ? <><strong>{formatDate(hire.start_date)}</strong><small>Day {hire.start_day} in demo</small></> : `Day ${hire.start_day}` },
     { key: 'readiness', header: 'Readiness', render: hire => <div className="readiness-cell"><span className="readiness-track"><i className={hire.status === 'at_risk' ? 'risk' : hire.status === 'ready' ? 'ready' : ''} style={{ width: `${Math.max(0, Math.min(100, hire.readiness))}%` }} /></span><span>{hire.readiness}%</span></div> },
     { key: 'status', header: 'Status', render: hire => <StatusPill status={hire.status} label={statusLabel[hire.status] ?? hire.status} /> },
-    { key: 'open', header: <span className="sr-only">Open hire</span>, render: hire => <Link className="table-open" aria-label={`Open ${hire.name}`} to={`/hire/${hire.id}`}><ArrowRight size={16} /></Link> },
+    { key: 'open', header: <span className="sr-only">Hire actions</span>, render: hire => <div className="flex items-center justify-end gap-2"><Link className="table-open" aria-label={`Open ${hire.name}`} to={`/hire/${hire.id}`}><ArrowRight size={16} /></Link><button className="text-action inline-flex items-center gap-1" aria-label={`Archive ${hire.name}`} onClick={() => setArchiveTarget(hire)}><Archive size={13} />Archive</button></div> },
   ]
 
   return <div className="portal-page">
@@ -237,16 +263,17 @@ export default function HRPage() {
         <div className="wizard-progress" aria-label={`Step ${step + 1} of 3`}><i style={{ width: `${((step + 1) / 3) * 100}%` }} /></div>
         <p className="wizard-step-label">STEP {step + 1} OF 3 <span>·</span> {['Set up the new hire', 'Review role-specific work', 'Confirm the plan'][step]}</p>
         {step === 0 && <div className="wizard-fields">
-          <label>Full name<input autoFocus value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} placeholder="e.g. Priya Sharma" maxLength={120} /></label>
-          <div className="wizard-field-grid"><label>Role<select value={form.role} onChange={event => setForm({ ...form, role: event.target.value })}>{ROLES.map(role => <option key={role}>{role}</option>)}</select></label><label>Department<select value={form.department} onChange={event => setForm({ ...form, department: event.target.value })}>{DEPARTMENTS.map(department => <option key={department}>{department}</option>)}</select></label></div>
-          <div className="wizard-field-grid"><label>Manager<select value={form.manager_id ?? ''} onChange={event => setForm({ ...form, manager_id: event.target.value || null })}><option value="">Choose later</option>{managers.map(manager => <option key={manager.id} value={manager.id}>{manager.name}</option>)}</select></label><label>Joining date<input type="date" min={metrics?.earliest_joining_date ?? addBusinessDays(1, metrics?.current_date)} value={form.start_date} onChange={event => setForm({ ...form, start_date: event.target.value })} /><small>Choose a future organization business day</small></label></div>
+          <label>Full name<input autoFocus {...register('name')} placeholder="e.g. Priya Sharma" maxLength={120} aria-invalid={!!fieldErrors.name} />{fieldErrors.name && <small className="form-error">{fieldErrors.name.message}</small>}</label>
+          <div className="wizard-field-grid"><label>Role<select {...register('role')}>{ROLES.map(role => <option key={role}>{role}</option>)}</select></label><label>Department<select {...register('department')}>{DEPARTMENTS.map(department => <option key={department}>{department}</option>)}</select></label></div>
+          <div className="wizard-field-grid"><label>Manager<select {...register('manager_id')}><option value="">Choose later</option>{managers.map(manager => <option key={manager.id} value={manager.id}>{manager.name}</option>)}</select></label><label>Joining date<input type="date" min={metrics?.earliest_joining_date ?? addBusinessDays(1, metrics?.current_date)} {...register('start_date')} aria-invalid={!!fieldErrors.start_date} /><small>{fieldErrors.start_date?.message ?? 'Choose a future organization business day'}</small></label></div>
         </div>}
-        {step === 1 && <div className="plan-preview"><div className="preview-summary"><span>{preview.length} planned tasks</span><span>Day 1 protected</span></div>{preview.map((task, index) => <div className="preview-task" key={task.key}><span className="preview-step">{String(index + 1).padStart(2, '0')}</span><span className="preview-task-copy"><strong>{task.title}</strong><small>{task.team} · {task.duration_days} day{task.duration_days === 1 ? '' : 's'}{task.needs_approval ? ' · approval required' : ''}</small></span>{task.depends_on.length > 0 && <span className="dependency-label">After {task.depends_on.length}</span>}</div>)}<p className="preview-note">Teams complete the work in their own systems. OnboardIQ coordinates dependencies and readiness.</p></div>}
+        {step === 1 && <div className="plan-preview"><div className="preview-summary"><span>{preview.length} planned tasks</span><span>Day 1 protected</span></div>{preview.map((task, index) => <div className="preview-task" key={task.key}><span className="preview-step">{String(index + 1).padStart(2, '0')}</span><span className="preview-task-copy"><strong>{task.title}</strong><small>{task.team} · {task.duration_days} day{task.duration_days === 1 ? '' : 's'}{task.needs_approval ? ' · approval required' : ''}</small></span>{task.depends_on.length > 0 && <span className="dependency-label">After {task.depends_on.length}</span>}</div>)}<p className="preview-note">Teams complete the work in their own systems. OnboardFlow AI coordinates dependencies and readiness.</p></div>}
         {step === 2 && <div className="review-summary"><div className="review-person"><span className="hire-avatar large">{form.name.split(' ').map(part => part[0]).join('').slice(0, 2) || 'NH'}</span><span><strong>{form.name}</strong><small>{form.role} · {form.department}</small></span></div><div className="review-lines"><p><span>Manager</span><strong>{managers.find(manager => manager.id === form.manager_id)?.name ?? 'Assign later'}</strong></p><p><span>Joining date</span><strong>{formatDate(form.start_date)}</strong></p><p><span>Task plan</span><strong>{preview.length} coordinated tasks</strong></p></div><div className="amber-callout">The hire’s task plan and critical path will be created together.</div></div>}
         {error && <p className="form-error" role="alert">{error}</p>}
         <div className="wizard-actions"><button className="button-secondary" onClick={() => step === 0 ? closeWizard() : setStep(step - 1)}>{step === 0 ? 'Cancel' : <><ChevronLeft size={16} /> Back</>}</button><button className="button-primary" onClick={() => void nextStep()} disabled={previewBusy || createMutation.isPending}>{previewBusy ? 'Building preview…' : createMutation.isPending ? 'Creating plan…' : step === 2 ? 'Create onboarding plan' : <>Continue <ChevronRight size={16} /></>}</button></div>
       </section>
     </div>}
+    {archiveTarget && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setArchiveTarget(null) }}><section className="lifecycle-dialog" role="dialog" aria-modal="true" aria-labelledby="archive-hire-title"><span className="dialog-icon"><Archive size={18} /></span><h2 id="archive-hire-title">Archive {archiveTarget.name}?</h2><p>This removes the employee from the active portfolio. Their onboarding tasks and audit history remain available.</p>{archiveMutation.isError && <p className="form-error" role="alert">The employee could not be archived. Refresh and try again.</p>}<div className="dialog-actions"><button className="button-secondary" onClick={() => setArchiveTarget(null)}>Keep employee active</button><button className="button-primary" disabled={archiveMutation.isPending} onClick={() => archiveMutation.mutate(archiveTarget.id)}>{archiveMutation.isPending ? 'Archiving…' : 'Archive employee'}</button></div></section></div>}
   </div>
 }
 

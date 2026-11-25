@@ -9,9 +9,16 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=sqlite:////app/data/onboarding.db
+      - LANGGRAPH_CHECKPOINT_DB=/app/data/onboarding.checkpoints.sqlite
+      - ONBOARDIQ_MCP_DB_DIR=/app/data
       - SIM_MODE=true
+      - DEMO_MODE=false
+      - COOKIE_SECURE=${COOKIE_SECURE:-false}
+      - FRONTEND_ORIGINS=${FRONTEND_ORIGINS:-http://localhost:3000}
       - GEMINI_MODEL=gemini-2.5-flash
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET in .env before starting the deployment}
+      - SCHEDULER_ENABLED=true
     volumes:
       - backend_data:/app/data
     healthcheck:

@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: onboardflow-ai-api
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    disk:
+      name: onboardflow-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite:////app/data/onboarding.db
+      - key: LANGGRAPH_CHECKPOINT_DB
+        value: /app/data/onboarding.checkpoints.sqlite
+      - key: ONBOARDIQ_MCP_DB_DIR
+        value: /app/data
+      - key: DEMO_MODE
+        value: "false"
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: FRONTEND_ORIGINS
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash

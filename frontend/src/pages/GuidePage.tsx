@@ -24,14 +24,14 @@ export default function GuidePage({ embedded = false }: { embedded?: boolean }) 
 
   return <main className={`guide-page ${embedded ? 'guide-embedded' : ''}`}>
     <header className="guide-header">
-      <div className="guide-brand"><span><Workflow size={19} /></span><strong>Onboard<span>IQ</span></strong><small>PROJECT GUIDE</small></div>
+      <div className="guide-brand"><span><Workflow size={19} /></span><strong>Onboard<span>Flow AI</span></strong><small>PROJECT GUIDE</small></div>
       <Link to="/login" className="guide-signin">Open the demo <ArrowRight size={15} /></Link>
     </header>
     <section className="guide-hero">
       <div className="guide-hero-copy">
         <span className="guide-eyebrow"><CircleHelp size={14} /> START HERE</span>
         <h1>One clear view of<br /><em>everyone’s first day.</em></h1>
-        <p>OnboardIQ coordinates the small tasks that HR, managers, IT, and Facilities must finish before a new employee starts.</p>
+        <p>OnboardFlow AI coordinates the small tasks that HR, managers, IT, and Facilities must finish before a new employee starts.</p>
         <div className="guide-hero-actions"><Link to="/login" className="guide-primary">Explore the demo <ArrowRight size={16} /></Link><span><Clock3 size={14} /> 3 minute walkthrough</span></div>
       </div>
       <div className="guide-flow-card" aria-label="Onboarding process overview">
@@ -66,6 +66,6 @@ export default function GuidePage({ embedded = false }: { embedded?: boolean }) 
       </div>
       <div className="guide-progress" aria-label={`Section ${activeSection + 1} of ${sections.length}`}><span style={{ width: `${((activeSection + 1) / sections.length) * 100}%` }} /></div>
     </section>
-    <footer className="guide-footer"><span>OnboardIQ <i>·</i> Project guide</span><span>Built to make the work between teams visible.</span></footer>
+    <footer className="guide-footer"><span>OnboardFlow AI <i>·</i> Project guide</span><span>Built to make the work between teams visible.</span></footer>
   </main>
 }

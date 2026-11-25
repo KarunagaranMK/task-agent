@@ -40,6 +40,32 @@ def test_create_hire(client):
     assert data["start_date"]
 
 
+def test_employee_profile_fields_create_update_and_validate(client):
+    created = client.post("/hires", json={
+        "name": "Profile Test", "role": "Data Analyst", "department": "Analytics", "start_day": 8,
+        "work_email": "person@example.com", "work_location": "Remote", "employment_type": "Full-time",
+        "required_equipment": "Laptop", "required_software": "Analytics suite", "additional_notes": "Ship welcome kit",
+    })
+    assert created.status_code == 200
+    hire_id = created.json()["id"]
+    assert created.json()["work_email"] == "person@example.com"
+    assert created.json()["required_equipment"] == "Laptop"
+
+    updated = client.patch(f"/hires/{hire_id}", json={
+        "work_email": "", "work_location": "New York", "additional_notes": "Meet the team at 9",
+    })
+    assert updated.status_code == 200
+    assert updated.json()["work_email"] is None
+    assert updated.json()["work_location"] == "New York"
+    assert updated.json()["additional_notes"] == "Meet the team at 9"
+
+    invalid_email = client.post("/hires", json={
+        "name": "Invalid Email", "role": "Analyst", "department": "Data", "start_day": 8,
+        "work_email": "not-an-email",
+    })
+    assert invalid_email.status_code == 422
+
+
 def test_create_hire_uses_organization_business_calendar(client, session, monkeypatch):
     from datetime import date
     from app.domain.models import AppSetting

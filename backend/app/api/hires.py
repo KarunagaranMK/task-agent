@@ -7,7 +7,7 @@ from app.auth import require_roles
 from app.services.cpm import CPMTask, compute_cpm, compute_what_if, get_remaining_days
 from app.services.planner import try_llm_plan
 from app.mcp_clients.tools import cancel_ticket as mcp_cancel_ticket, update_ticket_status as mcp_update_ticket_status
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from typing import Optional, List, Literal
 from datetime import date, datetime
 from uuid import UUID
@@ -21,9 +21,23 @@ class HireCreate(BaseModel):
     name: str
     role: str
     department: str
+    work_email: Optional[str] = Field(default=None, max_length=254)
+    work_location: Optional[str] = Field(default=None, max_length=120)
+    employment_type: Optional[str] = Field(default=None, max_length=80)
+    required_equipment: Optional[str] = Field(default=None, max_length=1000)
+    required_software: Optional[str] = Field(default=None, max_length=1000)
+    additional_notes: Optional[str] = Field(default=None, max_length=2000)
     start_day: Optional[int] = Field(default=None, ge=1, le=365)
     start_date: Optional[date] = None
     manager_id: Optional[UUID] = None
+
+    @field_validator("work_email")
+    @classmethod
+    def validate_work_email(cls, value: Optional[str]):
+        import re
+        if value and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", value):
+            raise ValueError("Enter a valid work email address")
+        return value
 
     @model_validator(mode="after")
     def require_start_target(self):
@@ -37,8 +51,22 @@ class HireUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=2, max_length=120)
     role: Optional[str] = Field(default=None, min_length=1, max_length=120)
     department: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    work_email: Optional[str] = Field(default=None, max_length=254)
+    work_location: Optional[str] = Field(default=None, max_length=120)
+    employment_type: Optional[str] = Field(default=None, max_length=80)
+    required_equipment: Optional[str] = Field(default=None, max_length=1000)
+    required_software: Optional[str] = Field(default=None, max_length=1000)
+    additional_notes: Optional[str] = Field(default=None, max_length=2000)
     manager_id: Optional[UUID] = None
     start_date: Optional[date] = None
+
+    @field_validator("work_email")
+    @classmethod
+    def validate_work_email(cls, value: Optional[str]):
+        import re
+        if value and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", value):
+            raise ValueError("Enter a valid work email address")
+        return value
 
     @model_validator(mode="after")
     def require_editable_field(self):
@@ -86,6 +114,12 @@ class HireOut(BaseModel):
     name: str
     role: str
     department: str
+    work_email: Optional[str] = None
+    work_location: Optional[str] = None
+    employment_type: Optional[str] = None
+    required_equipment: Optional[str] = None
+    required_software: Optional[str] = None
+    additional_notes: Optional[str] = None
     start_day: int
     start_date: Optional[date]
     status: str
@@ -112,6 +146,12 @@ def _hire_out(h: Hire, session: Session) -> HireOut:
         name=h.name,
         role=h.role,
         department=h.department,
+        work_email=h.work_email,
+        work_location=h.work_location,
+        employment_type=h.employment_type,
+        required_equipment=h.required_equipment,
+        required_software=h.required_software,
+        additional_notes=h.additional_notes,
         start_day=h.start_day,
         start_date=h.start_date,
         status=h.status,
@@ -146,6 +186,10 @@ def create_hire(data: HireCreate, session: Session = Depends(get_session), _user
         clock = load_clock(session)
         start_date = clock.calendar.add_business_days(clock.local_today(), start_day)
     hire = create_hire_with_plan(session, data.name, data.role, data.department, start_day, manager.id if manager else None, start_date)
+    for field in ("work_email", "work_location", "employment_type", "required_equipment", "required_software", "additional_notes"):
+        value = getattr(data, field)
+        setattr(hire, field, value.strip() if isinstance(value, str) and value.strip() else None)
+    session.add(hire)
     return _hire_out(hire, session)
 
 
@@ -272,10 +316,13 @@ def update_hire_details(
             session.rollback()
             raise HTTPException(409, str(exc)) from exc
 
-    for field in ("name", "department", "manager_id"):
+    for field in ("name", "department", "manager_id", "work_email", "work_location", "employment_type", "required_equipment", "required_software", "additional_notes"):
         if field in changes:
             value = changes[field]
-            setattr(hire, field, value.strip() if isinstance(value, str) else value)
+            normalized = value.strip() if isinstance(value, str) else value
+            if field.startswith("work_") or field in {"employment_type", "required_equipment", "required_software", "additional_notes"}:
+                normalized = normalized or None
+            setattr(hire, field, normalized)
 
     if date_changed:
         _tasks, min_slack = run_cpm_for_hire(session, hire)

@@ -4,9 +4,9 @@ export interface components {
     "ExperimentRequest": { "n_hires"?: number; "stall_probability"?: number; "seed"?: number; }
     "ForgotRequest": { "email": string; }
     "HTTPValidationError": { "detail"?: Array<components['schemas']["ValidationError"]>; }
-    "HireCreate": { "name": string; "role": string; "department": string; "start_day"?: (number) | (null); "start_date"?: (string) | (null); "manager_id"?: (string) | (null); }
-    "HireOut": { "id": string; "name": string; "role": string; "department": string; "start_day": number; "start_date": (string) | (null); "status": string; "readiness": number; "projected_day": (number) | (null); "projected_ready_date": (string) | (null); "manager_id"?: (string) | (null); }
-    "HireUpdate": { "name"?: (string) | (null); "role"?: (string) | (null); "department"?: (string) | (null); "manager_id"?: (string) | (null); "start_date"?: (string) | (null); }
+    "HireCreate": { "name": string; "role": string; "department": string; "work_email"?: (string) | (null); "work_location"?: (string) | (null); "employment_type"?: (string) | (null); "required_equipment"?: (string) | (null); "required_software"?: (string) | (null); "additional_notes"?: (string) | (null); "start_day"?: (number) | (null); "start_date"?: (string) | (null); "manager_id"?: (string) | (null); }
+    "HireOut": { "id": string; "name": string; "role": string; "department": string; "work_email"?: (string) | (null); "work_location"?: (string) | (null); "employment_type"?: (string) | (null); "required_equipment"?: (string) | (null); "required_software"?: (string) | (null); "additional_notes"?: (string) | (null); "start_day": number; "start_date": (string) | (null); "status": string; "readiness": number; "projected_day": (number) | (null); "projected_ready_date": (string) | (null); "manager_id"?: (string) | (null); }
+    "HireUpdate": { "name"?: (string) | (null); "role"?: (string) | (null); "department"?: (string) | (null); "work_email"?: (string) | (null); "work_location"?: (string) | (null); "employment_type"?: (string) | (null); "required_equipment"?: (string) | (null); "required_software"?: (string) | (null); "additional_notes"?: (string) | (null); "manager_id"?: (string) | (null); "start_date"?: (string) | (null); }
     "InviteRequest": { "email": string; "name": string; "role": string; "team"?: (string) | (null); }
     "IssueRequest": { "message": string; }
     "LoginOut": { "access_token": string; "token_type"?: string; "user": components['schemas']["UserOut"]; }

@@ -27,7 +27,7 @@ This file tracks the master build prompt against the application implementation.
 | React Flow dependency graph | Implemented | Hire detail has interactive pan/zoom, minimap, fit controls, task selection, critical styling, and connected-task highlighting. |
 | Agent activity/control center | Implemented | Agent execution history and monitor action are backed by persisted `AgentExecution` records. |
 | Integration health dashboard | Implemented | ITSM/HRIS MCP checks, Gemini setup, scheduler, and retry outbox are summarized on a dedicated page. |
-| Employee CRUD and archive lifecycle | Partial | Hires can be created, edited, searched, filtered and archived with confirmation; the prompt's extra employee profile fields are not modeled yet. |
+| Employee CRUD and archive lifecycle | Implemented | Hires can be created, edited, searched, filtered and archived with confirmation; optional work contact, location, employment type, equipment, software/access and notes are persisted and shown on the profile. |
 | React Hook Form/Zod form validation | Implemented | The three-step hire wizard uses React Hook Form with Zod schema validation and Pydantic validation at the API boundary. |
 | Brand and product naming | Implemented | Customer-facing product labels and API metadata now use OnboardFlow AI; compatibility keys and seeded demo password remain stable. |
 | Setup, architecture and demo documentation | Implemented | README now explains the stack, model boundary, workflow stages, and local/container startup. |
@@ -49,12 +49,12 @@ This file tracks the master build prompt against the application implementation.
 - Frontend component tests: **5 passed**.
 - Ruff check on the new LangGraph/API modules: passed with the repository's established FastAPI dependency injection and naive-UTC conventions excluded (`B008`, `DTZ003`).
 - Docker Compose syntax and image builds could not be run because Docker is not installed in this environment.
-- After adding outbox-retry and employee-archive checks, full backend suite: **147 passed**; both new migrations upgrade a clean temporary SQLite database to head.
+- After adding profile persistence coverage, full backend suite: **148 passed**; fresh SQLite migrations upgrade cleanly through `0018_employee_profile`.
+- Employee profile details now validate at the API and form boundaries, persist in Alembic-managed columns, and can be edited or reviewed from the hire overview.
 
 ## Known limits
 
 - The live Gemini provider is optional; plans fall back to templates if no key is configured.
 - HRIS and ITSM are local mock enterprise services, not vendor production accounts.
 - The existing readiness experiment is illustrative simulation data.
-- Employee records do not yet have the prompt's optional contact email and employee profile fields (location, employment type, equipment/software requirements, and notes).
 - Vercel and Render deployment templates exist, but no cloud hosting accounts or deployed services are connected to this checkout.

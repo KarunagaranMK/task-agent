@@ -52,6 +52,12 @@ class Hire(SQLModel, table=True):
     name: str
     role: str
     department: str
+    work_email: Optional[str] = Field(default=None, max_length=254)
+    work_location: Optional[str] = Field(default=None, max_length=120)
+    employment_type: Optional[str] = Field(default=None, max_length=80)
+    required_equipment: Optional[str] = Field(default=None, max_length=1000)
+    required_software: Optional[str] = Field(default=None, max_length=1000)
+    additional_notes: Optional[str] = Field(default=None, max_length=2000)
     archived: bool = False
     start_day: int  # joining-day index in the demo simulation
     start_date: Optional[date] = Field(default=None, index=True)

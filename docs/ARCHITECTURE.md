@@ -175,6 +175,12 @@ erDiagram
     int id PK
     string public_id
     string role
+    string work_email
+    string work_location
+    string employment_type
+    string required_equipment
+    string required_software
+    string additional_notes
     string status
     float readiness
     bool archived

@@ -495,3 +495,9 @@ This file records verified state against the phases in the product brief. A gate
 - Throttles return the app's `application/problem+json` contract with request ID and `Retry-After`. Buckets expire in process memory; a shared store is still needed for multi-worker deployment.
 - Verification: the focused limit/health test passed; Ruff passed; `python run.py --test` passed **140 backend tests** and the strict frontend build; Playwright passed **11/11** with the throttle enabled across all role and recovery workflows.
 - **Gate: passed for local single-process API throttling.** Multi-worker coordination and external production integrations remain open.
+
+### Latest single-process production smoke — 2026-11-25
+
+- Re-ran `python run.py --prod --no-browser` after the public-ID, request-transaction, and API-throttling changes. The frontend built, Uvicorn started, and the launcher health poll passed.
+- Directly checked the production root page (`200`, React root present), `/health` (`200`), and `/api/health` (`200`). Stopped the temporary server after verification.
+- **Gate: current `--prod` serving path passed.** Fresh-clone first-run is covered by the earlier P10 clean-copy record; Vitest and GNU Make remain environment/tooling gaps.

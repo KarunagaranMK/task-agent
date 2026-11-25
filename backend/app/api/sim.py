@@ -145,7 +145,9 @@ def get_notifications(role: Optional[str] = None, session: Session = Depends(get
             "hire_id": (
                 hire.public_id if n.hire_id is not None and (hire := session.get(Hire, n.hire_id)) else None
             ),
-            "task_id": n.task_id,
+            "task_id": (
+                task.public_id if n.task_id is not None and (task := session.get(Task, n.task_id)) else None
+            ),
             "read": n.read,
             "created_at": n.created_at.isoformat(),
         }

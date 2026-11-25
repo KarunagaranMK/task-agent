@@ -90,9 +90,9 @@ export const pauseHire = (id: string) => api.post(`/hires/${id}/pause`).then(r =
 export const resumeHire = (id: string) => api.post(`/hires/${id}/resume`).then(r => r.data)
 export const cancelHire = (id: string) => api.post(`/hires/${id}/cancel`).then(r => r.data)
 export const explainRisk = (id: string) => api.get(`/hires/${id}/explain`).then(r => r.data)
-export const approveTask = (id: number) => api.post(`/tasks/${id}/approve`).then(r => r.data)
-export const rejectTask = (id: number) => api.post(`/tasks/${id}/reject`).then(r => r.data)
-export const undoApproval = (id: number) => api.post(`/tasks/${id}/undo-approval`).then(r => r.data)
+export const approveTask = (id: string) => api.post(`/tasks/${id}/approve`).then(r => r.data)
+export const rejectTask = (id: string) => api.post(`/tasks/${id}/reject`).then(r => r.data)
+export const undoApproval = (id: string) => api.post(`/tasks/${id}/undo-approval`).then(r => r.data)
 export const getTickets = () => api.get('/tickets').then(r => r.data)
 export const startTicket = (id: string) => api.post(`/tickets/${id}/start`).then(r => r.data)
 export const completeTicket = (id: string) => api.post(`/tickets/${id}/complete`).then(r => r.data)
@@ -129,10 +129,10 @@ export const setDemoClock = (day: number) => api.post(`/admin/clock?day=${day}`)
 export interface ExperimentParams { n_hires: number; stall_probability: number; seed: number }
 export interface Ticket {
   id: number; ticket_id: string; title: string; team: string;
-  status: string; hire_id: string | null; task_id: number | null; estimate_days: number; created_at: string
+  status: string; hire_id: string | null; task_id: string | null; estimate_days: number; created_at: string
 }
 export interface AuditEvent { id: number; day: number; level: string; message: string; actor: string; created_at: string }
-export interface Notification { id: number; for_role: string; message: string; hire_id: string | null; task_id: number | null; read: boolean; created_at: string }
+export interface Notification { id: number; for_role: string; message: string; hire_id: string | null; task_id: string | null; read: boolean; created_at: string }
 export interface TicketComment { id: number; author: string; body: string; created_at: string }
 export interface MyOnboarding {
   hire: { name: string; role: string; department: string; start_day: number; start_date: string | null; status: string; readiness: number; projected_day: number | null; projected_ready_date: string | null } | null

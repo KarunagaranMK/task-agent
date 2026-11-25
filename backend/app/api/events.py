@@ -15,7 +15,7 @@ from sqlmodel import Session, select
 
 from app.auth import get_current_user, in_app_notifications_enabled
 from app.db.database import get_session
-from app.domain.models import Hire, Notification, StreamTicket, User
+from app.domain.models import Hire, Notification, StreamTicket, Task, User
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -100,7 +100,7 @@ async def event_stream(
                     "for_role": item.for_role,
                     "message": item.message,
                     "hire_id": _public_hire_id(session, item),
-                    "task_id": item.task_id,
+                    "task_id": _public_task_id(session, item),
                     "created_at": item.created_at.isoformat(),
                 }, separators=(",", ":"))
                 yield f"id: {item.id}\nevent: notification\ndata: {data}\n\n"
@@ -115,7 +115,7 @@ async def event_stream(
                     "for_role": item.for_role,
                     "message": item.message,
                     "hire_id": _public_hire_id(session, item),
-                    "task_id": item.task_id,
+                    "task_id": _public_task_id(session, item),
                     "created_at": item.created_at.isoformat(),
                 }, separators=(",", ":"))
                 yield f"id: {item.id}\nevent: notification\ndata: {data}\n\n"
@@ -132,3 +132,8 @@ async def event_stream(
 def _public_hire_id(session: Session, notification: Notification) -> str | None:
     hire = session.get(Hire, notification.hire_id) if notification.hire_id is not None else None
     return hire.public_id if hire else None
+
+
+def _public_task_id(session: Session, notification: Notification) -> str | None:
+    task = session.get(Task, notification.task_id) if notification.task_id is not None else None
+    return task.public_id if task else None

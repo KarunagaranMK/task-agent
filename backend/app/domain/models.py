@@ -67,6 +67,7 @@ class Hire(SQLModel, table=True):
 class Task(SQLModel, table=True):
     __tablename__ = "tasks"
     id: Optional[int] = Field(default=None, primary_key=True)
+    public_id: str = Field(default_factory=lambda: str(uuid4()), unique=True, index=True)
     hire_id: int = Field(foreign_key="hires.id")
     key: str  # unique per hire: "it:laptop"
     title: str

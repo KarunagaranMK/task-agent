@@ -257,3 +257,9 @@
 - **Decision:** Keep the integer primary key for relational joins and internal orchestration, and add a persisted UUIDv4 as the public hire identifier. Use it consistently in hire routes, responses, generated frontend types, and notification links.
 - **Why:** A public UUID avoids exposing sequential database keys and satisfies the hire API's UUID convention without rewriting the mature internal foreign-key graph in one migration. Existing rows receive IDs before the column becomes required.
 - **Alternative considered:** Convert every foreign key and all related entities to UUIDs at once. That would create a broad, high-risk schema rewrite; remaining integer IDs are tracked as an explicit API gap to address in later increments.
+
+## 2026-11-25 — Use stable UUIDs for public task resources
+
+- **Decision:** Add persisted UUIDv4 public identifiers for tasks, expose them from task responses and approval routes, and use them in API task references. Preserve integer keys for database joins, outbox idempotency, and internal orchestration.
+- **Why:** Approval actions and task links are externally addressable API resources and should not reveal sequential database keys. Keeping internal keys avoids unnecessary foreign-key and retry-key rewrites.
+- **Alternative considered:** Convert all task references in the database and MCP contracts to UUIDs. The service layer is already based on relational keys; an API-boundary UUID preserves its established transactions while remaining interoperable with external consumers.

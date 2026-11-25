@@ -61,7 +61,7 @@ class RiskExplanation(BaseModel):
 
 
 class TaskOut(BaseModel):
-    id: int
+    id: UUID
     key: str
     title: str
     team: str
@@ -297,7 +297,7 @@ def get_hire_tasks(hire_id: UUID, session: Session = Depends(get_session), user=
     schedule_by_key = {task.key: task for task in schedule}
     return [
         TaskOut(
-            id=t.id,
+            id=UUID(t.public_id),
             key=t.key,
             title=t.title,
             team=t.team,

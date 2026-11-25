@@ -352,9 +352,13 @@ def test_approve_task(client):
     approval_tasks = [t for t in tasks if t["needs_approval"]]
     if approval_tasks:
         t = approval_tasks[0]
+        from uuid import UUID
+        UUID(t["id"])
+        assert client.post("/tasks/1/approve").status_code == 422
         r2 = client.post(f"/tasks/{t['id']}/approve")
         assert r2.status_code == 200
         assert r2.json()["status"] == "approved"
+        assert r2.json()["task_id"] == t["id"]
 
 
 def test_notifications(client):

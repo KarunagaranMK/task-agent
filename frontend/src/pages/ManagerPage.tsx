@@ -4,7 +4,7 @@ import { AlertCircle, Bell, Check, CheckCheck, Clock3, RotateCcw, ShieldCheck, X
 import { approveTask, getHires, getHireTasks, getNotifications, markAllNotificationsRead, markNotificationRead, rejectTask, undoApproval, type Hire, type Notification, type Task } from '../api/client'
 
 type ApprovalTask = Task & { hire_name: string }
-type UndoInfo = { taskId: number; taskTitle: string; expires: number }
+type UndoInfo = { taskId: string; taskTitle: string; expires: number }
 
 export default function ManagerPage() {
   const client = useQueryClient()
@@ -39,7 +39,7 @@ export default function ManagerPage() {
   }, [undoInfo])
 
   const actionMutation = useMutation({
-    mutationFn: ({ taskId, action }: { taskId: number; action: 'approve' | 'reject' }) => action === 'approve' ? approveTask(taskId) : rejectTask(taskId),
+    mutationFn: ({ taskId, action }: { taskId: string; action: 'approve' | 'reject' }) => action === 'approve' ? approveTask(taskId) : rejectTask(taskId),
     onSuccess: (_result, variables) => {
       const task = pendingTasks.find(item => item.id === variables.taskId)
       setUndoInfo({ taskId: variables.taskId, taskTitle: task?.title ?? 'Approval', expires: Date.now() + 5000 })

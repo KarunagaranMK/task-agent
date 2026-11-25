@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from datetime import datetime
+from uuid import UUID
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 from app.db.database import get_session
@@ -14,6 +15,10 @@ router = APIRouter(tags=["tasks"])
 
 class TicketCommentRequest(BaseModel):
     body: str = Field(min_length=1, max_length=1000)
+
+
+def _task_by_public_id(public_id: UUID, session: Session) -> Task | None:
+    return session.exec(select(Task).where(Task.public_id == str(public_id))).first()
 
 
 def _get_team_ticket(session: Session, ticket_id: str, user) -> Ticket:
@@ -51,8 +56,8 @@ def _sync_ticket_status(ticket: Ticket, status: str, session: Session, user) -> 
 
 
 @router.post("/tasks/{task_id}/approve")
-def approve_task(task_id: int, session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "MANAGER"))):
-    task = session.get(Task, task_id)
+def approve_task(task_id: UUID, session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "MANAGER"))):
+    task = _task_by_public_id(task_id, session)
     if not task:
         raise HTTPException(404, "Task not found")
     hire = session.get(Hire, task.hire_id)
@@ -64,12 +69,12 @@ def approve_task(task_id: int, session: Session = Depends(get_session), _user=De
     session.add(task)
     audit(session, task.hire_id, f"Manager approved '{task.title}'", "info", f"user:{_user.id}")
     session.commit()
-    return {"status": "approved", "task_id": task_id}
+    return {"status": "approved", "task_id": task.public_id}
 
 
 @router.post("/tasks/{task_id}/reject")
-def reject_task(task_id: int, session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "MANAGER"))):
-    task = session.get(Task, task_id)
+def reject_task(task_id: UUID, session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "MANAGER"))):
+    task = _task_by_public_id(task_id, session)
     if not task:
         raise HTTPException(404, "Task not found")
     hire = session.get(Hire, task.hire_id)
@@ -81,12 +86,12 @@ def reject_task(task_id: int, session: Session = Depends(get_session), _user=Dep
     session.add(task)
     audit(session, task.hire_id, f"Manager rejected '{task.title}'", "warning", f"user:{_user.id}")
     session.commit()
-    return {"status": "rejected", "task_id": task_id}
+    return {"status": "rejected", "task_id": task.public_id}
 
 
 @router.post("/tasks/{task_id}/undo-approval")
-def undo_approval(task_id: int, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "MANAGER"))):
-    task = session.get(Task, task_id)
+def undo_approval(task_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "MANAGER"))):
+    task = _task_by_public_id(task_id, session)
     if not task:
         raise HTTPException(404, "Task not found")
     hire = session.get(Hire, task.hire_id)
@@ -100,7 +105,7 @@ def undo_approval(task_id: int, session: Session = Depends(get_session), user=De
     session.add(task)
     audit(session, task.hire_id, f"Approval for '{task.title}' was undone", "info", f"user:{user.id}")
     session.commit()
-    return {"status": "awaiting_approval", "task_id": task_id}
+    return {"status": "awaiting_approval", "task_id": task.public_id}
 
 
 @router.get("/tickets")
@@ -117,7 +122,7 @@ def list_tickets(session: Session = Depends(get_session), user=Depends(require_r
             "team": t.team,
             "status": t.status,
             "hire_id": (hire.public_id if (hire := session.get(Hire, t.hire_id)) else None),
-            "task_id": t.task_id,
+            "task_id": (task.public_id if t.task_id is not None and (task := session.get(Task, t.task_id)) else None),
             "estimate_days": t.estimate_days,
             "created_at": t.created_at.isoformat(),
         }

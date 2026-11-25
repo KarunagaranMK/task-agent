@@ -1,7 +1,7 @@
 from sqlmodel import select
 
 from app.auth import get_current_user
-from app.domain.models import Hire, Notification, User
+from app.domain.models import Hire, Notification, Task, User
 
 
 def _admin(session):
@@ -55,12 +55,18 @@ def test_notification_hire_links_use_public_uuid(client, session):
     session.add(hire)
     session.commit()
     session.refresh(hire)
+    task = Task(hire_id=hire.id, key="it:linked", title="Linked task", team="IT", duration_days=2)
+    session.add(task)
+    session.commit()
+    session.refresh(task)
     ticket = client.post("/events/ticket").json()["ticket"]
-    session.add(Notification(for_role="HR", message="Hire update", hire_id=hire.id))
+    session.add(Notification(for_role="HR", message="Hire update", hire_id=hire.id, task_id=task.id))
     session.commit()
 
     notification = next(item for item in client.get("/notifications").json() if item["message"] == "Hire update")
     assert notification["hire_id"] == hire.public_id
+    assert notification["task_id"] == task.public_id
 
     event = client.get("/events/stream", params={"ticket": ticket, "max_events": 10}).text
     assert f'"hire_id":"{hire.public_id}"' in event
+    assert f'"task_id":"{task.public_id}"' in event

@@ -16,7 +16,7 @@ export interface components {
     "PreferenceUpdate": { "in_app"?: boolean; "email"?: boolean; }
     "ProfileUpdate": { "name": string; }
     "SettingsUpdate": { "stall_after_days": number; "near_critical_margin": number; "monitor_interval_minutes": number; "auto_worker_enabled"?: boolean; "timezone"?: string; "holidays"?: Array<string>; }
-    "TaskOut": { "id": number; "key": string; "title": string; "team": string; "duration_days": number; "depends_on": Array<string>; "needs_approval": boolean; "approval_state": string; "status": string; "ticket_id": (string) | (null); "slack": (number) | (null); "critical": boolean; "flag": string; "dispatched_day"?: (number) | (null); "remaining_days": number; "schedule_start_day"?: (number) | (null); "schedule_finish_day"?: (number) | (null); "current_day": number; }
+    "TaskOut": { "id": string; "key": string; "title": string; "team": string; "duration_days": number; "depends_on": Array<string>; "needs_approval": boolean; "approval_state": string; "status": string; "ticket_id": (string) | (null); "slack": (number) | (null); "critical": boolean; "flag": string; "dispatched_day"?: (number) | (null); "remaining_days": number; "schedule_start_day"?: (number) | (null); "schedule_finish_day"?: (number) | (null); "current_day": number; }
     "TemplateSave": { "role_key": string; "tasks": Array<{ [key: string]: unknown; }>; }
     "TicketCommentRequest": { "body": string; }
     "TokenPasswordRequest": { "token": string; "password": string; }
@@ -628,7 +628,7 @@ export interface paths {
     post: {
       operationId: "approve_task_tasks__task_id__approve_post"
       parameters: {
-        path: { "task_id": number }
+        path: { "task_id": string }
       }
       responses: {
         "200": {
@@ -644,7 +644,7 @@ export interface paths {
     post: {
       operationId: "reject_task_tasks__task_id__reject_post"
       parameters: {
-        path: { "task_id": number }
+        path: { "task_id": string }
       }
       responses: {
         "200": {
@@ -660,7 +660,7 @@ export interface paths {
     post: {
       operationId: "undo_approval_tasks__task_id__undo_approval_post"
       parameters: {
-        path: { "task_id": number }
+        path: { "task_id": string }
       }
       responses: {
         "200": {
@@ -784,7 +784,7 @@ export interface paths {
     post: {
       operationId: "approve_task_api_tasks__task_id__approve_post"
       parameters: {
-        path: { "task_id": number }
+        path: { "task_id": string }
       }
       responses: {
         "200": {
@@ -800,7 +800,7 @@ export interface paths {
     post: {
       operationId: "reject_task_api_tasks__task_id__reject_post"
       parameters: {
-        path: { "task_id": number }
+        path: { "task_id": string }
       }
       responses: {
         "200": {
@@ -816,7 +816,7 @@ export interface paths {
     post: {
       operationId: "undo_approval_api_tasks__task_id__undo_approval_post"
       parameters: {
-        path: { "task_id": number }
+        path: { "task_id": string }
       }
       responses: {
         "200": {
@@ -940,7 +940,7 @@ export interface paths {
     post: {
       operationId: "approve_task_api_v1_tasks__task_id__approve_post"
       parameters: {
-        path: { "task_id": number }
+        path: { "task_id": string }
       }
       responses: {
         "200": {
@@ -956,7 +956,7 @@ export interface paths {
     post: {
       operationId: "reject_task_api_v1_tasks__task_id__reject_post"
       parameters: {
-        path: { "task_id": number }
+        path: { "task_id": string }
       }
       responses: {
         "200": {
@@ -972,7 +972,7 @@ export interface paths {
     post: {
       operationId: "undo_approval_api_v1_tasks__task_id__undo_approval_post"
       parameters: {
-        path: { "task_id": number }
+        path: { "task_id": string }
       }
       responses: {
         "200": {

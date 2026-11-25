@@ -233,7 +233,7 @@ def test_approval_role_matrix(client, role, expected):
     client.app.dependency_overrides[get_current_user] = lambda: User(
         id=1, email="role@example.local", name="Role Test", role=role, team="IT", password_hash="unused"
     )
-    assert client.post("/tasks/999/approve").status_code == expected
+    assert client.post("/tasks/00000000-0000-4000-8000-000000000000/approve").status_code == expected
 
 
 def test_manager_sees_only_assigned_hires(client, session):

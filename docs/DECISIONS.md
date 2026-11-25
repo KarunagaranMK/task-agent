@@ -233,3 +233,9 @@
 - **Decision:** Keep the deterministic SVG template canvas and add draggable source/target ports for creating prerequisite edges. Retain click-to-connect and keyboard selection alongside dragging; keep edge-click removal and task inspector controls.
 - **Why:** Dragging directly communicates dependency direction and makes edits faster to discover, while the existing alternatives preserve keyboard access and precise checkbox editing. No graph package is needed for the current template size.
 - **Alternative considered:** Replace the current layout with a graph library. The existing SVG layout already supports small DAGs and avoids a new dependency; the current template sizes do not yet justify graph-library overhead.
+
+## 2026-11-25 — Keep a reproducible local API load baseline
+
+- **Decision:** Provide a small authenticated read-only profile for the hire portfolio and metrics endpoints using the existing HTTPX dependency. Report throughput, status counts, and latency percentiles; keep request and concurrency bounds explicit.
+- **Why:** A repeatable baseline makes latency and failure regressions visible during local development without adding a hosted service or another dependency. Demo auth lets the profile exercise normal API authorization.
+- **Alternative considered:** Add a production load-testing service or impose an absolute latency gate from one developer machine. Hosted infrastructure is outside the local-first scope, and a machine-specific threshold would be misleading; use the baseline as a measurement, not an SLO.

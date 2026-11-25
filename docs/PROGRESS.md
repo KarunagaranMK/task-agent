@@ -359,7 +359,7 @@ This file records verified state against the phases in the product brief. A gate
 - Template dependencies support draggable edge handles, click-to-connect, keyboard task selection, and prerequisite controls; templates remain below the 40-task API limit.
 - Role changes are allowed only before work starts: all tasks must remain pending with no tickets or approvals. After any work begins, the role stays locked; name, department, manager and joining date remain audited edits.
 - Other unauthenticated endpoints remain without rate limits; login and recovery limits are in-memory per process. API UUID IDs and request-wide transaction semantics also remain open hardening work.
-- Core backend coverage is **90.6%** across CPM, planner, clock, and experiment modules. Dedicated Vitest component tests and production performance/load profiling have not been added; the GNU Make target mirror has not been independently exercised because GNU Make is unavailable on this Windows machine.
+- Core backend coverage is **90.6%** across CPM, planner, clock, and experiment modules. A repeatable local authenticated API load profile now exists; production infrastructure/SLO profiling and dedicated Vitest component tests have not been added. The GNU Make target mirror has not been independently exercised because GNU Make is unavailable on this Windows machine.
 - The app uses local/mock ITSM and HRIS, local development mail, and an in-process deterministic layout/orchestrator; no LangGraph adapter or production vendor integration is claimed.
 
 ### Gate
@@ -413,3 +413,9 @@ This file records verified state against the phases in the product brief. A gate
 - Ran the Makefile's exact core coverage command directly under the project virtual environment. All **135 backend tests passed**, and CPM, planner, clock, and experiment report **90.6% combined coverage** (minimum required: 80%).
 - The remaining Phase 9 gaps are the dedicated frontend component-test suite and performance/load profiling. GNU Make is not installed here, so `make verify` itself remains unverified; its component commands (backend tests, core coverage, Ruff lint/build, and Playwright E2E) have been run separately across this and the preceding increments.
 - **Gate: coverage threshold passed.** The overall P9 gate remains open until the remaining quality work is completed and the aggregate target is exercised in a GNU Make environment.
+
+### Local API load profile — 2026-11-25
+
+- Added `scripts/profile_api.py`, an authenticated concurrent read-only profile for the hire portfolio and metrics endpoints, with bounded workload options and JSON throughput/status/p50/p95/max latency output. README documents the command and clearly scopes results to the local machine.
+- Ran 100 requests at concurrency 10 against the actual local app on Windows 10 / Python 3.11.4: **0 failures**, **64.79 requests/second** overall; hire portfolio p95 **309.85 ms**, metrics p95 **308.84 ms**. These are a local baseline, not production SLO evidence.
+- **Gate: local profile verified.** Production-scale load testing and the frontend component-test suite remain open.

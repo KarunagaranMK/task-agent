@@ -31,6 +31,12 @@ make verify                    # backend tests, frontend build, browser E2E + ax
 npm --prefix frontend run qa:shots  # responsive screenshot matrix
 ```
 
+For a repeatable local API baseline, start the app with `python run.py --no-browser`, then run
+`python scripts/profile_api.py --requests 100 --concurrency 10` in another terminal. The profile logs in as the seeded
+HR account and sends authenticated, read-only requests to the hire portfolio and metrics endpoints. Override
+`ONBOARDIQ_PROFILE_EMAIL` and `ONBOARDIQ_PROFILE_PASSWORD` to use another HR account. The JSON report includes
+throughput, status counts, and p50/p95/max latency; results describe the local machine and are not production SLOs.
+
 In demo mode, use the account chips on `/login`. All six seeded accounts share `OnboardIQ-Demo!`: Admin, HR, Manager, IT, Facilities, and New hire. Role permissions are enforced by the API. Seeded people and ITSM/HRIS data are local demo records backed by deterministic MCP mock systems.
 
 | Issue | What to check |

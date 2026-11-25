@@ -293,3 +293,9 @@
 - **Decision:** Give audit entries, published templates, experiment history, and development outbox messages persisted UUID identifiers; return those IDs and UUID references from public API responses. Keep code-defined template fallbacks without IDs because they are not persisted resources.
 - **Why:** These records appear in the UI and API just like primary resources; sequential database keys are not useful public contracts. UUID foreign references also keep hire and actor links consistent with other API records.
 - **Alternative considered:** Expose internal integer IDs for read-only or admin-only resources. They still cross the API boundary and would make identifier behavior inconsistent across the product.
+
+## 2026-11-25 — Commit local writes once per successful request
+
+- **Decision:** Defer API session commits to the request dependency. Route-level `commit()` remains a flush for in-request reads; successful completion commits once, while exceptions roll the transaction back. SSE ticket consumption has an explicit immediate commit before streaming begins.
+- **Why:** Several routes perform multiple related writes and may fail after an earlier flush. A request-level unit of work keeps those local records atomic and preserves the single-use guarantee for streaming tickets.
+- **Alternative considered:** Keep route-level commits and add compensating deletes to each endpoint. That duplicates rollback logic and is easy to miss when future routes add related writes. External MCP operations cannot share a local SQLite transaction and continue to use idempotency/outbox recovery.

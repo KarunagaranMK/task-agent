@@ -22,9 +22,33 @@ def create_db():
     SQLModel.metadata.create_all(engine)
 
 
+class RequestSession(Session):
+    """Keep API writes in one transaction until the request finishes successfully."""
+
+    def commit(self) -> None:
+        if self.info.get("defer_commit"):
+            self.flush()
+            return
+        super().commit()
+
+
 def get_session():
-    with Session(engine) as session:
+    session = RequestSession(engine, info={"defer_commit": True})
+    try:
         yield session
+        session.info["defer_commit"] = False
+        session.commit()
+    except BaseException:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def commit_now(session: Session) -> None:
+    """Commit an operation before returning a long-lived streaming response."""
+    session.info["defer_commit"] = False
+    session.commit()
 
 
 @contextmanager

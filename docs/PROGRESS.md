@@ -358,7 +358,7 @@ This file records verified state against the phases in the product brief. A gate
 - CPM and monitor internals still use a simulation-relative integer day index; real dates are persisted and mapped to that index at the API boundary.
 - Template dependencies support draggable edge handles, click-to-connect, keyboard task selection, and prerequisite controls; templates remain below the 40-task API limit.
 - Role changes are allowed only before work starts: all tasks must remain pending with no tickets or approvals. After any work begins, the role stays locked; name, department, manager and joining date remain audited edits.
-- Other unauthenticated endpoints remain without rate limits; login and recovery limits are in-memory per process. Public UUID identifiers now cover all persisted resource IDs returned by the product APIs, including hires, tasks, notifications, users, tickets, comments, audit entries, templates, experiments, and development mail. Code-defined template fallbacks intentionally have no persisted ID; request-wide transaction semantics remain open hardening work.
+- Other unauthenticated endpoints remain without rate limits; login and recovery limits are in-memory per process. Public UUID identifiers now cover all persisted resource IDs returned by the product APIs, including hires, tasks, notifications, users, tickets, comments, audit entries, templates, experiments, and development mail. Code-defined template fallbacks intentionally have no persisted ID. Cross-service MCP effects still rely on idempotency/outbox recovery rather than a distributed transaction.
 - Core backend coverage is **90.6%** across CPM, planner, clock, and experiment modules. A repeatable local authenticated API load profile now exists; production infrastructure/SLO profiling and dedicated Vitest component tests have not been added. The GNU Make target mirror has not been independently exercised because GNU Make is unavailable on this Windows machine.
 - The app uses local/mock ITSM and HRIS, local development mail, and an in-process deterministic layout/orchestrator; no LangGraph adapter or production vendor integration is claimed.
 
@@ -481,3 +481,10 @@ This file records verified state against the phases in the product brief. A gate
 - Audit responses now use UUID IDs and UUID hire/user references, including the hire-specific audit endpoint. Frontend record contracts now consistently type public resource IDs as strings.
 - Verification: `python run.py --test` passed **136 backend tests** and the strict TypeScript/Vite production build; Ruff passed across app, tests, and migrations; Playwright passed **11/11** including the admin audit/template screens and new-hire issue flow.
 - **Gate: passed for public IDs across persisted API resources.** Request-wide transaction semantics and production integrations remain open.
+
+### Request-scoped database unit of work — 2026-11-25
+
+- `get_session` now yields a request-scoped session: legacy route `commit()` calls flush inside the request, successful requests commit once, and exceptions roll back all local database writes from that request.
+- Added an explicit immediate-commit path for SSE ticket consumption so its single-use token is committed before a long-lived stream opens. MCP calls remain external side effects protected by existing idempotency and outbox recovery, not by a distributed transaction.
+- Verification: transaction-specific tests passed **3/3** for rollback, successful final commit, and immediate stream commit. `python run.py --test` passed **139 backend tests** and the strict TypeScript/Vite production build; Ruff passed; Playwright passed **11/11**, including the Priya recovery path and live event connection.
+- **Gate: passed for local request transaction boundaries.** Production integrations and external side-effect recovery remain governed by the documented idempotency behavior.

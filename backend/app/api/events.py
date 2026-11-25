@@ -14,7 +14,7 @@ from sqlalchemy import func, update
 from sqlmodel import Session, select
 
 from app.auth import get_current_user, in_app_notifications_enabled
-from app.db.database import get_session
+from app.db.database import commit_now, get_session
 from app.domain.models import Hire, Notification, StreamTicket, Task, User
 
 router = APIRouter(prefix="/events", tags=["events"])
@@ -84,9 +84,11 @@ async def event_stream(
         raise HTTPException(status_code=401, detail="Stream ticket is invalid or expired")
     user = session.get(User, token.user_id)
     if user is None or not user.is_active:
-        session.commit()
+        commit_now(session)
         raise HTTPException(status_code=401, detail="Stream ticket is invalid or expired")
-    session.commit()
+    # Consume the single-use token before the stream opens; otherwise the request
+    # transaction would remain pending until the client disconnects.
+    commit_now(session)
     cursor = token.last_event_id
 
     async def stream() -> AsyncIterator[str]:

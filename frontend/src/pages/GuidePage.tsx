@@ -5,7 +5,7 @@ import { ArrowDown, ArrowRight, Check, CircleHelp, Clock3, Database, GitBranch, 
 const sections = [
   { id: 'journey', label: 'How it works' },
   { id: 'technology', label: 'Technology' },
-  { id: 'ai', label: 'AI and models' },
+  { id: 'ai', label: 'Automation and models' },
   { id: 'try', label: 'Try the demo' },
 ] as const
 
@@ -24,14 +24,14 @@ export default function GuidePage({ embedded = false }: { embedded?: boolean }) 
 
   return <main className={`guide-page ${embedded ? 'guide-embedded' : ''}`}>
     <header className="guide-header">
-      <div className="guide-brand"><span><Workflow size={19} /></span><strong>Onboard<span>Flow AI</span></strong><small>PROJECT GUIDE</small></div>
+      <div className="guide-brand"><span><Workflow size={19} /></span><strong>OnboardFlow</strong><small>PROJECT GUIDE</small></div>
       <Link to="/login" className="guide-signin">Open the demo <ArrowRight size={15} /></Link>
     </header>
     <section className="guide-hero">
       <div className="guide-hero-copy">
         <span className="guide-eyebrow"><CircleHelp size={14} /> START HERE</span>
         <h1>One clear view of<br /><em>everyone’s first day.</em></h1>
-        <p>OnboardFlow AI coordinates onboarding tasks between HR, IT, and Facilities before a new employee starts.</p>
+        <p>OnboardFlow coordinates onboarding tasks between HR, IT, and Facilities before a new employee starts.</p>
         <div className="guide-hero-actions"><Link to="/login" className="guide-primary">Explore the demo <ArrowRight size={16} /></Link><span><Clock3 size={14} /> 3 minute walkthrough</span></div>
       </div>
       <div className="guide-flow-card" aria-label="Onboarding process overview">
@@ -54,8 +54,8 @@ export default function GuidePage({ embedded = false }: { embedded?: boolean }) 
           <div className="guide-rules"><div><GitBranch size={16} /><strong>Planner + CPM</strong><span>Builds task dependencies and estimates Day 1 readiness.</span></div><div><Clock3 size={16} /><strong>Monitor</strong><span>Checks for delays and invokes approved recovery rules.</span></div><div><ShieldCheck size={16} /><strong>Governance</strong><span>Role permissions, approvals, and audit history.</span></div><div><Zap size={16} /><strong>Reliability</strong><span>Idempotent dispatch and an outbox for retryable work.</span></div></div>
         </>}
         {active === 'ai' && <>
-          <div className="guide-section-title"><span className="guide-eyebrow">MODEL AND AUTOMATION</span><h2>AI suggests. People decide. Rules track.</h2><p>The optional model is Google Gemini 2.5 Flash. The project still works with deterministic fallbacks if the model is unavailable.</p></div>
-          <div className="guide-model-grid"><article className="guide-model-card optional"><span className="guide-model-tag"><Sparkles size={13} /> OPTIONAL AI</span><h3>Gemini 2.5 Flash</h3><p>Can suggest role-specific tasks, explain risk, draft notifications, and propose an alternative task when HR requests one. Suggestions are validated and remain pending until HR approves.</p><div className="guide-model-config"><code>GEMINI_MODEL=gemini-2.5-flash</code><span>Configure a key with GEMINI_API_KEY</span></div></article><article className="guide-model-card deterministic"><span className="guide-model-tag"><ShieldCheck size={13} /> DETERMINISTIC</span><h3>Application rules</h3><p>Scheduling, critical-path math, access permissions, HR review, dispatch, retries, stall detection, and readiness tracking run in regular code.</p><div className="guide-model-config"><Check size={14} /><span>Works without an AI provider or API key</span></div></article></div>
+          <div className="guide-section-title"><span className="guide-eyebrow">AUTOMATION AND MODELS</span><h2>Automated suggestions. Human decisions.</h2><p>Google Gemini 2.5 Flash can prepare recommendations. Scheduling, permissions, approvals, and readiness remain controlled by application rules.</p></div>
+          <div className="guide-model-grid"><article className="guide-model-card optional"><span className="guide-model-tag"><Sparkles size={13} /> OPTIONAL MODEL</span><h3>Gemini 2.5 Flash</h3><p>Can suggest role-specific tasks, explain risk, draft notifications, and propose practical alternatives. Recommendations are validated and clearly marked; HR makes the approval decision.</p><div className="guide-model-config"><code>GEMINI_MODEL=gemini-2.5-flash</code><span>Set GEMINI_API_KEY to enable model recommendations</span></div></article><article className="guide-model-card deterministic"><span className="guide-model-tag"><ShieldCheck size={13} /> APPLICATION RULES</span><h3>Workflow controls</h3><p>Scheduling, critical-path calculations, access permissions, approvals, dispatch, retries, stall detection, and readiness tracking run in application code.</p><div className="guide-model-config"><Check size={14} /><span>Core workflows work without an external model</span></div></article></div>
           <div className="guide-honesty"><strong>Demo boundaries</strong><span>ITSM and HRIS are mock services, email stays in a local outbox, and readiness experiment results are illustrative simulations.</span></div>
         </>}
         {active === 'try' && <>
@@ -66,6 +66,6 @@ export default function GuidePage({ embedded = false }: { embedded?: boolean }) 
       </div>
       <div className="guide-progress" aria-label={`Section ${activeSection + 1} of ${sections.length}`}><span style={{ width: `${((activeSection + 1) / sections.length) * 100}%` }} /></div>
     </section>
-    <footer className="guide-footer"><span>OnboardFlow AI <i>·</i> Project guide</span><span>Built to make the work between teams visible.</span></footer>
+    <footer className="guide-footer"><span>OnboardFlow <i>·</i> Project guide</span><span>Employee onboarding across teams.</span></footer>
   </main>
 }

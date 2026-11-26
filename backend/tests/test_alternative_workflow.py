@@ -17,6 +17,14 @@ def test_admin_is_read_only_for_hr_decisions():
     assert exc.value.status_code == 403
 
 
+def test_admin_can_read_hire_overview_without_hr_write_access():
+    admin = User(email="admin@example.local", name="Admin", role="ADMIN", password_hash="unused")
+    assert require_roles("ADMIN", "HR")(user=admin) is admin
+    with pytest.raises(HTTPException) as exc:
+        require_roles("HR")(user=admin)
+    assert exc.value.status_code == 403
+
+
 @pytest.mark.parametrize(
     ("department", "fallback"),
     [

@@ -2,9 +2,9 @@ import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNaviga
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { createContext, lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Activity, ArrowUpRight, Bell, BookOpen, Bot, Check, ChevronDown, Command, Compass, LogOut, PlugZap,
+  Activity, ArrowUpRight, Bell, BookOpen, Check, ChevronDown, Command, Compass, LogOut, PlugZap,
   Gauge, HelpCircle, LayoutDashboard, Menu, Moon, PanelLeftClose, Search,
-  Sparkles, Sun, Workflow, X,
+  Sun, Workflow, X,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { clearAccessToken, getHires, getMe, getNotifications, logout, markAllNotificationsRead, markNotificationRead, refreshAccessToken, type AuthUser, type Hire, type Notification } from './api/client'
@@ -38,7 +38,7 @@ const navigation: Array<{ label: string; to: string; icon: LucideIcon; group: st
   { label: 'IT tasks', to: '/it', icon: Workflow, group: 'Operations', roles: ['IT_STAFF'] },
   { label: 'Facilities tasks', to: '/facilities', icon: Workflow, group: 'Operations', roles: ['IT_STAFF'] },
   { label: 'Insights', to: '/insights', icon: Activity, group: 'Operations', roles: ['HR'] },
-  { label: 'Agent center', to: '/agents', icon: Bot, group: 'Operations', roles: ['HR'] },
+  { label: 'Automation activity', to: '/agents', icon: Activity, group: 'Operations', roles: ['HR'] },
   { label: 'Integrations', to: '/integrations', icon: PlugZap, group: 'Operations', roles: ['HR'] },
   { label: 'Profile & preferences', to: '/profile', icon: Gauge, group: 'Workspace', roles: ['ADMIN', 'HR', 'IT_STAFF'] },
   { label: 'Project guide', to: '/guide', icon: BookOpen, group: 'Help', roles: ['ADMIN', 'HR', 'IT_STAFF'] },
@@ -52,7 +52,7 @@ const routes: Array<{ label: string; to: string; description: string; roles: str
   { label: 'IT tasks', to: '/it', description: 'Complete IT work and submit alternative requests', roles: ['IT_STAFF'] },
   { label: 'Facilities tasks', to: '/facilities', description: 'Complete Facilities work and submit alternative requests', roles: ['IT_STAFF'] },
   { label: 'Insights and experiment', to: '/insights', description: 'Readiness metrics and policy comparison', roles: ['HR'] },
-  { label: 'Agent control center', to: '/agents', description: 'See LangGraph workflows and persisted agent activity', roles: ['HR'] },
+  { label: 'Automation activity', to: '/agents', description: 'Review automated workflow runs and recent activity', roles: ['HR'] },
   { label: 'Integration health', to: '/integrations', description: 'Check MCP services, model setup, scheduler, and retries', roles: ['HR'] },
   { label: 'Profile and preferences', to: '/profile', description: 'Update your account and notification settings', roles: ['ADMIN', 'HR', 'IT_STAFF'] },
   { label: 'Project guide', to: '/guide', description: 'Understand the workflow, technology, and demo', roles: ['ADMIN', 'HR', 'IT_STAFF'] },
@@ -125,7 +125,7 @@ function AppFrame() {
   }, [])
 
   const visibleRoutes = routes.filter(item => item.roles.includes(role))
-  const current = location.pathname.startsWith('/hire/') ? 'Hire overview' : (visibleRoutes.find(item => item.to === location.pathname)?.label ?? 'OnboardFlow AI')
+  const current = location.pathname.startsWith('/hire/') ? 'Hire overview' : (visibleRoutes.find(item => item.to === location.pathname)?.label ?? 'OnboardFlow')
   const hireResults = useMemo(() => hires.filter(h => `${h.name} ${h.role} ${h.department}`.toLowerCase().includes(query.toLowerCase())), [hires, query])
 
   const go = (path: string) => { navigate(path); setPaletteOpen(false); setMobileOpen(false); setQuery('') }
@@ -136,7 +136,7 @@ function AppFrame() {
       <aside className={sidebarClass} aria-label="Main navigation">
         <div className="brand-lockup">
           <div className="brand-mark"><Workflow size={19} strokeWidth={1.8} /></div>
-          {!collapsed && <div className="brand-copy"><strong>Onboard<span>Flow AI</span></strong><small>WORKFORCE ORCHESTRATION</small></div>}
+          {!collapsed && <div className="brand-copy"><strong>OnboardFlow</strong><small>EMPLOYEE ONBOARDING</small></div>}
           <button className="icon-button sidebar-collapse" onClick={() => setCollapsed(v => !v)} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
             <PanelLeftClose size={17} />
           </button>
@@ -152,11 +152,6 @@ function AppFrame() {
           </NavLink>)}
         </nav>
         <div className="sidebar-spacer" />
-        {!collapsed && <div className="readiness-mini">
-          <div className="mini-top"><span>Workspace health</span><span className="live-dot" />Live</div>
-          <div className="mini-bar"><span style={{ width: '72%' }} /></div>
-          <small>Most new hires are on track</small>
-        </div>}
         <button className="nav-item sidebar-help" onClick={() => { setPaletteOpen(true); setQuery('?') }} title={collapsed ? 'Help & shortcuts' : undefined}>
           <HelpCircle size={18} strokeWidth={1.8} /><span>Help & shortcuts</span>
         </button>
@@ -207,7 +202,7 @@ function AppFrame() {
             <Route path="*" element={<div className="empty-state"><Compass size={30} /><h1>That page is not here yet</h1><p>Choose a workspace page from the navigation.</p><button className="button-primary" onClick={() => go(role === 'IT_STAFF' ? (user.team === 'Facilities' ? '/facilities' : '/it') : '/')}>Back to overview</button></div>} />
           </Routes></Suspense>
         </main>
-        <footer className="app-footer"><span>OnboardFlow AI <span className="footer-separator">·</span> Intelligent onboarding. Connected teams. Day-1 readiness.</span><span><Sparkles size={13} /> AI optional <span className="footer-muted">(template fallback ready)</span></span></footer>
+        <footer className="app-footer"><span>OnboardFlow <span className="footer-separator">·</span> Employee onboarding across HR, IT, and Facilities.</span><span>Workflow status updates automatically</span></footer>
       </div>
 
       {paletteOpen && <div className="palette-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setPaletteOpen(false) }}>

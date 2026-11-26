@@ -196,7 +196,7 @@ def list_hires(
     sort_by: Literal["created_at", "name", "start_date", "readiness", "status"] = "created_at",
     sort_order: Literal["asc", "desc"] = "desc",
     session: Session = Depends(get_session),
-    user=Depends(require_roles("HR")),
+    user=Depends(require_roles("ADMIN", "HR")),
 ):
     filters = []
     if not include_archived:

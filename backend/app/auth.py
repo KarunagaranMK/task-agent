@@ -119,6 +119,16 @@ class LoginOut(BaseModel):
     user: UserOut
 
 
+class DemoStatusOut(BaseModel):
+    enabled: bool
+
+
+@router.get("/demo-status", response_model=DemoStatusOut)
+def demo_status() -> DemoStatusOut:
+    """Let the sign-in page show demo shortcuts only when demo accounts are enabled."""
+    return DemoStatusOut(enabled=settings.DEMO_MODE)
+
+
 class ForgotRequest(BaseModel):
     email: str = Field(min_length=3, max_length=254)
 

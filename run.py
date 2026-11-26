@@ -155,7 +155,7 @@ def main() -> int:
         print("  Health: http://localhost:8000/health")
         print("  Demo:   Priya Sharma · Data Analyst · 8 days")
         if os.environ.get("DEMO_MODE", "true").lower() == "true":
-            print("  Demo login: admin@demo.local, hr@demo.local, manager@demo.local, it@demo.local, facilities@demo.local, newhire@demo.local")
+            print("  Demo login: admin@demo.local, hr@demo.local, it@demo.local, facilities@demo.local")
             print("  Password: OnboardIQ-Demo!")
         if not opts.no_browser:
             import webbrowser

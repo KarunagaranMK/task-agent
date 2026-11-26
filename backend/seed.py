@@ -13,7 +13,7 @@ from sqlmodel import Session
 from app.db.database import create_db, engine
 from app.services.orchestrator import create_hire_with_plan, monitor_tick
 from app.domain.models import User
-from app.auth import hash_password
+from app.auth import hash_password, password_hasher
 from app.config import settings
 from sqlmodel import select
 
@@ -33,9 +33,23 @@ def seed_demo_users(session: Session) -> dict[str, User]:
         user = session.exec(select(User).where(User.email == email)).first()
         if user is None:
             user = User(email=email, name=name, role=role, team=team, password_hash=hash_password(DEMO_PASSWORD))
-            session.add(user)
-            session.commit()
-            session.refresh(user)
+        else:
+            # Keep an existing demo database aligned when demo roles change.
+            user.name = name
+            user.role = role
+            user.team = team
+            user.is_active = True
+            user.failed_logins = 0
+            user.locked_until = None
+            try:
+                password_matches = password_hasher.verify(user.password_hash, DEMO_PASSWORD)
+            except Exception:
+                password_matches = False
+            if not password_matches:
+                user.password_hash = hash_password(DEMO_PASSWORD)
+        session.add(user)
+        session.commit()
+        session.refresh(user)
         result[email] = user
     return result
 

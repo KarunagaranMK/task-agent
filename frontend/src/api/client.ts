@@ -38,6 +38,7 @@ export type HireCreate = components['schemas']['HireCreate']
 export type HireUpdate = components['schemas']['HireUpdate']
 export type Hire = components['schemas']['HireOut']
 export type Task = components['schemas']['TaskOut']
+export const getDemoStatus = () => api.get<{ enabled: boolean }>('/auth/demo-status').then(response => response.data.enabled)
 export async function login(email: string, password: string) {
   const response = await api.post<components['schemas']['LoginOut']>('/auth/login', { email, password })
   accessToken = response.data.access_token

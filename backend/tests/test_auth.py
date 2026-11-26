@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from app.auth import get_current_user, hash_password, _record_login_attempt, _record_public_attempt, _LOGIN_IP_LIMIT, _LOGIN_ACCOUNT_LIMIT
 from app.domain.models import MailOutbox, RefreshToken, SecurityAudit, User
+from seed import seed_demo_users
 
 
 def _user(session, email="person@example.local", role="HR", team=None):
@@ -29,6 +30,25 @@ def test_login_and_me_use_access_token(anonymous_client, session):
     me = anonymous_client.get("/auth/me", headers={"Authorization": f"Bearer {body['access_token']}"})
     assert me.status_code == 200
     assert me.json()["email"] == "person@example.local"
+
+
+def test_demo_seed_repairs_retired_department_roles(session, monkeypatch):
+    stale_it_user = User(
+        email="it@demo.local", name="Old Manager", role="MANAGER", team=None,
+        password_hash="legacy-hash", is_active=False,
+    )
+    session.add(stale_it_user)
+    session.commit()
+    monkeypatch.setattr("seed.hash_password", lambda _password: "demo-hash")
+
+    users = seed_demo_users(session)
+
+    assert users["it@demo.local"].role == "IT_STAFF"
+    assert users["it@demo.local"].team == "IT"
+    assert users["it@demo.local"].is_active is True
+    assert users["it@demo.local"].password_hash == "demo-hash"
+    assert users["facilities@demo.local"].role == "IT_STAFF"
+    assert users["facilities@demo.local"].team == "Facilities"
 
 
 def test_login_has_generic_error(anonymous_client, session):

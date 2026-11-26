@@ -10,14 +10,12 @@ From the project root, start the local demo:
 python run.py
 ```
 
-Open `http://localhost:5173`. On the sign-in page, select a demo role chip; the chip fills its email and password. All demo roles use `OnboardIQ-Demo!`:
+Open `http://localhost:5173`. When the backend has `DEMO_MODE=true`, the sign-in page shows demo role chips; select one to fill its email and password. All demo roles use `OnboardIQ-Demo!`:
 
 - Admin: `admin@demo.local`
 - HR: `hr@demo.local`
-- Manager: `manager@demo.local`
 - IT: `it@demo.local`
 - Facilities: `facilities@demo.local`
-- New hire: `newhire@demo.local`
 
 The HR and new-hire views start with the seeded **Priya Sharma** onboarding plan. Choose **Project guide** from the sign-in screen if you want a short explanation of the architecture before the walkthrough.
 

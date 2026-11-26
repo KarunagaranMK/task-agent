@@ -1,7 +1,7 @@
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, Check, CircleHelp, Eye, EyeOff, Fingerprint, LockKeyhole, Mail, Workflow } from 'lucide-react'
-import { login, type AuthUser } from '../api/client'
+import { getDemoStatus, login, type AuthUser } from '../api/client'
 
 const demoAccounts = [
   { label: 'Admin', email: 'admin@demo.local' },
@@ -17,6 +17,13 @@ export default function LoginPage({ onAuthenticated }: { onAuthenticated: (user:
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [demoEnabled, setDemoEnabled] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    getDemoStatus().then(enabled => { if (active) setDemoEnabled(enabled) }).catch(() => { if (active) setDemoEnabled(false) })
+    return () => { active = false }
+  }, [])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -24,8 +31,12 @@ export default function LoginPage({ onAuthenticated }: { onAuthenticated: (user:
     setLoading(true)
     try {
       onAuthenticated(await login(email, password))
-    } catch {
-      setError('We couldn’t sign you in with those details. Check your email and password, then try again.')
+    } catch (cause) {
+      const failure = cause as { code?: string; response?: { status?: number } }
+      if (failure.code === 'ERR_NETWORK') setError('The sign-in service is unavailable. Start the app with “python run.py” or contact your workspace administrator.')
+      else if (failure.response?.status === 429) setError('Too many sign-in attempts. Wait a few minutes, then try again.')
+      else if (failure.response?.status === 401) setError('Email or password was not accepted. Check your details and try again.')
+      else setError('We couldn’t complete sign-in. Check the service connection and try again.')
     } finally {
       setLoading(false)
     }
@@ -69,11 +80,11 @@ export default function LoginPage({ onAuthenticated }: { onAuthenticated: (user:
             {error && <p className="login-error" role="alert">{error}</p>}
             <button className="login-submit" type="submit" disabled={loading}>{loading ? 'Signing in…' : <>Sign in <ArrowRight size={16} /></>}</button>
           </form>
-          <div className="demo-accounts">
+          {demoEnabled && <div className="demo-accounts">
             <div className="demo-accounts-title"><span>DEMO ACCOUNTS</span><small>Tap to fill credentials</small></div>
             <div className="demo-chip-grid">{demoAccounts.map(account => <button type="button" key={account.email} className={`demo-chip ${email === account.email ? 'selected' : ''}`} onClick={() => choose(account.email)}>{account.label}{email === account.email && <Check size={12} />}</button>)}</div>
             <p className="demo-password-note">Shared demo password: <code>{demoPassword}</code></p>
-          </div>
+          </div>}
           <div className="login-trust"><LockKeyhole size={13} /><span>Session protected with rotating, httpOnly refresh cookies</span></div>
         </div>
         <div className="login-panel-footer"><span>© 2026 OnboardFlow AI</span><span>CAT2-029 <i>·</i> HR workflow demo</span></div>

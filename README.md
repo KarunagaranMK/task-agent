@@ -52,7 +52,7 @@ HR account and sends authenticated, read-only requests to the hire portfolio and
 `ONBOARDIQ_PROFILE_EMAIL` and `ONBOARDIQ_PROFILE_PASSWORD` to use another HR account. The JSON report includes
 throughput, status counts, and p50/p95/max latency; results describe the local machine and are not production SLOs.
 
-In demo mode, use the account chips on `/login`. All six seeded accounts share `OnboardIQ-Demo!`: Admin, HR, Manager, IT, Facilities, and New hire. Role permissions are enforced by the API. Seeded people and ITSM/HRIS data are local demo records backed by deterministic MCP mock systems.
+In local demo mode, the sign-in page offers Admin, HR, IT, and Facilities accounts. They share `OnboardIQ-Demo!`. These shortcuts appear only when the backend has `DEMO_MODE=true`; production installs use workspace accounts created by an administrator. Role permissions are enforced by the API. Seeded people and ITSM/HRIS data are local demo records backed by deterministic MCP mock systems.
 
 | Issue | What to check |
 |-------|---------------|

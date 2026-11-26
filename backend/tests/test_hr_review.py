@@ -1,6 +1,7 @@
 from datetime import date
 
 from app.domain.models import Hire, Task, TaskStatus, Ticket
+from app.api import tasks as tasks_api
 from app.mcp_clients.tools import create_ticket as mcp_create_ticket
 from app.services import llm
 
@@ -21,28 +22,33 @@ def _submitted_work(session):
     return hire, task, external["ticket_id"]
 
 
-def test_department_completion_waits_for_hr_acceptance(client, session):
+def test_department_completion_waits_for_hr_acceptance(client, session, monkeypatch):
+    monkeypatch.setattr(tasks_api, "monitor_tick", lambda _session: True)
     hire, task, ticket_id = _submitted_work(session)
 
-    completed = client.post(f"/tickets/{ticket_id}/complete")
+    completed = client.post(f"/tickets/{ticket_id}/complete", json={"body": "Laptop is configured and verified against the employee's role."})
     assert completed.status_code == 200
     assert completed.json()["status"] == "pending_review"
     reviews = client.get("/tasks/hr-review")
     assert reviews.status_code == 200
     assert reviews.json()[0]["hire_name"] == hire.name
+    assert reviews.json()[0]["verification_notes"][0]["body"] == "Laptop is configured and verified against the employee's role."
     assert session.get(Task, task.id).status == TaskStatus.dispatched
 
     accepted = client.post(f"/tasks/{task.public_id}/review", json={"decision": "accept"})
     assert accepted.status_code == 200, accepted.text
     assert session.get(Task, task.id).status == TaskStatus.done
-    assert client.get("/tasks/hr-review").json() == []
+    accepted_history = client.get("/tasks/hr-review").json()
+    assert len(accepted_history) == 1
+    assert accepted_history[0]["status"] == "done"
 
 
 def test_hr_can_request_and_approve_agent_alternative(client, session, monkeypatch):
+    monkeypatch.setattr(tasks_api, "monitor_tick", lambda _session: True)
     _, task, ticket_id = _submitted_work(session)
     monkeypatch.setattr(llm, "draft_alternative_title", lambda *args: {"title": "Provision a temporary analytics account", "duration_days": 2})
 
-    assert client.post(f"/tickets/{ticket_id}/complete").status_code == 200
+    assert client.post(f"/tickets/{ticket_id}/complete", json={"body": "Access verified with the department owner."}).status_code == 200
     proposed = client.post(f"/tasks/{task.public_id}/review", json={"decision": "alternative"})
     assert proposed.status_code == 200, proposed.text
     assert proposed.json()["suggested_title"] == "Provision a temporary analytics account"

@@ -310,7 +310,7 @@ def handle_stalls(
             session.add(task)
             msg = draft_escalation_message(hire.name, task.title, ct.slack)
             audit(session, hire.id, msg, "critical", "progress_monitor")
-            notify(session, "Manager", msg, hire.id, task.id)
+            notify(session, "HR", msg, hire.id, task.id)
             notify(session, "IT",
                    f"Action needed: '{task.title}' for {hire.name} is stalled.",
                    hire.id, task.id)
@@ -438,25 +438,17 @@ def _monitor_tick_body(session: Session) -> None:
         done_keys = {t.key for t in tasks if t.status == TaskStatus.done}
 
         for task in tasks:
+            # Manager sign-off was removed from the onboarding workflow. Release
+            # persisted legacy holds so they do not strand existing hires.
+            if task.status == TaskStatus.awaiting_approval:
+                task.status = TaskStatus.pending
+                task.needs_approval = False
+                task.approval_state = ApprovalState.none
+                task.approval_requested_at = None
+                task.approval_decided_at = None
+                session.add(task)
             # Skip already-active tasks
             if task.status not in (TaskStatus.pending,):
-                continue
-
-            # Approval gate
-            if task.needs_approval and task.approval_state not in (
-                ApprovalState.approved,
-            ):
-                if task.approval_state == ApprovalState.none:
-                    task.status = TaskStatus.awaiting_approval
-                    task.approval_state = ApprovalState.pending
-                    task.approval_requested_at = task.approval_requested_at or datetime.utcnow()
-                    session.add(task)
-                    notify(session, "Manager",
-                           f"Approval needed: '{task.title}' for {hire.name}",
-                           hire.id, task.id)
-                    audit(session, hire.id,
-                          f"Awaiting manager approval for '{task.title}'",
-                          "info", "approval_gate")
                 continue
 
             # Only dispatch if all deps done

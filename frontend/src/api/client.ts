@@ -91,15 +91,12 @@ export const resumeHire = (id: string) => api.post(`/hires/${id}/resume`).then(r
 export const cancelHire = (id: string) => api.post(`/hires/${id}/cancel`).then(r => r.data)
 export const archiveHire = (id: string) => api.post(`/hires/${id}/archive`).then(r => r.data as { status: string; hire_id: string })
 export const explainRisk = (id: string) => api.get(`/hires/${id}/explain`).then(r => r.data)
-export const approveTask = (id: string) => api.post(`/tasks/${id}/approve`).then(r => r.data)
-export const rejectTask = (id: string) => api.post(`/tasks/${id}/reject`).then(r => r.data)
-export const undoApproval = (id: string) => api.post(`/tasks/${id}/undo-approval`).then(r => r.data)
-export interface HRReview { task_id: string; ticket_id: string; hire_id: string; hire_name: string; task_title: string; team: string; status: 'pending_review' | 'alternative_pending'; suggested_title: string | null; updated_at: string }
+export interface HRReview { task_id: string; ticket_id: string; hire_id: string; hire_name: string; task_title: string; team: string; status: 'pending_review' | 'alternative_pending' | 'done'; suggested_title: string | null; verification_notes: Array<{ author: string; body: string; created_at: string }>; updated_at: string }
 export const getHRReviews = () => api.get<HRReview[]>('/tasks/hr-review').then(r => r.data)
 export const decideHRReview = (taskId: string, decision: 'accept' | 'alternative') => api.post(`/tasks/${taskId}/review`, { decision }).then(r => r.data)
 export const getTickets = () => api.get('/tickets').then(r => r.data)
 export const startTicket = (id: string) => api.post(`/tickets/${id}/start`).then(r => r.data)
-export const completeTicket = (id: string) => api.post(`/tickets/${id}/complete`).then(r => r.data)
+export const completeTicket = (id: string, verificationNote: string) => api.post(`/tickets/${id}/complete`, { body: verificationNote }).then(r => r.data)
 export const blockTicket = (id: string) => api.post(`/tickets/${id}/block`).then(r => r.data)
 export const stallTicket = (id: string) => api.post(`/tickets/${id}/stall`).then(r => r.data)
 export const getTicketComments = (id: string) => api.get(`/tickets/${id}/comments`).then(r => r.data as TicketComment[])
@@ -114,9 +111,6 @@ export const getNotifications = (role?: string) =>
 export const markNotificationRead = (id: string) => api.post(`/notifications/${id}/read`).then(r => r.data)
 export const markAllNotificationsRead = () => api.post('/notifications/read-all').then(r => r.data)
 export const resetAll = () => api.post('/reset').then(r => r.data)
-export const getManagers = () => api.get<AuthUser[]>('/users/managers').then(r => r.data)
-export const getMyOnboarding = () => api.get<MyOnboarding>('/me/onboarding').then(r => r.data)
-export const reportOnboardingIssue = (message: string) => api.post('/me/issues', { message }).then(r => r.data)
 export const runWhatIf = (hireId: string, task_key: string, delay_days: number) => api.post(`/hires/${hireId}/what-if`, { task_key, delay_days }).then(r => r.data as WhatIfResult)
 export const listUsers = () => api.get<AuthUser[]>('/users').then(r => r.data)
 export const inviteUser = (data: { email: string; name: string; role: string; team?: string }) => api.post<AuthUser>('/users/invite', data).then(r => r.data)
@@ -160,11 +154,8 @@ export interface Ticket {
 export interface AuditEvent { id: string; day: number; level: string; message: string; actor: string; created_at: string }
 export interface Notification { id: string; for_role: string; message: string; hire_id: string | null; task_id: string | null; read: boolean; created_at: string }
 export interface TicketComment { id: string; author: string; body: string; created_at: string }
-export interface MyOnboarding {
-  hire: { name: string; role: string; department: string; start_day: number; start_date: string | null; status: string; readiness: number; projected_day: number | null; projected_ready_date: string | null } | null
-  tasks: Array<{ title: string; status: string; eta_day: number | null }>
-}
-export interface TemplateTask { key: string; title: string; team: string; duration_days: number; depends_on: string[]; needs_approval: boolean; fallback_title?: string | null; fallback_days?: number | null }
+
+export interface TemplateTask { key: string; title: string; team: string; duration_days: number; depends_on: string[]; fallback_title?: string | null; fallback_days?: number | null }
 export interface OnboardingTemplate { id: string | null; role_key: string; version: number; tasks: TemplateTask[]; active: boolean; created_at: string | null }
 export interface AuditRecord { id: string; kind: string; actor: string; target: string; detail: string; created_at: string; source: string }
 export interface ExperimentRecord { id: string; parameters: ExperimentParams; result: { static_checklist_readiness_pct: number; orchestrator_readiness_pct: number; improvement_pct: number }; created_at: string }

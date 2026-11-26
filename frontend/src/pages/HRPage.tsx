@@ -9,19 +9,18 @@ import { Archive, ArrowDownUp, ArrowRight, Bookmark, Check, ChevronLeft, Chevron
 import { DataTable, type DataTableColumn } from '../components/DataTable'
 import { StatusPill } from '../components/StatusPill'
 import {
-  archiveHire, createHire, getHirePage, getManagers, getMetrics, pauseHire, planPreview, resumeHire,
-  type Hire, type HireCreate, type HirePageResult,
+  archiveHire, createHire, getHirePage, getHRReviews, getMetrics, pauseHire, planPreview, resumeHire,
+  type Hire, type HireCreate, type HirePageResult, type HRReview,
 } from '../api/client'
 
 const ROLES = ['Data Analyst', 'Software Engineer', 'Product Manager', 'Customer Success Manager', 'default']
 const DEPARTMENTS = ['Analytics', 'Engineering', 'Marketing', 'HR', 'Finance', 'Operations']
-type PlanTask = { key: string; title: string; team: string; duration_days: number; depends_on: string[]; needs_approval: boolean }
+type PlanTask = { key: string; title: string; team: string; duration_days: number; depends_on: string[] }
 const hireFormSchema = z.object({
   name: z.string().trim().min(2, 'Enter at least 2 characters.').max(120, 'Use 120 characters or fewer.'),
   role: z.string().min(1, 'Choose a role.'),
   department: z.string().trim().min(1, 'Choose a department.'),
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Choose a joining date.'),
-  manager_id: z.string(),
   work_email: z.union([z.string().trim().email('Enter a valid work email.'), z.literal('')]),
   work_location: z.string().max(120),
   employment_type: z.string().max(80),
@@ -46,7 +45,7 @@ function addBusinessDays(count: number, from?: string) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 const formatDate = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(`${value}T12:00:00`))
-const initialForm: HireForm = { name: '', role: ROLES[0], department: DEPARTMENTS[0], start_date: addBusinessDays(8), manager_id: '', work_email: '', work_location: '', employment_type: '', required_equipment: '', required_software: '', additional_notes: '' }
+const initialForm: HireForm = { name: '', role: ROLES[0], department: DEPARTMENTS[0], start_date: addBusinessDays(8), work_email: '', work_location: '', employment_type: '', required_equipment: '', required_software: '', additional_notes: '' }
 const statusLabel: Record<string, string> = { on_track: 'On track', at_risk: 'At risk', ready: 'Ready' }
 
 export default function HRPage() {
@@ -77,7 +76,7 @@ export default function HRPage() {
   const isLoading = hiresQuery.isLoading
   const isError = hiresQuery.isError
   const { data: metrics } = useQuery({ queryKey: ['metrics'], queryFn: getMetrics, refetchInterval: 15_000 })
-  const { data: managers = [] } = useQuery({ queryKey: ['managers'], queryFn: getManagers })
+  const { data: departmentReviews = [] } = useQuery<HRReview[]>({ queryKey: ['hr-reviews'], queryFn: getHRReviews, refetchInterval: 15_000 })
   const { register, watch, setValue, getValues, trigger, reset, formState: { errors: fieldErrors } } = useForm<HireForm>({
     resolver: zodResolver(hireFormSchema),
     defaultValues: initialForm,
@@ -133,7 +132,7 @@ export default function HRPage() {
         const safe = String(value ?? '').replace(/^[=+\-@]/, "'$&")
         return `"${safe.replace(/"/g, '""')}"`
       }
-      const lines = [['Name', 'Role', 'Department', 'Manager', 'Joining date', 'Status', 'Readiness'], ...rows.map(hire => [hire.name, hire.role, hire.department, managers.find(manager => manager.id === hire.manager_id)?.name ?? '', hire.start_date ?? `Day ${hire.start_day}`, hire.status, `${hire.readiness}%`])]
+      const lines = [['Name', 'Role', 'Department', 'Joining date', 'Status', 'Readiness'], ...rows.map(hire => [hire.name, hire.role, hire.department, hire.start_date ?? `Day ${hire.start_day}`, hire.status, `${hire.readiness}%`])]
       const blob = new Blob([`\uFEFF${lines.map(line => line.map(cell).join(',')).join('\r\n')}`], { type: 'text/csv;charset=utf-8' })
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -208,7 +207,7 @@ export default function HRPage() {
     }
     if (step === 1) { setStep(2); return }
     const values = getValues()
-    const payload: HireCreate = { name: values.name.trim(), role: values.role, department: values.department, start_date: values.start_date, work_email: values.work_email.trim() || null, work_location: values.work_location.trim() || null, employment_type: values.employment_type.trim() || null, required_equipment: values.required_equipment.trim() || null, required_software: values.required_software.trim() || null, additional_notes: values.additional_notes.trim() || null, ...(values.manager_id ? { manager_id: values.manager_id } : {}) }
+    const payload: HireCreate = { name: values.name.trim(), role: values.role, department: values.department, start_date: values.start_date, work_email: values.work_email.trim() || null, work_location: values.work_location.trim() || null, employment_type: values.employment_type.trim() || null, required_equipment: values.required_equipment.trim() || null, required_software: values.required_software.trim() || null, additional_notes: values.additional_notes.trim() || null }
     createMutation.mutate(payload)
   }
 
@@ -218,7 +217,6 @@ export default function HRPage() {
   const hireColumns: DataTableColumn<Hire>[] = [
     { key: 'select', header: <input type="checkbox" aria-label="Select all hires on this page" checked={visibleHires.length > 0 && selectedHires.length === visibleHires.length} onChange={event => setSelectedIds(event.target.checked ? visibleHires.map(hire => hire.id) : [])} />, headerClassName: 'hire-select-cell', className: 'hire-select-cell', render: hire => <input type="checkbox" aria-label={`Select ${hire.name}`} checked={selectedIds.includes(hire.id)} onChange={event => setSelectedIds(current => event.target.checked ? [...current, hire.id] : current.filter(id => id !== hire.id))} /> },
     { key: 'hire', header: 'New hire', render: hire => <Link className="hire-name-link" to={`/hire/${hire.id}`}><span className="hire-avatar">{hire.name.split(' ').map(part => part[0]).join('').slice(0, 2)}</span><span><strong>{hire.name}</strong><small>{hire.role} · {hire.department}</small></span></Link> },
-    { key: 'manager', header: 'Manager', render: hire => managers.find(manager => manager.id === hire.manager_id)?.name ?? <span className="table-muted">Unassigned</span> },
     { key: 'day-one', header: 'Day 1', render: hire => hire.start_date ? <><strong>{formatDate(hire.start_date)}</strong><small>Day {hire.start_day} in demo</small></> : `Day ${hire.start_day}` },
     { key: 'readiness', header: 'Readiness', render: hire => <div className="readiness-cell"><span className="readiness-track"><i className={hire.status === 'at_risk' ? 'risk' : hire.status === 'ready' ? 'ready' : ''} style={{ width: `${Math.max(0, Math.min(100, hire.readiness))}%` }} /></span><span>{hire.readiness}%</span></div> },
     { key: 'status', header: 'Status', render: hire => <StatusPill status={hire.status} label={statusLabel[hire.status] ?? hire.status} /> },
@@ -239,6 +237,11 @@ export default function HRPage() {
       <Metric label="Need attention" value={atRisk} detail="Critical-path risk" icon={CircleAlert} tone="amber" />
       <Metric label="Ready this week" value={readySoon} detail={`${metrics?.escalations ?? 0} open escalations`} icon={Clock3} tone="teal" />
     </div>
+
+    <section className="content-card" style={{ padding: 20, marginBottom: 22 }} aria-label="Department approvals summary">
+      <div className="section-heading"><div><h2>Department approvals</h2><p>Review verification notes and accepted handoffs from IT and Facilities.</p></div><Link className="button-primary" to="/reviews">Open review inbox · {departmentReviews.filter(item => item.status !== 'done').length} waiting</Link></div>
+      {departmentReviews.length === 0 ? <p className="comment-empty">No department handoffs have been submitted yet.</p> : <div className="filter-chips"><span className="filter-chip">{departmentReviews.filter(item => item.status !== 'done').length} waiting for HR</span><span className="filter-chip">{departmentReviews.filter(item => item.status === 'done').length} accepted and tracked</span></div>}
+    </section>
 
     <section className="content-card hires-card">
       <div className="section-heading">
@@ -271,11 +274,11 @@ export default function HRPage() {
         {step === 0 && <div className="wizard-fields">
           <label>Full name<input autoFocus {...register('name')} placeholder="e.g. Priya Sharma" maxLength={120} aria-invalid={!!fieldErrors.name} />{fieldErrors.name && <small className="form-error">{fieldErrors.name.message}</small>}</label>
           <div className="wizard-field-grid"><label>Role<select {...register('role')}>{ROLES.map(role => <option key={role}>{role}</option>)}</select></label><label>Department<select {...register('department')}>{DEPARTMENTS.map(department => <option key={department}>{department}</option>)}</select></label></div>
-          <div className="wizard-field-grid"><label>Manager<select {...register('manager_id')}><option value="">Choose later</option>{managers.map(manager => <option key={manager.id} value={manager.id}>{manager.name}</option>)}</select></label><label>Joining date<input type="date" min={metrics?.earliest_joining_date ?? addBusinessDays(1, metrics?.current_date)} {...register('start_date')} aria-invalid={!!fieldErrors.start_date} /><small>{fieldErrors.start_date?.message ?? 'Choose a future organization business day'}</small></label></div>
+          <div className="wizard-field-grid"><label>Joining date<input type="date" min={metrics?.earliest_joining_date ?? addBusinessDays(1, metrics?.current_date)} {...register('start_date')} aria-invalid={!!fieldErrors.start_date} /><small>{fieldErrors.start_date?.message ?? 'Choose a future organization business day'}</small></label></div>
           <details className="wizard-additional-details"><summary>Additional employee information <span>Optional</span></summary><p>Add details that help teams prepare before Day 1.</p><div className="wizard-field-grid"><label>Work email<input type="email" maxLength={254} placeholder="name@company.com" {...register('work_email')} aria-invalid={!!fieldErrors.work_email} />{fieldErrors.work_email && <small className="form-error">{fieldErrors.work_email.message}</small>}</label><label>Work location<input maxLength={120} placeholder="Office or remote" {...register('work_location')} /></label></div><div className="wizard-field-grid"><label>Employment type<input maxLength={80} placeholder="Full-time, contract…" {...register('employment_type')} /></label><label>Equipment needed<input maxLength={1000} placeholder="Laptop, access card…" {...register('required_equipment')} /></label></div><label>Software and access needed<textarea rows={2} maxLength={1000} placeholder="Tools, accounts, or permissions" {...register('required_software')} /></label><label>Additional notes<textarea rows={3} maxLength={2000} placeholder="Anything the onboarding teams should know" {...register('additional_notes')} /></label></details>
         </div>}
-        {step === 1 && <div className="plan-preview"><div className="preview-summary"><span>{preview.length} planned tasks</span><span>Day 1 protected</span></div>{preview.map((task, index) => <div className="preview-task" key={task.key}><span className="preview-step">{String(index + 1).padStart(2, '0')}</span><span className="preview-task-copy"><strong>{task.title}</strong><small>{task.team} · {task.duration_days} day{task.duration_days === 1 ? '' : 's'}{task.needs_approval ? ' · approval required' : ''}</small></span>{task.depends_on.length > 0 && <span className="dependency-label">After {task.depends_on.length}</span>}</div>)}<p className="preview-note">Teams complete the work in their own systems. OnboardFlow AI coordinates dependencies and readiness.</p></div>}
-        {step === 2 && <div className="review-summary"><div className="review-person"><span className="hire-avatar large">{form.name.split(' ').map(part => part[0]).join('').slice(0, 2) || 'NH'}</span><span><strong>{form.name}</strong><small>{form.role} · {form.department}</small></span></div><div className="review-lines"><p><span>Manager</span><strong>{managers.find(manager => manager.id === form.manager_id)?.name ?? 'Assign later'}</strong></p><p><span>Joining date</span><strong>{formatDate(form.start_date)}</strong></p><p><span>Task plan</span><strong>{preview.length} coordinated tasks</strong></p>{[form.work_email, form.work_location, form.employment_type, form.required_equipment, form.required_software, form.additional_notes].filter(Boolean).length > 0 && <p><span>Additional details</span><strong>{[form.work_email, form.work_location, form.employment_type, form.required_equipment, form.required_software, form.additional_notes].filter(Boolean).length} provided</strong></p>}</div><div className="amber-callout">The hire’s task plan and critical path will be created together.</div></div>}
+        {step === 1 && <div className="plan-preview"><div className="preview-summary"><span>{preview.length} planned tasks</span><span>Day 1 protected</span></div>{preview.map((task, index) => <div className="preview-task" key={task.key}><span className="preview-step">{String(index + 1).padStart(2, '0')}</span><span className="preview-task-copy"><strong>{task.title}</strong><small>{task.team} · {task.duration_days} day{task.duration_days === 1 ? '' : 's'}</small></span>{task.depends_on.length > 0 && <span className="dependency-label">After {task.depends_on.length}</span>}</div>)}<p className="preview-note">IT and Facilities complete their assigned work, add a verification note, and submit it to HR for review.</p></div>}
+        {step === 2 && <div className="review-summary"><div className="review-person"><span className="hire-avatar large">{form.name.split(' ').map(part => part[0]).join('').slice(0, 2) || 'NH'}</span><span><strong>{form.name}</strong><small>{form.role} · {form.department}</small></span></div><div className="review-lines"><p><span>Joining date</span><strong>{formatDate(form.start_date)}</strong></p><p><span>Task plan</span><strong>{preview.length} coordinated tasks</strong></p>{[form.work_email, form.work_location, form.employment_type, form.required_equipment, form.required_software, form.additional_notes].filter(Boolean).length > 0 && <p><span>Additional details</span><strong>{[form.work_email, form.work_location, form.employment_type, form.required_equipment, form.required_software, form.additional_notes].filter(Boolean).length} provided</strong></p>}</div><div className="amber-callout">The hire’s task plan and critical path will be created together.</div></div>}
         {error && <p className="form-error" role="alert">{error}</p>}
         <div className="wizard-actions"><button className="button-secondary" onClick={() => step === 0 ? closeWizard() : setStep(step - 1)}>{step === 0 ? 'Cancel' : <><ChevronLeft size={16} /> Back</>}</button><button className="button-primary" onClick={() => void nextStep()} disabled={previewBusy || createMutation.isPending}>{previewBusy ? 'Building preview…' : createMutation.isPending ? 'Creating plan…' : step === 2 ? 'Create onboarding plan' : <>Continue <ChevronRight size={16} /></>}</button></div>
       </section>

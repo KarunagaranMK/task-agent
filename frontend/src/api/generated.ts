@@ -3,12 +3,12 @@ export interface components {
   schemas: {
     "ExperimentRequest": { "n_hires"?: number; "stall_probability"?: number; "seed"?: number; }
     "ForgotRequest": { "email": string; }
+    "HRReviewRequest": { "decision": string; }
     "HTTPValidationError": { "detail"?: Array<components['schemas']["ValidationError"]>; }
-    "HireCreate": { "name": string; "role": string; "department": string; "work_email"?: (string) | (null); "work_location"?: (string) | (null); "employment_type"?: (string) | (null); "required_equipment"?: (string) | (null); "required_software"?: (string) | (null); "additional_notes"?: (string) | (null); "start_day"?: (number) | (null); "start_date"?: (string) | (null); "manager_id"?: (string) | (null); }
-    "HireOut": { "id": string; "name": string; "role": string; "department": string; "work_email"?: (string) | (null); "work_location"?: (string) | (null); "employment_type"?: (string) | (null); "required_equipment"?: (string) | (null); "required_software"?: (string) | (null); "additional_notes"?: (string) | (null); "start_day": number; "start_date": (string) | (null); "status": string; "readiness": number; "projected_day": (number) | (null); "projected_ready_date": (string) | (null); "manager_id"?: (string) | (null); }
-    "HireUpdate": { "name"?: (string) | (null); "role"?: (string) | (null); "department"?: (string) | (null); "work_email"?: (string) | (null); "work_location"?: (string) | (null); "employment_type"?: (string) | (null); "required_equipment"?: (string) | (null); "required_software"?: (string) | (null); "additional_notes"?: (string) | (null); "manager_id"?: (string) | (null); "start_date"?: (string) | (null); }
+    "HireCreate": { "name": string; "role": string; "department": string; "work_email"?: (string) | (null); "work_location"?: (string) | (null); "employment_type"?: (string) | (null); "required_equipment"?: (string) | (null); "required_software"?: (string) | (null); "additional_notes"?: (string) | (null); "start_day"?: (number) | (null); "start_date"?: (string) | (null); }
+    "HireOut": { "id": string; "name": string; "role": string; "department": string; "work_email"?: (string) | (null); "work_location"?: (string) | (null); "employment_type"?: (string) | (null); "required_equipment"?: (string) | (null); "required_software"?: (string) | (null); "additional_notes"?: (string) | (null); "start_day": number; "start_date": (string) | (null); "status": string; "readiness": number; "projected_day": (number) | (null); "projected_ready_date": (string) | (null); }
+    "HireUpdate": { "name"?: (string) | (null); "role"?: (string) | (null); "department"?: (string) | (null); "work_email"?: (string) | (null); "work_location"?: (string) | (null); "employment_type"?: (string) | (null); "required_equipment"?: (string) | (null); "required_software"?: (string) | (null); "additional_notes"?: (string) | (null); "start_date"?: (string) | (null); }
     "InviteRequest": { "email": string; "name": string; "role": string; "team"?: (string) | (null); }
-    "IssueRequest": { "message": string; }
     "LoginOut": { "access_token": string; "token_type"?: string; "user": components['schemas']["UserOut"]; }
     "LoginRequest": { "email": string; "password": string; }
     "PasswordChange": { "current_password": string; "new_password": string; }
@@ -16,7 +16,7 @@ export interface components {
     "PreferenceUpdate": { "in_app"?: boolean; "email"?: boolean; }
     "ProfileUpdate": { "name": string; }
     "SettingsUpdate": { "stall_after_days": number; "near_critical_margin": number; "monitor_interval_minutes": number; "auto_worker_enabled"?: boolean; "timezone"?: string; "holidays"?: Array<string>; }
-    "TaskOut": { "id": string; "key": string; "title": string; "team": string; "duration_days": number; "depends_on": Array<string>; "needs_approval": boolean; "approval_state": string; "status": string; "ticket_id": (string) | (null); "slack": (number) | (null); "critical": boolean; "flag": string; "dispatched_day"?: (number) | (null); "remaining_days": number; "schedule_start_day"?: (number) | (null); "schedule_finish_day"?: (number) | (null); "current_day": number; }
+    "TaskOut": { "id": string; "key": string; "title": string; "team": string; "duration_days": number; "depends_on": Array<string>; "status": string; "ticket_id": (string) | (null); "slack": (number) | (null); "critical": boolean; "flag": string; "dispatched_day"?: (number) | (null); "remaining_days": number; "schedule_start_day"?: (number) | (null); "schedule_finish_day"?: (number) | (null); "current_day": number; }
     "TemplateSave": { "role_key": string; "tasks": Array<{ [key: string]: unknown; }>; }
     "TicketCommentRequest": { "body": string; }
     "TokenPasswordRequest": { "token": string; "password": string; }
@@ -27,6 +27,255 @@ export interface components {
 }
 
 export interface paths {
+  "/agents": {
+    get: {
+      operationId: "list_agents_agents_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/agents/activity": {
+    get: {
+      operationId: "agent_activity_agents_activity_get"
+      parameters: {
+        query: { "page"?: number; "page_size"?: number; "agent"?: (string) | (null); "status"?: (string) | (null) }
+        __optional: true
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/agents/monitor/run": {
+    post: {
+      operationId: "run_agent_monitor_agents_monitor_run_post"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/integrations/status": {
+    get: {
+      operationId: "integration_status_integrations_status_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/integrations/outbox": {
+    get: {
+      operationId: "list_outbox_integrations_outbox_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/integrations/outbox/{item_id}/retry": {
+    post: {
+      operationId: "retry_outbox_integrations_outbox__item_id__retry_post"
+      parameters: {
+        path: { "item_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/integrations/test": {
+    post: {
+      operationId: "test_integrations_integrations_test_post"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/api/agents": {
+    get: {
+      operationId: "list_agents_api_agents_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/api/agents/activity": {
+    get: {
+      operationId: "agent_activity_api_agents_activity_get"
+      parameters: {
+        query: { "page"?: number; "page_size"?: number; "agent"?: (string) | (null); "status"?: (string) | (null) }
+        __optional: true
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/agents/monitor/run": {
+    post: {
+      operationId: "run_agent_monitor_api_agents_monitor_run_post"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/api/integrations/status": {
+    get: {
+      operationId: "integration_status_api_integrations_status_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/api/integrations/outbox": {
+    get: {
+      operationId: "list_outbox_api_integrations_outbox_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/api/integrations/outbox/{item_id}/retry": {
+    post: {
+      operationId: "retry_outbox_api_integrations_outbox__item_id__retry_post"
+      parameters: {
+        path: { "item_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/integrations/test": {
+    post: {
+      operationId: "test_integrations_api_integrations_test_post"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/api/v1/agents": {
+    get: {
+      operationId: "list_agents_api_v1_agents_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/api/v1/agents/activity": {
+    get: {
+      operationId: "agent_activity_api_v1_agents_activity_get"
+      parameters: {
+        query: { "page"?: number; "page_size"?: number; "agent"?: (string) | (null); "status"?: (string) | (null) }
+        __optional: true
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/agents/monitor/run": {
+    post: {
+      operationId: "run_agent_monitor_api_v1_agents_monitor_run_post"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/api/v1/integrations/status": {
+    get: {
+      operationId: "integration_status_api_v1_integrations_status_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/api/v1/integrations/outbox": {
+    get: {
+      operationId: "list_outbox_api_v1_integrations_outbox_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/api/v1/integrations/outbox/{item_id}/retry": {
+    post: {
+      operationId: "retry_outbox_api_v1_integrations_outbox__item_id__retry_post"
+      parameters: {
+        path: { "item_id": number }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/integrations/test": {
+    post: {
+      operationId: "test_integrations_api_v1_integrations_test_post"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
   "/hires/plan-preview": {
     post: {
       operationId: "plan_preview_hires_plan_preview_post"
@@ -63,12 +312,28 @@ export interface paths {
     get: {
       operationId: "list_hires_hires_get"
       parameters: {
-        query: { "page"?: number; "page_size"?: number; "limit"?: (number) | (null); "offset"?: (number) | (null); "search"?: string; "status"?: ("on_track" | "at_risk" | "ready" | "started" | "paused" | "cancelled") | (null); "sort_by"?: "created_at" | "name" | "start_date" | "readiness" | "status"; "sort_order"?: "asc" | "desc" }
+        query: { "page"?: number; "page_size"?: number; "limit"?: (number) | (null); "offset"?: (number) | (null); "search"?: string; "include_archived"?: boolean; "status"?: ("on_track" | "at_risk" | "ready" | "started" | "paused" | "cancelled") | (null); "sort_by"?: "created_at" | "name" | "start_date" | "readiness" | "status"; "sort_order"?: "asc" | "desc" }
         __optional: true
       }
       responses: {
         "200": {
           content: { "application/json": Array<components['schemas']["HireOut"]>; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/hires/{hire_id}/archive": {
+    post: {
+      operationId: "archive_hire_hires__hire_id__archive_post"
+      parameters: {
+        path: { "hire_id": string }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
         }
         "422": {
           content: { "application/json": components['schemas']["HTTPValidationError"]; }
@@ -262,12 +527,28 @@ export interface paths {
     get: {
       operationId: "list_hires_api_hires_get"
       parameters: {
-        query: { "page"?: number; "page_size"?: number; "limit"?: (number) | (null); "offset"?: (number) | (null); "search"?: string; "status"?: ("on_track" | "at_risk" | "ready" | "started" | "paused" | "cancelled") | (null); "sort_by"?: "created_at" | "name" | "start_date" | "readiness" | "status"; "sort_order"?: "asc" | "desc" }
+        query: { "page"?: number; "page_size"?: number; "limit"?: (number) | (null); "offset"?: (number) | (null); "search"?: string; "include_archived"?: boolean; "status"?: ("on_track" | "at_risk" | "ready" | "started" | "paused" | "cancelled") | (null); "sort_by"?: "created_at" | "name" | "start_date" | "readiness" | "status"; "sort_order"?: "asc" | "desc" }
         __optional: true
       }
       responses: {
         "200": {
           content: { "application/json": Array<components['schemas']["HireOut"]>; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/hires/{hire_id}/archive": {
+    post: {
+      operationId: "archive_hire_api_hires__hire_id__archive_post"
+      parameters: {
+        path: { "hire_id": string }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
         }
         "422": {
           content: { "application/json": components['schemas']["HTTPValidationError"]; }
@@ -461,12 +742,28 @@ export interface paths {
     get: {
       operationId: "list_hires_api_v1_hires_get"
       parameters: {
-        query: { "page"?: number; "page_size"?: number; "limit"?: (number) | (null); "offset"?: (number) | (null); "search"?: string; "status"?: ("on_track" | "at_risk" | "ready" | "started" | "paused" | "cancelled") | (null); "sort_by"?: "created_at" | "name" | "start_date" | "readiness" | "status"; "sort_order"?: "asc" | "desc" }
+        query: { "page"?: number; "page_size"?: number; "limit"?: (number) | (null); "offset"?: (number) | (null); "search"?: string; "include_archived"?: boolean; "status"?: ("on_track" | "at_risk" | "ready" | "started" | "paused" | "cancelled") | (null); "sort_by"?: "created_at" | "name" | "start_date" | "readiness" | "status"; "sort_order"?: "asc" | "desc" }
         __optional: true
       }
       responses: {
         "200": {
           content: { "application/json": Array<components['schemas']["HireOut"]>; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/hires/{hire_id}/archive": {
+    post: {
+      operationId: "archive_hire_api_v1_hires__hire_id__archive_post"
+      parameters: {
+        path: { "hire_id": string }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
         }
         "422": {
           content: { "application/json": components['schemas']["HTTPValidationError"]; }
@@ -624,54 +921,6 @@ export interface paths {
       }
     }
   }
-  "/tasks/{task_id}/approve": {
-    post: {
-      operationId: "approve_task_tasks__task_id__approve_post"
-      parameters: {
-        path: { "task_id": string }
-      }
-      responses: {
-        "200": {
-          content: { "application/json": unknown; }
-        }
-        "422": {
-          content: { "application/json": components['schemas']["HTTPValidationError"]; }
-        }
-      }
-    }
-  }
-  "/tasks/{task_id}/reject": {
-    post: {
-      operationId: "reject_task_tasks__task_id__reject_post"
-      parameters: {
-        path: { "task_id": string }
-      }
-      responses: {
-        "200": {
-          content: { "application/json": unknown; }
-        }
-        "422": {
-          content: { "application/json": components['schemas']["HTTPValidationError"]; }
-        }
-      }
-    }
-  }
-  "/tasks/{task_id}/undo-approval": {
-    post: {
-      operationId: "undo_approval_tasks__task_id__undo_approval_post"
-      parameters: {
-        path: { "task_id": string }
-      }
-      responses: {
-        "200": {
-          content: { "application/json": unknown; }
-        }
-        "422": {
-          content: { "application/json": components['schemas']["HTTPValidationError"]; }
-        }
-      }
-    }
-  }
   "/tickets": {
     get: {
       operationId: "list_tickets_tickets_get"
@@ -687,6 +936,40 @@ export interface paths {
       operationId: "complete_ticket_tickets__ticket_id__complete_post"
       parameters: {
         path: { "ticket_id": string }
+      }
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["TicketCommentRequest"]; }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/tasks/hr-review": {
+    get: {
+      operationId: "list_hr_reviews_tasks_hr_review_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/tasks/{task_id}/review": {
+    post: {
+      operationId: "review_department_work_tasks__task_id__review_post"
+      parameters: {
+        path: { "task_id": string }
+      }
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["HRReviewRequest"]; }
       }
       responses: {
         "200": {
@@ -780,54 +1063,6 @@ export interface paths {
       }
     }
   }
-  "/api/tasks/{task_id}/approve": {
-    post: {
-      operationId: "approve_task_api_tasks__task_id__approve_post"
-      parameters: {
-        path: { "task_id": string }
-      }
-      responses: {
-        "200": {
-          content: { "application/json": unknown; }
-        }
-        "422": {
-          content: { "application/json": components['schemas']["HTTPValidationError"]; }
-        }
-      }
-    }
-  }
-  "/api/tasks/{task_id}/reject": {
-    post: {
-      operationId: "reject_task_api_tasks__task_id__reject_post"
-      parameters: {
-        path: { "task_id": string }
-      }
-      responses: {
-        "200": {
-          content: { "application/json": unknown; }
-        }
-        "422": {
-          content: { "application/json": components['schemas']["HTTPValidationError"]; }
-        }
-      }
-    }
-  }
-  "/api/tasks/{task_id}/undo-approval": {
-    post: {
-      operationId: "undo_approval_api_tasks__task_id__undo_approval_post"
-      parameters: {
-        path: { "task_id": string }
-      }
-      responses: {
-        "200": {
-          content: { "application/json": unknown; }
-        }
-        "422": {
-          content: { "application/json": components['schemas']["HTTPValidationError"]; }
-        }
-      }
-    }
-  }
   "/api/tickets": {
     get: {
       operationId: "list_tickets_api_tickets_get"
@@ -843,6 +1078,40 @@ export interface paths {
       operationId: "complete_ticket_api_tickets__ticket_id__complete_post"
       parameters: {
         path: { "ticket_id": string }
+      }
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["TicketCommentRequest"]; }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/tasks/hr-review": {
+    get: {
+      operationId: "list_hr_reviews_api_tasks_hr_review_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/api/tasks/{task_id}/review": {
+    post: {
+      operationId: "review_department_work_api_tasks__task_id__review_post"
+      parameters: {
+        path: { "task_id": string }
+      }
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["HRReviewRequest"]; }
       }
       responses: {
         "200": {
@@ -936,54 +1205,6 @@ export interface paths {
       }
     }
   }
-  "/api/v1/tasks/{task_id}/approve": {
-    post: {
-      operationId: "approve_task_api_v1_tasks__task_id__approve_post"
-      parameters: {
-        path: { "task_id": string }
-      }
-      responses: {
-        "200": {
-          content: { "application/json": unknown; }
-        }
-        "422": {
-          content: { "application/json": components['schemas']["HTTPValidationError"]; }
-        }
-      }
-    }
-  }
-  "/api/v1/tasks/{task_id}/reject": {
-    post: {
-      operationId: "reject_task_api_v1_tasks__task_id__reject_post"
-      parameters: {
-        path: { "task_id": string }
-      }
-      responses: {
-        "200": {
-          content: { "application/json": unknown; }
-        }
-        "422": {
-          content: { "application/json": components['schemas']["HTTPValidationError"]; }
-        }
-      }
-    }
-  }
-  "/api/v1/tasks/{task_id}/undo-approval": {
-    post: {
-      operationId: "undo_approval_api_v1_tasks__task_id__undo_approval_post"
-      parameters: {
-        path: { "task_id": string }
-      }
-      responses: {
-        "200": {
-          content: { "application/json": unknown; }
-        }
-        "422": {
-          content: { "application/json": components['schemas']["HTTPValidationError"]; }
-        }
-      }
-    }
-  }
   "/api/v1/tickets": {
     get: {
       operationId: "list_tickets_api_v1_tickets_get"
@@ -999,6 +1220,40 @@ export interface paths {
       operationId: "complete_ticket_api_v1_tickets__ticket_id__complete_post"
       parameters: {
         path: { "ticket_id": string }
+      }
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["TicketCommentRequest"]; }
+      }
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+        "422": {
+          content: { "application/json": components['schemas']["HTTPValidationError"]; }
+        }
+      }
+    }
+  }
+  "/api/v1/tasks/hr-review": {
+    get: {
+      operationId: "list_hr_reviews_api_v1_tasks_hr_review_get"
+      responses: {
+        "200": {
+          content: { "application/json": unknown; }
+        }
+      }
+    }
+  }
+  "/api/v1/tasks/{task_id}/review": {
+    post: {
+      operationId: "review_department_work_api_v1_tasks__task_id__review_post"
+      parameters: {
+        path: { "task_id": string }
+      }
+      requestBody: {
+        required: true
+        content: { "application/json": components['schemas']["HRReviewRequest"]; }
       }
       responses: {
         "200": {
@@ -1440,87 +1695,6 @@ export interface paths {
       }
     }
   }
-  "/me/onboarding": {
-    get: {
-      operationId: "my_onboarding_me_onboarding_get"
-      responses: {
-        "200": {
-          content: { "application/json": unknown; }
-        }
-      }
-    }
-  }
-  "/me/issues": {
-    post: {
-      operationId: "report_issue_me_issues_post"
-      requestBody: {
-        required: true
-        content: { "application/json": components['schemas']["IssueRequest"]; }
-      }
-      responses: {
-        "201": {
-          content: { "application/json": unknown; }
-        }
-        "422": {
-          content: { "application/json": components['schemas']["HTTPValidationError"]; }
-        }
-      }
-    }
-  }
-  "/api/me/onboarding": {
-    get: {
-      operationId: "my_onboarding_api_me_onboarding_get"
-      responses: {
-        "200": {
-          content: { "application/json": unknown; }
-        }
-      }
-    }
-  }
-  "/api/me/issues": {
-    post: {
-      operationId: "report_issue_api_me_issues_post"
-      requestBody: {
-        required: true
-        content: { "application/json": components['schemas']["IssueRequest"]; }
-      }
-      responses: {
-        "201": {
-          content: { "application/json": unknown; }
-        }
-        "422": {
-          content: { "application/json": components['schemas']["HTTPValidationError"]; }
-        }
-      }
-    }
-  }
-  "/api/v1/me/onboarding": {
-    get: {
-      operationId: "my_onboarding_api_v1_me_onboarding_get"
-      responses: {
-        "200": {
-          content: { "application/json": unknown; }
-        }
-      }
-    }
-  }
-  "/api/v1/me/issues": {
-    post: {
-      operationId: "report_issue_api_v1_me_issues_post"
-      requestBody: {
-        required: true
-        content: { "application/json": components['schemas']["IssueRequest"]; }
-      }
-      responses: {
-        "201": {
-          content: { "application/json": unknown; }
-        }
-        "422": {
-          content: { "application/json": components['schemas']["HTTPValidationError"]; }
-        }
-      }
-    }
-  }
   "/templates": {
     get: {
       operationId: "list_templates_templates_get"
@@ -1831,16 +2005,6 @@ export interface paths {
       }
     }
   }
-  "/users/managers": {
-    get: {
-      operationId: "list_managers_users_managers_get"
-      responses: {
-        "200": {
-          content: { "application/json": Array<components['schemas']["UserOut"]>; }
-        }
-      }
-    }
-  }
   "/users/invite": {
     post: {
       operationId: "invite_user_users_invite_post"
@@ -1895,16 +2059,6 @@ export interface paths {
   "/api/users": {
     get: {
       operationId: "list_users_api_users_get"
-      responses: {
-        "200": {
-          content: { "application/json": Array<components['schemas']["UserOut"]>; }
-        }
-      }
-    }
-  }
-  "/api/users/managers": {
-    get: {
-      operationId: "list_managers_api_users_managers_get"
       responses: {
         "200": {
           content: { "application/json": Array<components['schemas']["UserOut"]>; }
@@ -1973,16 +2127,6 @@ export interface paths {
       }
     }
   }
-  "/api/v1/users/managers": {
-    get: {
-      operationId: "list_managers_api_v1_users_managers_get"
-      responses: {
-        "200": {
-          content: { "application/json": Array<components['schemas']["UserOut"]>; }
-        }
-      }
-    }
-  }
   "/api/v1/users/invite": {
     post: {
       operationId: "invite_user_api_v1_users_invite_post"
@@ -2039,7 +2183,7 @@ export interface paths {
       operationId: "get_dev_mail_dev_mail_get"
       responses: {
         "200": {
-          content: { "application/json": Array<{ [key: string]: (string) | (number); }>; }
+          content: { "application/json": Array<{ [key: string]: string; }>; }
         }
       }
     }
@@ -2049,7 +2193,7 @@ export interface paths {
       operationId: "get_dev_mail_api_dev_mail_get"
       responses: {
         "200": {
-          content: { "application/json": Array<{ [key: string]: (string) | (number); }>; }
+          content: { "application/json": Array<{ [key: string]: string; }>; }
         }
       }
     }
@@ -2059,7 +2203,7 @@ export interface paths {
       operationId: "get_dev_mail_api_v1_dev_mail_get"
       responses: {
         "200": {
-          content: { "application/json": Array<{ [key: string]: (string) | (number); }>; }
+          content: { "application/json": Array<{ [key: string]: string; }>; }
         }
       }
     }

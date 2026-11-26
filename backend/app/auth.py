@@ -245,7 +245,7 @@ def get_current_user(
     except (jwt.PyJWTError, KeyError, ValueError):
         raise unauthorized
     user = session.get(User, user_id)
-    if user is None or not user.is_active:
+    if user is None or not user.is_active or user.role not in {"ADMIN", "HR", "IT_STAFF"}:
         raise unauthorized
     return user
 
@@ -274,6 +274,11 @@ def login(data: LoginRequest, request: Request, response: Response, session: Ses
         _audit(session, "login_failed", target=data.email.strip().lower())
         session.commit()
         raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    if user.role not in {"ADMIN", "HR", "IT_STAFF"}:
+        _audit(session, "login_failed", actor_id=user.id, target=user.email, detail="retired_role")
+        session.commit()
+        raise HTTPException(status_code=401, detail="This account role is no longer enabled")
     now = datetime.utcnow()
     if not user.is_active or (user.locked_until is not None and user.locked_until > now):
         _burn_password_check(data.password)
@@ -495,19 +500,13 @@ def accept_invite(request: Request, data: TokenPasswordRequest, session: Session
 
 @users_router.get("")
 def list_users(_admin: User = Depends(require_roles("ADMIN")), session: Session = Depends(get_session)) -> list[UserOut]:
-    return [_user_out(user) for user in session.exec(select(User).order_by(User.created_at.desc())).all()]
-
-
-@users_router.get("/managers")
-def list_managers(_viewer: User = Depends(require_roles("ADMIN", "HR")), session: Session = Depends(get_session)) -> list[UserOut]:
-    managers = session.exec(select(User).where(User.role == "MANAGER", User.is_active.is_(True)).order_by(User.name)).all()
-    return [_user_out(user) for user in managers]
+    return [_user_out(user) for user in session.exec(select(User).where(User.role.in_(["ADMIN", "HR", "IT_STAFF"])).order_by(User.created_at.desc())).all()]
 
 
 @users_router.post("/invite", response_model=UserOut, status_code=201)
 def invite_user(data: InviteRequest, admin: User = Depends(require_roles("ADMIN")), session: Session = Depends(get_session)) -> UserOut:
     email = data.email.strip().lower()
-    if data.role not in {"ADMIN", "HR", "MANAGER", "IT_STAFF", "NEW_HIRE"}:
+    if data.role not in {"ADMIN", "HR", "IT_STAFF"}:
         raise HTTPException(status_code=422, detail="Unsupported role")
     if session.exec(select(User).where(User.email == email)).first():
         raise HTTPException(status_code=409, detail="An account with that email already exists")
@@ -528,7 +527,7 @@ def update_user(user_id: UUID, data: dict, admin: User = Depends(require_roles("
         raise HTTPException(status_code=404, detail="User not found")
     if "role" in data:
         role = str(data["role"])
-        if role not in {"ADMIN", "HR", "MANAGER", "IT_STAFF", "NEW_HIRE"}:
+        if role not in {"ADMIN", "HR", "IT_STAFF"}:
             raise HTTPException(status_code=422, detail="Unsupported role")
         if user.role != role:
             _audit(session, "role_changed", actor_id=admin.id, target=user.email, detail=f"{user.role}->{role}")

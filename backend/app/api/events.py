@@ -59,16 +59,9 @@ def _role_filter(session: Session, user: StreamPrincipal, after_id: int) -> tupl
         cursor = max(cursor, item.id or cursor)
         if user.role in {"ADMIN", "HR"}:
             visible.append(item)
-        elif user.role == "MANAGER" and item.for_role == "Manager":
-            hire = session.get(Hire, item.hire_id) if item.hire_id is not None else None
-            if item.hire_id is None or (hire is not None and hire.manager_id == user.id):
-                visible.append(item)
         elif user.role == "IT_STAFF":
             team_name = "Facilities" if (user.team or "").lower() == "facilities" else "IT"
             if item.for_role == team_name:
-                visible.append(item)
-        elif user.role == "NEW_HIRE" and item.for_role == "New Hire" and item.hire_id is not None:
-            if session.exec(select(Hire.id).where(Hire.id == item.hire_id, Hire.new_hire_user_id == user.id)).first():
                 visible.append(item)
     return visible, cursor
 

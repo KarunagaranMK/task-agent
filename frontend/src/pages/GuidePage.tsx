@@ -10,11 +10,11 @@ const sections = [
 ] as const
 
 const journey = [
-  { title: 'HR adds a new hire', detail: 'Choose a role, joining date, and manager. A saved role template supplies the onboarding tasks.', icon: '01' },
-  { title: 'The plan is scheduled', detail: 'Dependencies and business days determine which work can start, what is on the critical path, and how much slack remains.', icon: '02' },
-  { title: 'Teams submit completed work', detail: 'Each department works its own queue. When work is complete, it is sent to HR for review and an HR notification is created.', icon: '03' },
-  { title: 'HR accepts or asks for another plan', detail: 'HR accepts the submission or asks the agent for an alternative. Gemini may suggest an option, but HR must approve it before work resumes.', icon: '04' },
-  { title: 'Readiness stays visible', detail: 'CPM recalculates dependencies and readiness after HR decisions. Admin can see employee and department progress in the workforce dashboard.', icon: '05' },
+  { title: 'HR adds a new hire', detail: 'Choose the employee details and joining date. A saved role template supplies the onboarding tasks.', icon: '01' },
+  { title: 'The plan is scheduled', detail: 'Dependencies and business days determine when each department can start and how much time remains before Day 1.', icon: '02' },
+  { title: 'IT and Facilities do their work', detail: 'Each department sees only its own task queue. Before submitting a finished task, the teammate adds a verification note for HR.', icon: '03' },
+  { title: 'HR reviews the handoff', detail: 'HR reads the completed task and its verification notes, then accepts completion or asks the planning agent for an alternative.', icon: '04' },
+  { title: 'Readiness stays visible', detail: 'Readiness and completion percentages recalculate after HR accepts each handoff. Accepted work remains visible in the review history.', icon: '05' },
 ]
 
 export default function GuidePage({ embedded = false }: { embedded?: boolean }) {
@@ -31,7 +31,7 @@ export default function GuidePage({ embedded = false }: { embedded?: boolean }) 
       <div className="guide-hero-copy">
         <span className="guide-eyebrow"><CircleHelp size={14} /> START HERE</span>
         <h1>One clear view of<br /><em>everyone’s first day.</em></h1>
-        <p>OnboardFlow AI coordinates the small tasks that HR, managers, IT, and Facilities must finish before a new employee starts.</p>
+        <p>OnboardFlow AI coordinates onboarding tasks between HR, IT, and Facilities before a new employee starts.</p>
         <div className="guide-hero-actions"><Link to="/login" className="guide-primary">Explore the demo <ArrowRight size={16} /></Link><span><Clock3 size={14} /> 3 minute walkthrough</span></div>
       </div>
       <div className="guide-flow-card" aria-label="Onboarding process overview">
@@ -50,7 +50,7 @@ export default function GuidePage({ embedded = false }: { embedded?: boolean }) 
         </>}
         {active === 'technology' && <>
           <div className="guide-section-title"><span className="guide-eyebrow">SYSTEM MAP</span><h2>How the pieces fit together</h2><p>The browser handles the experience. The API owns workflow rules and data. Integrations are replaceable adapters.</p></div>
-          <div className="guide-architecture"><article><span className="guide-arch-icon"><Layers3 size={18} /></span><small>01 · USER EXPERIENCE</small><h3>React + TypeScript</h3><p>Role-specific pages for HR, managers, IT, Facilities, new hires, and admins.</p><span className="guide-tech-pills">Vite · Tailwind · TanStack Query · Recharts</span></article><div className="guide-arch-arrow"><ArrowRight size={18} /><small>REST + live events</small></div><article><span className="guide-arch-icon"><Workflow size={18} /></span><small>02 · WORKFLOW API</small><h3>Python 3.11 + FastAPI</h3><p>Validates requests and runs planning, scheduling, monitoring, permissions, and notifications.</p><span className="guide-tech-pills">Pydantic · SQLModel · Alembic · APScheduler</span></article><div className="guide-arch-arrow"><ArrowRight size={18} /><small>MCP tools</small></div><article><span className="guide-arch-icon"><Database size={18} /></span><small>03 · DATA + CONNECTORS</small><h3>SQLite + mock systems</h3><p>Stores demo state and routes ticket or employee lookups through local ITSM and HRIS MCP services.</p><span className="guide-tech-pills">FastMCP stdio · migration history · retry outbox</span></article></div>
+          <div className="guide-architecture"><article><span className="guide-arch-icon"><Layers3 size={18} /></span><small>01 · USER EXPERIENCE</small><h3>React + TypeScript</h3><p>Focused pages for HR, IT, Facilities, and administrators.</p><span className="guide-tech-pills">Vite · Tailwind · TanStack Query · Recharts</span></article><div className="guide-arch-arrow"><ArrowRight size={18} /><small>REST + live events</small></div><article><span className="guide-arch-icon"><Workflow size={18} /></span><small>02 · WORKFLOW API</small><h3>Python 3.11 + FastAPI</h3><p>Validates requests and runs planning, scheduling, monitoring, permissions, and notifications.</p><span className="guide-tech-pills">Pydantic · SQLModel · Alembic · APScheduler</span></article><div className="guide-arch-arrow"><ArrowRight size={18} /><small>MCP tools</small></div><article><span className="guide-arch-icon"><Database size={18} /></span><small>03 · DATA + CONNECTORS</small><h3>SQLite + mock systems</h3><p>Stores demo state and routes ticket or employee lookups through local ITSM and HRIS MCP services.</p><span className="guide-tech-pills">FastMCP stdio · migration history · retry outbox</span></article></div>
           <div className="guide-rules"><div><GitBranch size={16} /><strong>Planner + CPM</strong><span>Builds task dependencies and estimates Day 1 readiness.</span></div><div><Clock3 size={16} /><strong>Monitor</strong><span>Checks for delays and invokes approved recovery rules.</span></div><div><ShieldCheck size={16} /><strong>Governance</strong><span>Role permissions, approvals, and audit history.</span></div><div><Zap size={16} /><strong>Reliability</strong><span>Idempotent dispatch and an outbox for retryable work.</span></div></div>
         </>}
         {active === 'ai' && <>
@@ -59,8 +59,8 @@ export default function GuidePage({ embedded = false }: { embedded?: boolean }) 
           <div className="guide-honesty"><strong>Demo boundaries</strong><span>ITSM and HRIS are mock services, email stays in a local outbox, and readiness experiment results are illustrative simulations.</span></div>
         </>}
         {active === 'try' && <>
-          <div className="guide-section-title"><span className="guide-eyebrow">YOUR FIRST WALKTHROUGH</span><h2>Try the project in four moves</h2><p>Sign in with one of the demo roles, then follow the same onboarding story across the team workspaces.</p></div>
-          <div className="guide-try-list"><div><span>1</span><p><strong>Register an employee</strong><small>Choose HR, create a hire, and preview the role-specific onboarding tasks.</small></p></div><ArrowDown size={15} /><div><span>2</span><p><strong>Move work to a department</strong><small>Use the Manager role for access approvals and IT for its assigned work queue.</small></p></div><ArrowDown size={15} /><div><span>3</span><p><strong>Send work to HR</strong><small>When IT completes a task, it waits for HR. Open HR review and accept it or request an agent alternative.</small></p></div><ArrowDown size={15} /><div><span>4</span><p><strong>Track the workforce</strong><small>Admin sees registered employees, department readiness, and task progress. The employee portal shows a person their own timeline.</small></p></div></div>
+          <div className="guide-section-title"><span className="guide-eyebrow">YOUR FIRST WALKTHROUGH</span><h2>Try the project in four moves</h2><p>Start as HR, create a hire, then follow the handoff through the separate IT, Facilities, and HR review pages.</p></div>
+          <div className="guide-try-list"><div><span>1</span><p><strong>Register an employee</strong><small>Choose HR, create a hire, and preview the role-specific onboarding tasks.</small></p></div><ArrowDown size={15} /><div><span>2</span><p><strong>Move work to a department</strong><small>IT and Facilities use their separate task queues to verify assigned work.</small></p></div><ArrowDown size={15} /><div><span>3</span><p><strong>Send work to HR</strong><small>When IT or Facilities submits a task, HR reviews its details and verification notes, then accepts it or requests an agent alternative.</small></p></div><ArrowDown size={15} /><div><span>4</span><p><strong>Track the workforce</strong><small>Admin sees registered employees, department readiness, and task progress. HR can see all registered employees and live onboarding completion percentages.</small></p></div></div>
           <div className="guide-try-actions"><Link to="/login" className="guide-primary">Sign in and explore <ArrowRight size={16} /></Link><span>Local run: <code>python run.py</code></span></div>
         </>}
       </div>

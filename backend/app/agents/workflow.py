@@ -17,12 +17,10 @@ from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
-from langgraph.types import Command, interrupt
 from sqlmodel import Session, select
 
 from app.domain.models import (
     AgentExecution,
-    ApprovalState,
     Hire,
     Task,
     TaskStatus,
@@ -45,8 +43,6 @@ class WorkflowState(TypedDict, total=False):
     it_sync: dict[str, int]
     facilities_sync: dict[str, int]
     hris_sync: dict[str, int]
-    approval_prompt: dict[str, Any] | None
-    approval_decision: dict[str, Any] | None
 
 
 class WorkflowContext(TypedDict):
@@ -114,42 +110,8 @@ def _progress_monitor(state: WorkflowState, runtime: Runtime[WorkflowContext]) -
     from app.services.orchestrator import _monitor_tick_body
 
     _monitor_tick_body(runtime.context["session"])
-    _record(state, runtime, "progress_monitor", "Completed deterministic schedule, readiness, approval, and stall checks.", started)
+    _record(state, runtime, "progress_monitor", "Completed deterministic schedule, readiness, and stall checks.", started)
     return {"monitored": True}
-
-
-def _prepare_approval_gate(state: WorkflowState, runtime: Runtime[WorkflowContext]) -> dict[str, Any]:
-    """Checkpoint the manager decision context before pausing the graph."""
-    started = datetime.utcnow()
-    session = runtime.context["session"]
-    pending = session.exec(select(Task).where(Task.status == TaskStatus.awaiting_approval,
-                                               Task.approval_state == ApprovalState.pending)).all()
-    grouped: dict[int, list[dict[str, Any]]] = {}
-    for task in pending:
-        hire = session.get(Hire, task.hire_id)
-        if hire:
-            grouped.setdefault(task.hire_id, []).append({"task_id": task.public_id, "title": task.title, "hire": hire.name})
-    prompt = {"type": "manager_approval", "tasks": [task for values in grouped.values() for task in values]} if grouped else None
-    for hire_id, approvals in grouped.items():
-        _record(state, runtime, "approval_gate", f"Paused for {len(approvals)} manager approval(s).", started,
-                status="interrupted", hire_id=hire_id)
-    if not prompt:
-        _record(state, runtime, "approval_gate", "No manager decision is pending.", started)
-    return {"approval_prompt": prompt}
-
-
-def _approval_gate(state: WorkflowState, runtime: Runtime[WorkflowContext]) -> dict[str, Any]:
-    prompt = state.get("approval_prompt")
-    if not prompt:
-        return {}
-    started = datetime.utcnow()
-    decision = interrupt(prompt)
-    session = runtime.context["session"]
-    for hire_id in {session.exec(select(Task.hire_id).where(Task.public_id == item["task_id"])).first()
-                    for item in prompt["tasks"]} - {None}:
-        _record(state, runtime, "approval_gate", f"Resumed after a manager {decision.get('decision', 'decision')}.",
-                started, hire_id=hire_id)
-    return {"approval_decision": decision}
 
 
 def _team_ticket_sync(state: WorkflowState, runtime: Runtime[WorkflowContext], team: str) -> dict[str, int]:
@@ -163,6 +125,10 @@ def _team_ticket_sync(state: WorkflowState, runtime: Runtime[WorkflowContext], t
         status = result.get("status")
         if result.get("error") or status not in {"open", "in_progress", "done", "stalled", "blocked", "cancelled"}:
             failed += 1
+            continue
+        # An external "done" means the department has finished its work. HR
+        # must still accept the handoff before the onboarding task becomes done.
+        if status == "done":
             continue
         if ticket.status != status:
             ticket.status = status
@@ -213,17 +179,11 @@ def _route(state: WorkflowState) -> str:
     return "plan_generator_agent" if state["operation"] == "plan" else "progress_monitor_agent"
 
 
-def _approval_route(state: WorkflowState) -> str:
-    return "approval_gate_agent" if state.get("approval_prompt") else "it_provisioner_agent"
-
-
 def _build_graph(checkpointer: SqliteSaver):
     builder = StateGraph(WorkflowState, context_schema=WorkflowContext)
     builder.add_node("supervisor", _supervisor)
     builder.add_node("plan_generator_agent", _planner)
     builder.add_node("progress_monitor_agent", _progress_monitor)
-    builder.add_node("approval_gate_prepare", _prepare_approval_gate)
-    builder.add_node("approval_gate_agent", _approval_gate)
     builder.add_node("it_provisioner_agent", _it_agent)
     builder.add_node("facilities_coordinator_agent", _facilities_agent)
     builder.add_node("hris_coordinator_agent", _hris_agent)
@@ -233,12 +193,7 @@ def _build_graph(checkpointer: SqliteSaver):
         "progress_monitor_agent": "progress_monitor_agent",
     })
     builder.add_edge("plan_generator_agent", END)
-    builder.add_edge("progress_monitor_agent", "approval_gate_prepare")
-    builder.add_conditional_edges("approval_gate_prepare", _approval_route, {
-        "approval_gate_agent": "approval_gate_agent",
-        "it_provisioner_agent": "it_provisioner_agent",
-    })
-    builder.add_edge("approval_gate_agent", "it_provisioner_agent")
+    builder.add_edge("progress_monitor_agent", "it_provisioner_agent")
     builder.add_edge("it_provisioner_agent", "facilities_coordinator_agent")
     builder.add_edge("facilities_coordinator_agent", "hris_coordinator_agent")
     builder.add_edge("hris_coordinator_agent", END)
@@ -275,16 +230,6 @@ def run_monitor_workflow(session: Session) -> tuple[bool, str]:
         context={"session": session}, durability="sync",
     )
     return bool(result.get("monitored")), thread_id
-
-
-def resume_approval_workflow(session: Session, thread_id: str, decision: str) -> bool:
-    graph = get_workflow_graph()
-    config = {"configurable": {"thread_id": thread_id}, "metadata": {"operation": "monitor", "resume": "manager_approval"}}
-    snapshot = graph.get_state(config)
-    if not snapshot.next:
-        return False
-    graph.invoke(Command(resume={"decision": decision}), config, context={"session": session}, durability="sync")
-    return True
 
 
 def checkpoint_status(thread_id: str) -> str:

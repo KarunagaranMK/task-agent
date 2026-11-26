@@ -6,10 +6,8 @@ import { login, type AuthUser } from '../api/client'
 const demoAccounts = [
   { label: 'Admin', email: 'admin@demo.local' },
   { label: 'HR', email: 'hr@demo.local' },
-  { label: 'Manager', email: 'manager@demo.local' },
   { label: 'IT', email: 'it@demo.local' },
   { label: 'Facilities', email: 'facilities@demo.local' },
-  { label: 'New hire', email: 'newhire@demo.local' },
 ]
 const demoPassword = 'OnboardIQ-Demo!'
 

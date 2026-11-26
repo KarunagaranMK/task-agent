@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlmodel import Session, select, func
 from app.db.database import get_session
-from app.domain.models import Hire, Task, TaskStatus, HireStatus, AuditEvent, User, Ticket, OutboxItem
+from app.domain.models import ApprovalState, Hire, Task, TaskStatus, HireStatus, AuditEvent, Ticket, OutboxItem
 from app.services.orchestrator import audit, compute_readiness, create_hire_with_plan, get_current_day, replace_hire_plan_before_work_starts, run_cpm_for_hire, update_hire_status
 from app.auth import require_roles
 from app.services.cpm import CPMTask, compute_cpm, compute_what_if, get_remaining_days
@@ -28,7 +28,6 @@ class HireCreate(BaseModel):
     additional_notes: Optional[str] = Field(default=None, max_length=2000)
     start_day: Optional[int] = Field(default=None, ge=1, le=365)
     start_date: Optional[date] = None
-    manager_id: Optional[UUID] = None
 
     @field_validator("work_email")
     @classmethod
@@ -56,7 +55,6 @@ class HireUpdate(BaseModel):
     required_equipment: Optional[str] = Field(default=None, max_length=1000)
     required_software: Optional[str] = Field(default=None, max_length=1000)
     additional_notes: Optional[str] = Field(default=None, max_length=2000)
-    manager_id: Optional[UUID] = None
     start_date: Optional[date] = None
 
     @field_validator("work_email")
@@ -94,8 +92,6 @@ class TaskOut(BaseModel):
     team: str
     duration_days: int
     depends_on: List[str]
-    needs_approval: bool
-    approval_state: str
     status: str
     ticket_id: Optional[str]
     slack: Optional[float]
@@ -125,7 +121,6 @@ class HireOut(BaseModel):
     readiness: float
     projected_day: Optional[int]
     projected_ready_date: Optional[date]
-    manager_id: Optional[UUID] = None
 
 
 @router.post("/plan-preview")
@@ -157,7 +152,6 @@ def _hire_out(h: Hire, session: Session) -> HireOut:
         readiness=h.readiness,
         projected_day=h.projected_day,
         projected_ready_date=projected_ready_date,
-        manager_id=(UUID(manager.public_id) if h.manager_id is not None and (manager := session.get(User, h.manager_id)) else None),
     )
 
 
@@ -167,9 +161,6 @@ def _hire_by_public_id(public_id: UUID, session: Session) -> Hire | None:
 
 @router.post("", response_model=HireOut)
 def create_hire(data: HireCreate, session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "HR"))):
-    manager = session.exec(select(User).where(User.public_id == str(data.manager_id))).first() if data.manager_id else None
-    if data.manager_id is not None and (manager is None or not manager.is_active or manager.role != "MANAGER"):
-        raise HTTPException(422, "Choose an active manager")
     if data.start_date is not None:
         current_day = get_current_day(session)
         clock = load_clock(session, current_day)
@@ -184,7 +175,7 @@ def create_hire(data: HireCreate, session: Session = Depends(get_session), _user
         start_day = data.start_day
         clock = load_clock(session)
         start_date = clock.calendar.add_business_days(clock.local_today(), start_day)
-    hire = create_hire_with_plan(session, data.name, data.role, data.department, start_day, manager.id if manager else None, start_date)
+    hire = create_hire_with_plan(session, data.name, data.role, data.department, start_day, None, start_date)
     for field in ("work_email", "work_location", "employment_type", "required_equipment", "required_software", "additional_notes"):
         value = getattr(data, field)
         setattr(hire, field, value.strip() if isinstance(value, str) and value.strip() else None)
@@ -205,13 +196,11 @@ def list_hires(
     sort_by: Literal["created_at", "name", "start_date", "readiness", "status"] = "created_at",
     sort_order: Literal["asc", "desc"] = "desc",
     session: Session = Depends(get_session),
-    user=Depends(require_roles("ADMIN", "HR", "MANAGER")),
+    user=Depends(require_roles("ADMIN", "HR")),
 ):
     filters = []
     if not include_archived:
         filters.append(Hire.archived.is_(False))
-    if user.role == "MANAGER":
-        filters.append(Hire.manager_id == user.id)
     if status:
         filters.append(Hire.status == status)
     if search.strip():
@@ -255,11 +244,9 @@ def archive_hire(hire_id: UUID, session: Session = Depends(get_session), user=De
 
 
 @router.get("/{hire_id}", response_model=HireOut)
-def get_hire(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR", "MANAGER"))):
+def get_hire(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR"))):
     hire = _hire_by_public_id(hire_id, session)
     if not hire:
-        raise HTTPException(404, "Hire not found")
-    if user.role == "MANAGER" and hire.manager_id != user.id:
         raise HTTPException(404, "Hire not found")
     return _hire_out(hire, session)
 
@@ -278,12 +265,6 @@ def update_hire_details(
         for field in ("name", "department")
     ):
         raise HTTPException(422, "Name and department cannot be empty")
-    if "manager_id" in changes and changes["manager_id"] is not None:
-        manager = session.exec(select(User).where(User.public_id == str(changes["manager_id"]))).first()
-        if manager is None or not manager.is_active or manager.role != "MANAGER":
-            raise HTTPException(422, "Choose an active manager")
-        changes["manager_id"] = manager.id
-
     role_changed = "role" in changes and changes["role"] != hire.role
     if "role" in changes:
         if not isinstance(changes["role"], str) or not changes["role"].strip():
@@ -315,7 +296,7 @@ def update_hire_details(
             session.rollback()
             raise HTTPException(409, str(exc)) from exc
 
-    for field in ("name", "department", "manager_id", "work_email", "work_location", "employment_type", "required_equipment", "required_software", "additional_notes"):
+    for field in ("name", "department", "work_email", "work_location", "employment_type", "required_equipment", "required_software", "additional_notes"):
         if field in changes:
             value = changes[field]
             normalized = value.strip() if isinstance(value, str) else value
@@ -334,11 +315,25 @@ def update_hire_details(
 
 
 @router.get("/{hire_id}/tasks", response_model=List[TaskOut])
-def get_hire_tasks(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR", "MANAGER"))):
+def get_hire_tasks(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR"))):
     hire = _hire_by_public_id(hire_id, session)
-    if hire is None or (user.role == "MANAGER" and hire.manager_id != user.id):
+    if hire is None:
         raise HTTPException(404, "Hire not found")
     tasks = session.exec(select(Task).where(Task.hire_id == hire.id)).all()
+    released = False
+    for task in tasks:
+        if task.status == TaskStatus.awaiting_approval or task.needs_approval:
+            if task.status == TaskStatus.awaiting_approval:
+                task.status = TaskStatus.dispatched if task.ticket_id else TaskStatus.pending
+            task.needs_approval = False
+            task.approval_state = ApprovalState.none
+            task.approval_requested_at = None
+            task.approval_decided_at = None
+            session.add(task)
+            released = True
+    if released:
+        audit(session, hire.id, "Released legacy manager-held tasks into the department workflow", "info", "system:workflow_update")
+        session.commit()
     current_day = get_current_day(session)
     open_statuses = {"pending", "queued", "dispatched", "awaiting_approval", "blocked"}
     open_tasks = [
@@ -366,8 +361,6 @@ def get_hire_tasks(hire_id: UUID, session: Session = Depends(get_session), user=
             team=t.team,
             duration_days=t.duration_days,
             depends_on=t.depends_on_list,
-            needs_approval=t.needs_approval,
-            approval_state=t.approval_state,
             status=t.status,
             ticket_id=t.ticket_id,
             slack=t.slack,
@@ -452,10 +445,9 @@ def resume_hire(hire_id: UUID, session: Session = Depends(get_session), user=Dep
             task.status = TaskStatus.dispatched
             task.dispatched_day = current_day
             task.last_activity_day = current_day
-        elif task.needs_approval and task.approval_state == "pending":
-            task.status = TaskStatus.awaiting_approval
         else:
             task.status = TaskStatus.pending
+            task.needs_approval = False
         session.add(task)
 
     audit(session, internal_hire_id, f"Onboarding resumed by {user.name}", "info", f"user:{user.id}")
@@ -507,9 +499,9 @@ def cancel_hire(hire_id: UUID, session: Session = Depends(get_session), user=Dep
 
 
 @router.get("/{hire_id}/audit")
-def get_hire_audit(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR", "MANAGER"))):
+def get_hire_audit(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR"))):
     hire = _hire_by_public_id(hire_id, session)
-    if hire is None or (user.role == "MANAGER" and hire.manager_id != user.id):
+    if hire is None:
         raise HTTPException(404, "Hire not found")
     events = session.exec(
         select(AuditEvent)
@@ -530,9 +522,9 @@ def get_hire_audit(hire_id: UUID, session: Session = Depends(get_session), user=
 
 
 @router.post("/{hire_id}/what-if")
-def what_if(hire_id: UUID, data: WhatIfRequest, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR", "MANAGER"))):
+def what_if(hire_id: UUID, data: WhatIfRequest, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR"))):
     hire = _hire_by_public_id(hire_id, session)
-    if hire is None or (user.role == "MANAGER" and hire.manager_id != user.id):
+    if hire is None:
         raise HTTPException(404, "Hire not found")
     open_statuses = ("pending", "queued", "dispatched", "awaiting_approval")
     current_day = get_current_day(session)
@@ -554,11 +546,9 @@ def what_if(hire_id: UUID, data: WhatIfRequest, session: Session = Depends(get_s
 
 
 @router.get("/{hire_id}/explain")
-def explain_risk(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR", "MANAGER"))):
+def explain_risk(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR"))):
     hire = _hire_by_public_id(hire_id, session)
     if not hire:
-        raise HTTPException(404, "Hire not found")
-    if user.role == "MANAGER" and hire.manager_id != user.id:
         raise HTTPException(404, "Hire not found")
 
     tasks = session.exec(select(Task).where(Task.hire_id == hire.id)).all()

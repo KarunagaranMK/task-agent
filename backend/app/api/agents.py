@@ -16,9 +16,8 @@ router = APIRouter(tags=["agents and integrations"])
 
 AGENT_CATALOG = (
     ("supervisor", "Supervisor Agent", "Routes a validated operation to the right planning or monitoring workflow."),
-    ("approval_gate", "Approval Gate", "Pauses sensitive task dispatch until a manager records an approval decision."),
     ("plan_generator", "Plan Generator Agent", "Builds a validated, dependency-aware plan from a role template and optional Gemini suggestions."),
-    ("progress_monitor", "Progress Monitor Agent", "Runs the deterministic monitor for approvals, scheduling, stalls, and readiness."),
+    ("progress_monitor", "Progress Monitor Agent", "Runs the deterministic monitor for scheduling, stalls, and readiness."),
     ("it_provisioner", "IT Provisioner Agent", "Reconciles IT ticket status through the ITSM MCP service."),
     ("facilities_coordinator", "Facilities Coordinator Agent", "Reconciles Facilities ticket status through the ITSM MCP service."),
     ("hris_coordinator", "HRIS Coordinator Agent", "Reconciles onboarding readiness with the HRIS MCP service."),

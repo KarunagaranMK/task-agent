@@ -4,7 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 from app.db.database import get_session
-from app.domain.models import AgentExecution, Hire, Task, TaskStatus, ApprovalState, Ticket, TicketComment, User
+from app.domain.models import AuditEvent, Hire, Task, TaskStatus, Ticket, TicketComment, User
 from app.services.orchestrator import audit, get_current_day, monitor_tick, notify
 from app.auth import require_roles
 from app.mcp_clients.tools import update_ticket_status as mcp_update_ticket_status
@@ -34,29 +34,6 @@ def _get_team_ticket(session: Session, ticket_id: str, user) -> Ticket:
     return ticket
 
 
-def _resume_approval_workflow(session: Session, hire_id: int, decision: str) -> bool:
-    execution = session.exec(
-        select(AgentExecution)
-        .where(AgentExecution.hire_id == hire_id,
-               AgentExecution.agent_name == "approval_gate",
-               AgentExecution.status == "interrupted")
-        .order_by(AgentExecution.completed_at.desc())
-    ).first()
-    if execution is None:
-        return False
-    try:
-        from app.agents.workflow import resume_approval_workflow
-        resumed = resume_approval_workflow(session, execution.thread_id, decision)
-        if resumed and decision == "approved":
-            # The decision is persisted before the fresh planning tick dispatches newly unblocked work.
-            monitor_tick(session)
-        return resumed
-    except Exception:
-        import logging
-        logging.getLogger(__name__).exception("Could not resume approval workflow %s", execution.thread_id)
-        return False
-
-
 def _sync_ticket_status(ticket: Ticket, status: str, session: Session, user) -> None:
     external = mcp_update_ticket_status(ticket.ticket_id, status)
     if external.get("error") == "service_unavailable":
@@ -82,61 +59,6 @@ def _sync_ticket_status(ticket: Ticket, status: str, session: Session, user) -> 
             audit(session, task.hire_id, f"Task '{task.title}' marked {status.replace('_', ' ')}", "warning" if status in {"blocked", "stalled"} else "info", f"user:{user.id}")
 
 
-@router.post("/tasks/{task_id}/approve")
-def approve_task(task_id: UUID, session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "MANAGER"))):
-    task = _task_by_public_id(task_id, session)
-    if not task:
-        raise HTTPException(404, "Task not found")
-    hire = session.get(Hire, task.hire_id)
-    if _user.role == "MANAGER" and (hire is None or hire.manager_id != _user.id):
-        raise HTTPException(404, "Task not found")
-    task.approval_state = ApprovalState.approved
-    task.status = TaskStatus.pending
-    task.approval_decided_at = datetime.utcnow()
-    session.add(task)
-    audit(session, task.hire_id, f"Manager approved '{task.title}'", "info", f"user:{_user.id}")
-    session.commit()
-    resumed = _resume_approval_workflow(session, task.hire_id, "approved")
-    return {"status": "approved", "task_id": task.public_id, "workflow_resumed": resumed}
-
-
-@router.post("/tasks/{task_id}/reject")
-def reject_task(task_id: UUID, session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "MANAGER"))):
-    task = _task_by_public_id(task_id, session)
-    if not task:
-        raise HTTPException(404, "Task not found")
-    hire = session.get(Hire, task.hire_id)
-    if _user.role == "MANAGER" and (hire is None or hire.manager_id != _user.id):
-        raise HTTPException(404, "Task not found")
-    task.approval_state = ApprovalState.rejected
-    task.status = TaskStatus.blocked
-    task.approval_decided_at = datetime.utcnow()
-    session.add(task)
-    audit(session, task.hire_id, f"Manager rejected '{task.title}'", "warning", f"user:{_user.id}")
-    session.commit()
-    resumed = _resume_approval_workflow(session, task.hire_id, "rejected")
-    return {"status": "rejected", "task_id": task.public_id, "workflow_resumed": resumed}
-
-
-@router.post("/tasks/{task_id}/undo-approval")
-def undo_approval(task_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "MANAGER"))):
-    task = _task_by_public_id(task_id, session)
-    if not task:
-        raise HTTPException(404, "Task not found")
-    hire = session.get(Hire, task.hire_id)
-    if user.role == "MANAGER" and (hire is None or hire.manager_id != user.id):
-        raise HTTPException(404, "Task not found")
-    if task.approval_state not in {ApprovalState.approved, ApprovalState.rejected}:
-        raise HTTPException(409, "This approval can no longer be undone")
-    task.approval_state = ApprovalState.pending
-    task.status = TaskStatus.awaiting_approval
-    task.approval_decided_at = None
-    session.add(task)
-    audit(session, task.hire_id, f"Approval for '{task.title}' was undone", "info", f"user:{user.id}")
-    session.commit()
-    return {"status": "awaiting_approval", "task_id": task.public_id}
-
-
 @router.get("/tickets")
 def list_tickets(session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "IT_STAFF"))):
     query = select(Ticket)
@@ -160,7 +82,7 @@ def list_tickets(session: Session = Depends(get_session), user=Depends(require_r
 
 
 @router.post("/tickets/{ticket_id}/complete")
-def complete_ticket(ticket_id: str, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "IT_STAFF"))):
+def complete_ticket(ticket_id: str, data: TicketCommentRequest, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "IT_STAFF"))):
     ticket = _get_team_ticket(session, ticket_id, user)
     external = mcp_update_ticket_status(ticket_id, "done")
     if external.get("error") == "service_unavailable":
@@ -169,6 +91,7 @@ def complete_ticket(ticket_id: str, session: Session = Depends(get_session), use
         raise HTTPException(502, "ITSM service could not update the ticket")
     ticket.status = "pending_review"
     session.add(ticket)
+    session.add(TicketComment(ticket_id=ticket.id, author_id=user.id, body=data.body.strip()))
 
     if ticket.task_id:
         task = session.get(Task, ticket.task_id)
@@ -186,13 +109,25 @@ def complete_ticket(ticket_id: str, session: Session = Depends(get_session), use
 
 @router.get("/tasks/hr-review")
 def list_hr_reviews(session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "HR"))):
-    tickets = session.exec(select(Ticket).where(Ticket.status.in_(["pending_review", "alternative_pending"]))
+    tickets = session.exec(select(Ticket).where(Ticket.status.in_(["pending_review", "alternative_pending", "done"]))
                            .order_by(Ticket.updated_at.desc())).all()
     reviews = []
     for ticket in tickets:
         task = session.get(Task, ticket.task_id) if ticket.task_id else None
         hire = session.get(Hire, ticket.hire_id) if ticket.hire_id else None
         if task and hire:
+            if ticket.status == "done":
+                accepted_messages = {
+                    f"HR accepted completion of '{task.title}' for {hire.name}.",
+                    f"HR approved the alternative '{task.title}' for {hire.name}; {ticket.team} can continue the work.",
+                }
+                accepted = session.exec(select(AuditEvent).where(
+                    AuditEvent.hire_id == hire.id, AuditEvent.message.in_(accepted_messages)
+                )).first()
+                if accepted is None:
+                    continue
+            notes = session.exec(select(TicketComment).where(TicketComment.ticket_id == ticket.id)
+                                 .order_by(TicketComment.created_at.desc())).all()
             reviews.append({
                 "task_id": task.public_id,
                 "ticket_id": ticket.ticket_id,
@@ -202,6 +137,11 @@ def list_hr_reviews(session: Session = Depends(get_session), _user=Depends(requi
                 "team": ticket.team,
                 "status": ticket.status,
                 "suggested_title": ticket.title if ticket.status == "alternative_pending" else None,
+                "verification_notes": [
+                    {"author": (session.get(User, note.author_id).name if session.get(User, note.author_id) else "Department teammate"),
+                     "body": note.body, "created_at": note.created_at.isoformat()}
+                    for note in notes
+                ],
                 "updated_at": ticket.updated_at.isoformat(),
             })
     return reviews

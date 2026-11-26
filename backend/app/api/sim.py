@@ -113,24 +113,10 @@ def get_metrics(session: Session = Depends(get_session), _user=Depends(require_r
 
 def _notifications_for_user(session: Session, user) -> list[Notification]:
     query = select(Notification)
-    if user.role == "MANAGER":
-        query = query.where(Notification.for_role == "Manager")
-    elif user.role == "IT_STAFF":
+    if user.role == "IT_STAFF":
         team_name = "Facilities" if (user.team or "").lower() == "facilities" else "IT"
         query = query.where(Notification.for_role == team_name)
-    elif user.role == "NEW_HIRE":
-        query = query.where(Notification.for_role == "New Hire")
     notifications = session.exec(query.order_by(Notification.created_at.desc())).all()
-    if user.role == "MANAGER":
-        notifications = [
-            n for n in notifications
-            if n.hire_id is None or (session.get(Hire, n.hire_id) is not None and session.get(Hire, n.hire_id).manager_id == user.id)
-        ]
-    elif user.role == "NEW_HIRE":
-        notifications = [
-            n for n in notifications if n.hire_id is not None
-            and session.exec(select(Hire.id).where(Hire.id == n.hire_id, Hire.new_hire_user_id == user.id)).first()
-        ]
     return notifications
 
 
@@ -163,12 +149,7 @@ def mark_read(nid: UUID, session: Session = Depends(get_session), user=Depends(g
     own_role = user.team if user.role == "IT_STAFF" else user.role
     if n is None:
         raise HTTPException(404, "Notification not found")
-    permitted = n.for_role.lower() in {own_role.lower(), user.role.lower(), "new hire" if user.role == "NEW_HIRE" else ""}
-    if user.role == "MANAGER" and n.hire_id is not None:
-        hire = session.get(Hire, n.hire_id)
-        permitted = permitted and hire is not None and hire.manager_id == user.id
-    if user.role == "NEW_HIRE" and n.hire_id is not None:
-        permitted = permitted and session.exec(select(Hire.id).where(Hire.id == n.hire_id, Hire.new_hire_user_id == user.id)).first() is not None
+    permitted = n.for_role.lower() in {own_role.lower(), user.role.lower()}
     if user.role not in {"ADMIN", "HR"} and not permitted:
         raise HTTPException(403, "Notification belongs to another role")
     n.read = True
@@ -197,15 +178,8 @@ def reset_all(session: Session = Depends(get_session), _user=Depends(require_rol
     if settings.DEMO_MODE:
         from app.services.orchestrator import create_hire_with_plan
         from app.domain.models import User
-        manager = session.exec(select(User).where(User.email == "manager@demo.local")).first()
-        new_hire = session.exec(select(User).where(User.email == "newhire@demo.local")).first()
-        manager_id = manager.id if manager else None
-        priya = create_hire_with_plan(session, "Priya Sharma", "Data Analyst", "Analytics", 8, manager_id)
-        if new_hire:
-            priya.new_hire_user_id = new_hire.id
-            session.add(priya)
-            session.commit()
-        create_hire_with_plan(session, "Alex Chen", "Software Engineer", "Engineering", 10, manager_id)
-        create_hire_with_plan(session, "Maria Garcia", "default", "Marketing", 6, manager_id)
+        priya = create_hire_with_plan(session, "Priya Sharma", "Data Analyst", "Analytics", 8)
+        create_hire_with_plan(session, "Alex Chen", "Software Engineer", "Engineering", 10)
+        create_hire_with_plan(session, "Maria Garcia", "default", "Marketing", 6)
         return {"message": "Demo reset to Priya scenario", "hire_id": priya.public_id}
     return {"message": "Simulation data reset"}

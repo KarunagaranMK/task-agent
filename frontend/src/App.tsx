@@ -13,13 +13,9 @@ import { useLiveEvents } from './hooks/useLiveEvents'
 
 const HRPage = lazy(() => import('./pages/HRPage'))
 const HireDetail = lazy(() => import('./pages/HireDetail'))
-const ManagerPage = lazy(() => import('./pages/ManagerPage'))
 const ITPage = lazy(() => import('./pages/ITPage'))
 const InsightsPage = lazy(() => import('./pages/InsightsPage'))
-const DemoPanel = lazy(() => import('./components/DemoPanel'))
 const AccountRecovery = lazy(() => import('./pages/AccountRecovery'))
-const MyOnboardingPage = lazy(() => import('./pages/MyOnboardingPage'))
-const ManagerDashboard = lazy(() => import('./pages/ManagerDashboard'))
 const AdminPage = lazy(() => import('./pages/AdminPage'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 const GuidePage = lazy(() => import('./pages/GuidePage'))
@@ -36,32 +32,30 @@ const AuthContext = createContext<{ user: AuthUser; signOut: () => void }>({ use
 const useAuth = () => useContext(AuthContext)
 
 const navigation: Array<{ label: string; to: string; icon: LucideIcon; group: string; roles: string[]; badge?: string }> = [
-  { label: 'Overview', to: '/', icon: LayoutDashboard, group: 'Workspace', roles: ['ADMIN', 'HR', 'MANAGER'] },
+  { label: 'Overview', to: '/', icon: LayoutDashboard, group: 'Workspace', roles: ['ADMIN', 'HR'] },
   { label: 'HR review', to: '/reviews', icon: Check, group: 'Workspace', roles: ['ADMIN', 'HR'] },
-  { label: 'Manager approvals', to: '/manager', icon: ShieldCheck, group: 'Workspace', roles: ['ADMIN', 'MANAGER'] },
-  { label: 'Team queue', to: '/it', icon: Workflow, group: 'Operations', roles: ['ADMIN', 'IT_STAFF'] },
+  { label: 'IT tasks', to: '/it', icon: Workflow, group: 'Operations', roles: ['ADMIN', 'IT_STAFF'] },
+  { label: 'Facilities tasks', to: '/facilities', icon: Workflow, group: 'Operations', roles: ['ADMIN', 'IT_STAFF'] },
   { label: 'Insights', to: '/insights', icon: Activity, group: 'Operations', roles: ['ADMIN', 'HR'] },
   { label: 'Agent center', to: '/agents', icon: Bot, group: 'Operations', roles: ['ADMIN', 'HR'] },
   { label: 'Integrations', to: '/integrations', icon: PlugZap, group: 'Operations', roles: ['ADMIN', 'HR'] },
-  { label: 'My onboarding', to: '/my-onboarding', icon: Workflow, group: 'Workspace', roles: ['NEW_HIRE'] },
-  { label: 'Profile & preferences', to: '/profile', icon: Gauge, group: 'Workspace', roles: ['ADMIN', 'HR', 'MANAGER', 'IT_STAFF', 'NEW_HIRE'] },
-  { label: 'Project guide', to: '/guide', icon: BookOpen, group: 'Help', roles: ['ADMIN', 'HR', 'MANAGER', 'IT_STAFF', 'NEW_HIRE'] },
+  { label: 'Profile & preferences', to: '/profile', icon: Gauge, group: 'Workspace', roles: ['ADMIN', 'HR', 'IT_STAFF'] },
+  { label: 'Project guide', to: '/guide', icon: BookOpen, group: 'Help', roles: ['ADMIN', 'HR', 'IT_STAFF'] },
   { label: 'Templates', to: '/templates', icon: Workflow, group: 'Administration', roles: ['ADMIN', 'HR'] },
   { label: 'People', to: '/users', icon: ShieldCheck, group: 'Administration', roles: ['ADMIN'] },
   { label: 'Audit trail', to: '/audit', icon: Activity, group: 'Administration', roles: ['ADMIN', 'HR'] },
   { label: 'Settings', to: '/settings', icon: Gauge, group: 'Administration', roles: ['ADMIN'] },
 ]
 const routes: Array<{ label: string; to: string; description: string; roles: string[] }> = [
-  { label: 'Overview dashboard', to: '/', description: 'Hire portfolio and readiness', roles: ['ADMIN', 'HR', 'MANAGER'] },
+  { label: 'Overview dashboard', to: '/', description: 'Hire portfolio and readiness', roles: ['ADMIN', 'HR'] },
   { label: 'HR work review', to: '/reviews', description: 'Accept department work or approve agent alternatives', roles: ['ADMIN', 'HR'] },
-  { label: 'Manager approvals', to: '/manager', description: 'Review sensitive access requests', roles: ['ADMIN', 'MANAGER'] },
-  { label: 'Team ticket queue', to: '/it', description: 'Work across IT and Facilities tasks', roles: ['ADMIN', 'IT_STAFF'] },
+  { label: 'IT tasks', to: '/it', description: 'Verify and complete IT onboarding work', roles: ['ADMIN', 'IT_STAFF'] },
+  { label: 'Facilities tasks', to: '/facilities', description: 'Verify and complete Facilities onboarding work', roles: ['ADMIN', 'IT_STAFF'] },
   { label: 'Insights and experiment', to: '/insights', description: 'Readiness metrics and policy comparison', roles: ['ADMIN', 'HR'] },
   { label: 'Agent control center', to: '/agents', description: 'See LangGraph workflows and persisted agent activity', roles: ['ADMIN', 'HR'] },
   { label: 'Integration health', to: '/integrations', description: 'Check MCP services, model setup, scheduler, and retries', roles: ['ADMIN', 'HR'] },
-  { label: 'My onboarding', to: '/my-onboarding', description: 'Your personal first-day plan', roles: ['NEW_HIRE'] },
-  { label: 'Profile and preferences', to: '/profile', description: 'Update your account and notification settings', roles: ['ADMIN', 'HR', 'MANAGER', 'IT_STAFF', 'NEW_HIRE'] },
-  { label: 'Project guide', to: '/guide', description: 'Understand the workflow, technology, and demo', roles: ['ADMIN', 'HR', 'MANAGER', 'IT_STAFF', 'NEW_HIRE'] },
+  { label: 'Profile and preferences', to: '/profile', description: 'Update your account and notification settings', roles: ['ADMIN', 'HR', 'IT_STAFF'] },
+  { label: 'Project guide', to: '/guide', description: 'Understand the workflow, technology, and demo', roles: ['ADMIN', 'HR', 'IT_STAFF'] },
   { label: 'Role templates', to: '/templates', description: 'Edit and publish task plans', roles: ['ADMIN', 'HR'] },
   { label: 'People and access', to: '/users', description: 'Invite users and manage roles', roles: ['ADMIN'] },
   { label: 'Audit trail', to: '/audit', description: 'Review activity and access events', roles: ['ADMIN', 'HR'] },
@@ -78,12 +72,11 @@ function AppFrame() {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
-  const [demoOpen, setDemoOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [query, setQuery] = useState('')
   const location = useLocation()
   const navigate = useNavigate()
-  const canViewHires = ['ADMIN', 'HR', 'MANAGER'].includes(role)
+  const canViewHires = ['ADMIN', 'HR'].includes(role)
   const { data: hires = [] } = useQuery<Hire[]>({ queryKey: ['hires'], queryFn: getHires, staleTime: 30_000, enabled: canViewHires })
   const { data: notifications = [] } = useQuery<Notification[]>({ queryKey: ['notifications', role], queryFn: () => getNotifications(), refetchInterval: connectionState === 'live' ? false : 15_000 })
   const unreadNotifications = notifications.filter(item => !item.read)
@@ -93,8 +86,7 @@ function AppFrame() {
     setNotificationsOpen(false)
     if (item.for_role === 'HR' && ['HR', 'ADMIN'].includes(role)) navigate('/reviews')
     else if (item.hire_id && canViewHires) navigate(`/hire/${item.hire_id}`)
-    else if (role === 'MANAGER') navigate('/manager')
-    else if (role === 'IT_STAFF') navigate('/it')
+    else if (role === 'IT_STAFF') navigate(user.team === 'Facilities' ? '/facilities' : '/it')
   }
 
   useEffect(() => {
@@ -115,14 +107,14 @@ function AppFrame() {
       } else if (event.key === '?' && !['INPUT', 'TEXTAREA'].includes((event.target as HTMLElement)?.tagName)) {
         setPaletteOpen(true); setQuery('?')
       } else if (event.key === 'Escape') {
-        setPaletteOpen(false); setMobileOpen(false); setDemoOpen(false)
+        setPaletteOpen(false); setMobileOpen(false)
       } else if (event.key === '/' && !['INPUT', 'TEXTAREA'].includes((event.target as HTMLElement)?.tagName)) {
         event.preventDefault(); setPaletteOpen(true); setQuery('')
       } else if (!['INPUT', 'TEXTAREA'].includes((event.target as HTMLElement)?.tagName)) {
         const now = Date.now()
         if (shortcutPrefixAt.current && now - shortcutPrefixAt.current < 1000) {
           shortcutPrefixAt.current = 0
-          const destination = ({ h: '/', a: '/manager', t: '/it' } as Record<string, string>)[event.key.toLowerCase()]
+          const destination = ({ h: '/', a: '/reviews', t: user.team === 'Facilities' ? '/facilities' : '/it' } as Record<string, string>)[event.key.toLowerCase()]
           if (destination && visibleRoutes.some(item => item.to === destination)) navigate(destination)
         } else if (event.key.toLowerCase() === 'g') shortcutPrefixAt.current = now
       }
@@ -200,13 +192,12 @@ function AppFrame() {
             {role === 'ADMIN' && <Route path="/" element={<AdminDashboard />} />}
             {role === 'HR' && <Route path="/" element={<HRPage />} />}
             {['ADMIN', 'HR'].includes(role) && <Route path="/reviews" element={<HRReviewPage />} />}
-            {['ADMIN', 'HR', 'MANAGER'].includes(role) && <Route path="/hire/:id" element={<HireDetail />} />}
-            {['ADMIN', 'MANAGER'].includes(role) && <Route path="/manager" element={<ManagerPage />} />}
-            {['ADMIN', 'IT_STAFF'].includes(role) && <Route path="/it" element={<ITPage />} />}
+            {['ADMIN', 'HR'].includes(role) && <Route path="/hire/:id" element={<HireDetail />} />}
+            {['ADMIN', 'IT_STAFF'].includes(role) && <Route path="/it" element={<ITPage department="IT" />} />}
+            {['ADMIN', 'IT_STAFF'].includes(role) && <Route path="/facilities" element={<ITPage department="Facilities" />} />}
             {['ADMIN', 'HR'].includes(role) && <Route path="/insights" element={<InsightsPage />} />}
             {['ADMIN', 'HR'].includes(role) && <Route path="/agents" element={<AgentControlPage />} />}
             {['ADMIN', 'HR'].includes(role) && <Route path="/integrations" element={<IntegrationsPage role={role} />} />}
-            {role === 'NEW_HIRE' && <Route path="/my-onboarding" element={<MyOnboardingPage />} />}
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/guide" element={<GuidePage embedded />} />
             {['ADMIN', 'HR'].includes(role) && <Route path="/templates" element={<AdminPage />} />}
@@ -214,22 +205,16 @@ function AppFrame() {
             {['ADMIN', 'HR'].includes(role) && <Route path="/audit" element={<AdminPage />} />}
             {role === 'ADMIN' && <Route path="/settings" element={<AdminPage />} />}
             {role === 'ADMIN' && <Route path="/app/dev/mail" element={<AdminPage />} />}
-            {role === 'MANAGER' && <Route path="/" element={<ManagerDashboard />} />}
-            <Route path="*" element={<div className="empty-state"><Compass size={30} /><h1>That page is not here yet</h1><p>Choose a workspace page from the navigation.</p><button className="button-primary" onClick={() => go(role === 'IT_STAFF' ? '/it' : role === 'NEW_HIRE' ? '/my-onboarding' : '/')}>Back to overview</button></div>} />
+            <Route path="*" element={<div className="empty-state"><Compass size={30} /><h1>That page is not here yet</h1><p>Choose a workspace page from the navigation.</p><button className="button-primary" onClick={() => go(role === 'IT_STAFF' ? (user.team === 'Facilities' ? '/facilities' : '/it') : '/')}>Back to overview</button></div>} />
           </Routes></Suspense>
         </main>
         <footer className="app-footer"><span>OnboardFlow AI <span className="footer-separator">·</span> Intelligent onboarding. Connected teams. Day-1 readiness.</span><span><Sparkles size={13} /> AI optional <span className="footer-muted">(template fallback ready)</span></span></footer>
       </div>
 
-      {['ADMIN', 'HR'].includes(role) && <button className={`demo-fab ${demoOpen ? 'selected' : ''}`} onClick={() => setDemoOpen(value => !value)} aria-label={demoOpen ? 'Close demo controls' : 'Open demo controls'}>
-        {demoOpen ? <X size={17} /> : <Gauge size={17} />}<span>Demo controls</span>
-      </button>}
-      {demoOpen && ['ADMIN', 'HR'].includes(role) && <div className="demo-drawer"><div className="demo-drawer-head"><div><span className="eyebrow">LIVE SIMULATION</span><h3>Demo controls</h3></div><button className="icon-button" onClick={() => setDemoOpen(false)} aria-label="Close demo controls"><X size={17} /></button></div><Suspense fallback={<div className="panel-loading">Loading controls…</div>}><DemoPanel /></Suspense></div>}
-
       {paletteOpen && <div className="palette-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setPaletteOpen(false) }}>
         <section className="command-palette" role="dialog" aria-modal="true" aria-label="Command palette">
           <div className="palette-search"><Search size={18} /><input autoFocus value={query === '?' ? '' : query} onChange={event => setQuery(event.target.value)} placeholder="Search pages, hires, or actions…" /><kbd>ESC</kbd></div>
-          {query === '?' ? <div className="palette-results"><p className="palette-label">KEYBOARD SHORTCUTS</p><div className="shortcut-row"><span>Open search</span><kbd>Ctrl K</kbd></div><div className="shortcut-row"><span>Focus search</span><kbd>/</kbd></div><div className="shortcut-row"><span>Go to overview</span><kbd>G, H</kbd></div><div className="shortcut-row"><span>Go to approvals</span><kbd>G, A</kbd></div><div className="shortcut-row"><span>Go to team queue</span><kbd>G, T</kbd></div><div className="shortcut-row"><span>Close dialog</span><kbd>ESC</kbd></div><div className="shortcut-row"><span>Show shortcuts</span><kbd>?</kbd></div></div> : <div className="palette-results">
+          {query === '?' ? <div className="palette-results"><p className="palette-label">KEYBOARD SHORTCUTS</p><div className="shortcut-row"><span>Open search</span><kbd>Ctrl K</kbd></div><div className="shortcut-row"><span>Focus search</span><kbd>/</kbd></div><div className="shortcut-row"><span>Go to overview</span><kbd>G, H</kbd></div><div className="shortcut-row"><span>Go to approvals</span><kbd>G, A</kbd></div><div className="shortcut-row"><span>Go to your department tasks</span><kbd>G, T</kbd></div><div className="shortcut-row"><span>Close dialog</span><kbd>ESC</kbd></div><div className="shortcut-row"><span>Show shortcuts</span><kbd>?</kbd></div></div> : <div className="palette-results">
             <p className="palette-label">PAGES</p>
             {visibleRoutes.filter(item => `${item.label} ${item.description}`.toLowerCase().includes(query.toLowerCase())).map(item => <button key={item.label} className="palette-option" onClick={() => go(item.to)}><span className="palette-option-icon"><ArrowUpRight size={16} /></span><span>{item.label}<small>{item.description}</small></span><kbd>↵</kbd></button>)}
             {query && hireResults.length > 0 && <><p className="palette-label">HIRES</p>{hireResults.slice(0, 5).map(hire => <button key={hire.id} className="palette-option" onClick={() => go(`/hire/${hire.id}`)}><span className="hire-avatar">{hire.name.split(' ').map(part => part[0]).join('').slice(0, 2)}</span><span>{hire.name}<small>{hire.role} · {hire.department}</small></span><ArrowUpRight size={15} /></button>)}</>}
@@ -245,9 +230,7 @@ function AppFrame() {
 
 function roleLabel(role: string, team?: string | null) {
   if (role === 'ADMIN') return 'Admin'
-  if (role === 'MANAGER') return 'Manager'
   if (role === 'IT_STAFF') return team === 'Facilities' ? 'Facilities' : 'IT'
-  if (role === 'NEW_HIRE') return 'New hire'
   return role
 }
 
@@ -268,7 +251,7 @@ function AuthCoordinator() {
   }
   const onAuthenticated = (nextUser: AuthUser) => {
     setUser(nextUser)
-    navigate(nextUser.role === 'IT_STAFF' ? '/it' : nextUser.role === 'NEW_HIRE' ? '/my-onboarding' : '/', { replace: true })
+    navigate(nextUser.role === 'IT_STAFF' ? (nextUser.team === 'Facilities' ? '/facilities' : '/it') : '/', { replace: true })
   }
 
   if (checking) return <div className="auth-loading"><span className="brand-mark"><Workflow size={19} /></span><strong>Restoring your session…</strong></div>
@@ -276,8 +259,7 @@ function AuthCoordinator() {
   if (!user && ['/forgot-password', '/reset-password', '/accept-invite'].includes(location.pathname)) return <Suspense fallback={<div className="auth-loading">Loading secure page…</div>}><AccountRecovery /></Suspense>
   if (!user) return <LoginPage onAuthenticated={onAuthenticated} />
   if (location.pathname === '/login') return <Navigate to="/" replace />
-  if (location.pathname === '/' && user.role === 'IT_STAFF') return <Navigate to="/it" replace />
-  if (location.pathname === '/' && user.role === 'NEW_HIRE') return <Navigate to="/my-onboarding" replace />
+  if (location.pathname === '/' && user.role === 'IT_STAFF') return <Navigate to={user.team === 'Facilities' ? '/facilities' : '/it'} replace />
   const role = user.role
   return <AuthContext.Provider value={{ user, signOut }}><RoleContext.Provider value={{ role, setRole: () => {} }}><AppFrame /></RoleContext.Provider></AuthContext.Provider>
 }

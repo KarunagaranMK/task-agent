@@ -1,17 +1,37 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from sqlmodel import Session, select, func
-from app.db.database import get_session
-from app.domain.models import ApprovalState, Hire, Task, TaskStatus, HireStatus, AuditEvent, Ticket, OutboxItem
-from app.services.orchestrator import audit, compute_readiness, create_hire_with_plan, get_current_day, replace_hire_plan_before_work_starts, run_cpm_for_hire, update_hire_status
-from app.auth import require_roles
-from app.services.cpm import CPMTask, compute_cpm, compute_what_if, get_remaining_days
-from app.mcp_clients.tools import cancel_ticket as mcp_cancel_ticket, update_ticket_status as mcp_update_ticket_status
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from typing import Optional, List, Literal
 from datetime import date, datetime
+from typing import List, Literal, Optional
 from uuid import UUID
-from app.services.clock import load_clock
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from sqlmodel import Session, func, select
+
+from app.auth import require_roles
+from app.db.database import get_session
+from app.domain.models import (
+    ApprovalState,
+    AuditEvent,
+    Hire,
+    HireStatus,
+    OutboxItem,
+    Task,
+    TaskStatus,
+    Ticket,
+)
+from app.mcp_clients.tools import cancel_ticket as mcp_cancel_ticket
+from app.mcp_clients.tools import update_ticket_status as mcp_update_ticket_status
+from app.services.clock import load_clock
+from app.services.cpm import CPMTask, compute_cpm, compute_what_if, get_remaining_days
+from app.services.orchestrator import (
+    audit,
+    compute_readiness,
+    create_hire_with_plan,
+    dispatch_task,
+    get_current_day,
+    replace_hire_plan_before_work_starts,
+    run_cpm_for_hire,
+    update_hire_status,
+)
 
 router = APIRouter(prefix="/hires", tags=["hires"])
 
@@ -180,6 +200,18 @@ def create_hire(data: HireCreate, session: Session = Depends(get_session), _user
         value = getattr(data, field)
         setattr(hire, field, value.strip() if isinstance(value, str) and value.strip() else None)
     session.add(hire)
+    # Persist the hire and its plan, then immediately dispatch tasks with no
+    # dependencies so IT and Facilities can see the new employee right away.
+    # The full monitor runs on a configured interval (15 minutes by default).
+    session.commit()
+    current_day = get_current_day(session)
+    ready_tasks = session.exec(
+        select(Task).where(Task.hire_id == hire.id, Task.status == TaskStatus.pending)
+    ).all()
+    for task in ready_tasks:
+        if not task.depends_on_list:
+            dispatch_task(session, task, current_day, commit=False)
+    session.commit()
     return _hire_out(hire, session)
 
 

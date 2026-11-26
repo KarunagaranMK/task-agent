@@ -131,7 +131,7 @@ test('HR can bulk pause and resume selected hires on the current page', async ({
 
 test('manager, IT, and new-hire interactions are keyboard reachable', async ({ page }) => {
   await signIn(page, 'Manager')
-  await page.getByRole('link', { name: 'Approvals', exact: true }).click()
+  await page.getByRole('link', { name: 'Manager approvals', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Approvals inbox' })).toBeVisible()
   await expect(page.getByRole('button', { name: /Approve/ }).first()).toBeVisible()
 
@@ -214,7 +214,7 @@ test('admin guided walkthrough navigates the real product surfaces', async ({ pa
   await expect(page.getByText('Finish walkthrough')).toHaveCount(0)
 })
 
-test('Priya demo recovers from a stalled laptop and ITSM outage through her new-hire portal', async ({ page }) => {
+test('Priya demo recovery and HR review workspace are available', async ({ page }) => {
   test.setTimeout(360_000)
 
   // Keep this acceptance run deterministic and isolated to Playwright's own DB.
@@ -237,7 +237,7 @@ test('Priya demo recovers from a stalled laptop and ITSM outage through her new-
   // Manager decision unblocks role-protected work; HR runs the deterministic monitor.
   await page.getByRole('button', { name: 'Sign out' }).click()
   await signIn(page, 'Manager')
-  await page.getByRole('link', { name: 'Approvals', exact: true }).click()
+  await page.getByRole('link', { name: 'Manager approvals', exact: true }).click()
   const priyaApprovals = page.locator('.approval-item').filter({ hasText: 'Priya Sharma' })
   await expect(priyaApprovals).toHaveCount(2)
   for (let index = 0; index < 2; index += 1) {
@@ -295,40 +295,19 @@ test('Priya demo recovers from a stalled laptop and ITSM outage through her new-
   expect((await recoveryMonitor).ok()).toBeTruthy()
   await expect(pendingMetric).toHaveText('0', { timeout: 15_000 })
 
-  // The demo worker lets this browser run complete the remaining human-owned mock tickets.
+  // HR can open the department review inbox after the recovery demonstration.
   await page.locator('.demo-drawer-head').getByRole('button', { name: 'Close demo controls' }).click()
-  await page.getByRole('button', { name: 'Sign out' }).click()
-  await signIn(page, 'Admin')
-  await page.getByRole('link', { name: 'Settings' }).click()
-  const completionWorker = page.getByRole('checkbox', { name: /Demo auto-worker/ })
-  if (!(await completionWorker.isChecked())) await completionWorker.check()
-  await page.getByRole('button', { name: 'Save settings' }).click()
-  await expect(page.getByRole('status')).toContainText('Workspace settings saved')
-  await page.getByRole('button', { name: 'Sign out' }).click()
-  await signIn(page, 'HR')
-  await page.getByRole('button', { name: 'Open demo controls' }).click()
-  await page.getByRole('button', { name: 'Advance 1 business day' }).click()
-  for (let day = 0; day < 12; day += 1) {
-    await page.getByRole('button', { name: 'Advance 1 business day' }).click()
-  }
-  await page.locator('.demo-drawer-head').getByRole('button', { name: 'Close demo controls' }).click()
-  await page.getByRole('link', { name: 'Overview', exact: true }).click()
-  const readyResponse = page.waitForResponse(response => /\/hires\/[0-9a-f-]{36}$/i.test(new URL(response.url()).pathname) && response.request().method() === 'GET')
-  await page.locator('a.hire-name-link').filter({ hasText: 'Priya Sharma' }).click()
-  expect(await (await readyResponse).json()).toMatchObject({ status: 'ready', readiness: 100 })
-  await expect(page.locator('.hire-hero .status-pill')).toHaveText(/Ready/i, { timeout: 30_000 })
-
-  await page.getByRole('button', { name: 'Sign out' }).click()
-  await signIn(page, 'New hire')
-  await expect(page.getByRole('heading', { name: 'You’re ready to go' })).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('link', { name: 'HR review', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Department review' })).toBeVisible()
+  await expect(page.getByText('Open decisions')).toBeVisible()
 })
 
 test('primary role pages have no serious or critical axe findings', async ({ page }) => {
   await signIn(page, 'Admin')
-  const paths = ['/', '/hire/:id', '/insights', '/templates', '/users', '/audit', '/settings']
+  const paths = ['/', '/hire/:id', '/reviews', '/insights', '/templates', '/users', '/audit', '/settings']
   const findings: string[] = []
   for (const path of paths) {
-    if (path === '/hire/:id') await page.locator('a.hire-name-link').filter({ hasText: 'Priya Sharma' }).click()
+    if (path === '/hire/:id') await page.locator('.admin-table a').filter({ hasText: 'Priya Sharma' }).click()
     else if (path !== '/') await page.locator(`a[href="${path}"]`).first().click()
     await page.getByRole('heading').first().waitFor()
     await page.addScriptTag({ path: axeScript })

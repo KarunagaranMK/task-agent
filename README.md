@@ -10,7 +10,7 @@ HR creates plans against a real joining date. The organization timezone and edit
 
 OnboardFlow AI gives the teams involved in a new hire's first day one shared plan. HR creates the hire, the planner builds dependent tasks, and the Critical Path Method (CPM) estimates which tasks can delay Day 1. Managers approve sensitive access; IT and Facilities process their assigned work. A LangGraph supervisor routes planning and monitoring work to specialized nodes. A monitor checks progress, records changes, and can escalate a stalled critical task or apply a configured fallback. The dashboard updates readiness and notifications.
 
-The application uses a **supervised agent workflow**, not an unconstrained autonomous agent. LangGraph routes tasks, persists checkpoints in SQLite, and pauses a workflow at the manager approval gate. Normal workflow decisions use explicit application rules. Optional Gemini calls help draft text or suggest tasks; they do not approve access or decide schedules.
+The application uses a **supervised agent workflow**, not an unconstrained autonomous agent. HR registers employees, departments work their assigned queue, and each completed task waits in HR review. HR accepts the work or requests an agent-proposed alternative; a person must approve that alternative before it returns to the team. LangGraph routes planning and monitoring, while CPM calculates dependencies and readiness. Optional Gemini calls suggest text or alternatives; they do not approve work or decide schedules.
 
 For the interactive walkthrough, open **Project guide** from the sign-in screen or go to `/guide`. For the full role-by-role sample, see [`docs/DEMO.md`](docs/DEMO.md).
 
@@ -70,8 +70,8 @@ No API key is required; unavailable LLM features use deterministic template text
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │            React + TypeScript frontend (Vite)                    │
-│ HR · Manager · IT/Facilities · New Hire · Admin · Insights       │
-│ Responsive portals · React Flow · charts · live updates          │
+│ HR register/review · Manager approvals · Team queue · Admin       │
+│ Employee timeline · CPM insights · React Flow · live updates      │
 └───────────────────────────┬──────────────────────────────────────┘
                             │ REST / JSON + SSE
 ┌───────────────────────────▼──────────────────────────────────────┐
@@ -154,7 +154,7 @@ This is a local-first demonstration. The ITSM and HRIS services are mocks, outbo
 
 ## 🎬 Demo Scenario
 
-See [`docs/DEMO.md`](docs/DEMO.md) for the complete sample: create a hire, review its plan, move work between roles, demonstrate approval and recovery, and finish at Day-1 readiness.
+See [`docs/DEMO.md`](docs/DEMO.md) for the complete sample: register an employee, hand work to departments, review completions in HR, approve an agent alternative, and track Day-1 readiness.
 
 ---
 

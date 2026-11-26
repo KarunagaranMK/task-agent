@@ -1,0 +1,57 @@
+from datetime import date
+
+from app.domain.models import Hire, Task, TaskStatus, Ticket
+from app.mcp_clients.tools import create_ticket as mcp_create_ticket
+from app.services import llm
+
+
+def _submitted_work(session):
+    hire = Hire(name="Review Example", role="Data Analyst", department="Analytics", start_day=8, start_date=date(2027, 1, 12))
+    session.add(hire)
+    session.commit()
+    session.refresh(hire)
+    task = Task(hire_id=hire.id, key="it:account", title="Create analytics account", team="IT", duration_days=1, status=TaskStatus.dispatched)
+    external = mcp_create_ticket("hr-review-test", task.title, "IT", 1)
+    task.ticket_id = external["ticket_id"]
+    session.add(task)
+    session.commit()
+    session.refresh(task)
+    session.add(Ticket(ticket_id=external["ticket_id"], idempotency_key="hr-review-test", title=task.title, team="IT", estimate_days=1, status="open", hire_id=hire.id, task_id=task.id))
+    session.commit()
+    return hire, task, external["ticket_id"]
+
+
+def test_department_completion_waits_for_hr_acceptance(client, session):
+    hire, task, ticket_id = _submitted_work(session)
+
+    completed = client.post(f"/tickets/{ticket_id}/complete")
+    assert completed.status_code == 200
+    assert completed.json()["status"] == "pending_review"
+    reviews = client.get("/tasks/hr-review")
+    assert reviews.status_code == 200
+    assert reviews.json()[0]["hire_name"] == hire.name
+    assert session.get(Task, task.id).status == TaskStatus.dispatched
+
+    accepted = client.post(f"/tasks/{task.public_id}/review", json={"decision": "accept"})
+    assert accepted.status_code == 200, accepted.text
+    assert session.get(Task, task.id).status == TaskStatus.done
+    assert client.get("/tasks/hr-review").json() == []
+
+
+def test_hr_can_request_and_approve_agent_alternative(client, session, monkeypatch):
+    _, task, ticket_id = _submitted_work(session)
+    monkeypatch.setattr(llm, "draft_alternative_title", lambda *args: {"title": "Provision a temporary analytics account", "duration_days": 2})
+
+    assert client.post(f"/tickets/{ticket_id}/complete").status_code == 200
+    proposed = client.post(f"/tasks/{task.public_id}/review", json={"decision": "alternative"})
+    assert proposed.status_code == 200, proposed.text
+    assert proposed.json()["suggested_title"] == "Provision a temporary analytics account"
+    review = client.get("/tasks/hr-review").json()[0]
+    assert review["status"] == "alternative_pending"
+    assert review["suggested_title"] == "Provision a temporary analytics account"
+
+    accepted = client.post(f"/tasks/{task.public_id}/review", json={"decision": "accept"})
+    assert accepted.status_code == 200
+    assert session.get(Task, task.id).title == "Provision a temporary analytics account"
+    assert session.get(Task, task.id).status == TaskStatus.dispatched
+    assert client.get("/tasks/hr-review").json() == []

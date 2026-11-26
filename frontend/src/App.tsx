@@ -25,6 +25,8 @@ const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 const GuidePage = lazy(() => import('./pages/GuidePage'))
 const AgentControlPage = lazy(() => import('./pages/AgentControlPage'))
 const IntegrationsPage = lazy(() => import('./pages/IntegrationsPage'))
+const HRReviewPage = lazy(() => import('./pages/HRReviewPage'))
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: true } } })
 
@@ -35,7 +37,8 @@ const useAuth = () => useContext(AuthContext)
 
 const navigation: Array<{ label: string; to: string; icon: LucideIcon; group: string; roles: string[]; badge?: string }> = [
   { label: 'Overview', to: '/', icon: LayoutDashboard, group: 'Workspace', roles: ['ADMIN', 'HR', 'MANAGER'] },
-  { label: 'Approvals', to: '/manager', icon: ShieldCheck, group: 'Workspace', roles: ['ADMIN', 'MANAGER'] },
+  { label: 'HR review', to: '/reviews', icon: Check, group: 'Workspace', roles: ['ADMIN', 'HR'] },
+  { label: 'Manager approvals', to: '/manager', icon: ShieldCheck, group: 'Workspace', roles: ['ADMIN', 'MANAGER'] },
   { label: 'Team queue', to: '/it', icon: Workflow, group: 'Operations', roles: ['ADMIN', 'IT_STAFF'] },
   { label: 'Insights', to: '/insights', icon: Activity, group: 'Operations', roles: ['ADMIN', 'HR'] },
   { label: 'Agent center', to: '/agents', icon: Bot, group: 'Operations', roles: ['ADMIN', 'HR'] },
@@ -50,7 +53,8 @@ const navigation: Array<{ label: string; to: string; icon: LucideIcon; group: st
 ]
 const routes: Array<{ label: string; to: string; description: string; roles: string[] }> = [
   { label: 'Overview dashboard', to: '/', description: 'Hire portfolio and readiness', roles: ['ADMIN', 'HR', 'MANAGER'] },
-  { label: 'Manager approvals', to: '/manager', description: 'Review access requests and escalations', roles: ['ADMIN', 'MANAGER'] },
+  { label: 'HR work review', to: '/reviews', description: 'Accept department work or approve agent alternatives', roles: ['ADMIN', 'HR'] },
+  { label: 'Manager approvals', to: '/manager', description: 'Review sensitive access requests', roles: ['ADMIN', 'MANAGER'] },
   { label: 'Team ticket queue', to: '/it', description: 'Work across IT and Facilities tasks', roles: ['ADMIN', 'IT_STAFF'] },
   { label: 'Insights and experiment', to: '/insights', description: 'Readiness metrics and policy comparison', roles: ['ADMIN', 'HR'] },
   { label: 'Agent control center', to: '/agents', description: 'See LangGraph workflows and persisted agent activity', roles: ['ADMIN', 'HR'] },
@@ -87,7 +91,8 @@ function AppFrame() {
   const openNotification = async (item: Notification) => {
     if (!item.read) { await markNotificationRead(item.id); void queryClient.invalidateQueries({ queryKey: ['notifications'] }) }
     setNotificationsOpen(false)
-    if (item.hire_id && canViewHires) navigate(`/hire/${item.hire_id}`)
+    if (item.for_role === 'HR' && ['HR', 'ADMIN'].includes(role)) navigate('/reviews')
+    else if (item.hire_id && canViewHires) navigate(`/hire/${item.hire_id}`)
     else if (role === 'MANAGER') navigate('/manager')
     else if (role === 'IT_STAFF') navigate('/it')
   }
@@ -192,7 +197,9 @@ function AppFrame() {
 
         <main className="page-content" key={location.pathname}>
           <Suspense fallback={<div className="page-skeleton" role="status" aria-label="Loading page"><span /></div>}><Routes>
-            {['ADMIN', 'HR'].includes(role) && <Route path="/" element={<HRPage />} />}
+            {role === 'ADMIN' && <Route path="/" element={<AdminDashboard />} />}
+            {role === 'HR' && <Route path="/" element={<HRPage />} />}
+            {['ADMIN', 'HR'].includes(role) && <Route path="/reviews" element={<HRReviewPage />} />}
             {['ADMIN', 'HR', 'MANAGER'].includes(role) && <Route path="/hire/:id" element={<HireDetail />} />}
             {['ADMIN', 'MANAGER'].includes(role) && <Route path="/manager" element={<ManagerPage />} />}
             {['ADMIN', 'IT_STAFF'].includes(role) && <Route path="/it" element={<ITPage />} />}

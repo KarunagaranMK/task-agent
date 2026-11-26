@@ -421,13 +421,14 @@ def _monitor_tick_body(session: Session) -> None:
             result = mcp_update_ticket_status(ticket.ticket_id, "done")
             if result.get("error"):
                 continue
-            ticket.status = "done"
+            ticket.status = "pending_review"
             ticket.updated_at = datetime.utcnow()
-            task.status = TaskStatus.done
             task.last_activity_day = current_day
             session.add(ticket)
             session.add(task)
-            audit(session, ticket.hire_id or 0, f"Demo auto-worker completed '{ticket.title}'", "info", "demo_auto_worker")
+            audit(session, ticket.hire_id or 0, f"Demo auto-worker submitted '{ticket.title}' for HR review", "info", "demo_auto_worker")
+            hire = session.get(Hire, ticket.hire_id) if ticket.hire_id else None
+            notify(session, "HR", f"{ticket.team} submitted “{ticket.title}” for {hire.name if hire else 'the new hire'}; review the completion.", ticket.hire_id, task.id)
 
     hires = session.exec(select(Hire)).all()
     for hire in hires:

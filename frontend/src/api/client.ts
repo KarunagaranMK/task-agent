@@ -94,6 +94,9 @@ export const explainRisk = (id: string) => api.get(`/hires/${id}/explain`).then(
 export const approveTask = (id: string) => api.post(`/tasks/${id}/approve`).then(r => r.data)
 export const rejectTask = (id: string) => api.post(`/tasks/${id}/reject`).then(r => r.data)
 export const undoApproval = (id: string) => api.post(`/tasks/${id}/undo-approval`).then(r => r.data)
+export interface HRReview { task_id: string; ticket_id: string; hire_id: string; hire_name: string; task_title: string; team: string; status: 'pending_review' | 'alternative_pending'; suggested_title: string | null; updated_at: string }
+export const getHRReviews = () => api.get<HRReview[]>('/tasks/hr-review').then(r => r.data)
+export const decideHRReview = (taskId: string, decision: 'accept' | 'alternative') => api.post(`/tasks/${taskId}/review`, { decision }).then(r => r.data)
 export const getTickets = () => api.get('/tickets').then(r => r.data)
 export const startTicket = (id: string) => api.post(`/tickets/${id}/start`).then(r => r.data)
 export const completeTicket = (id: string) => api.post(`/tickets/${id}/complete`).then(r => r.data)

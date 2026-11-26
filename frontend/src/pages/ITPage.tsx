@@ -3,11 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertCircle, Check, CheckCircle2, Circle, Clock3, LayoutGrid, List, MessageSquare, Play, Plus, Send, ShieldAlert, X } from 'lucide-react'
 import { addTicketComment, blockTicket, completeTicket, getTicketComments, getTickets, stallTicket, startTicket, type Ticket, type TicketComment } from '../api/client'
 
-type TicketStatus = 'open' | 'in_progress' | 'done' | 'blocked' | 'stalled'
+type TicketStatus = 'open' | 'in_progress' | 'done' | 'pending_review' | 'blocked' | 'stalled'
 const columns: Array<{ key: string; label: string; icon: typeof Circle; statuses: TicketStatus[] }> = [
   { key: 'open', label: 'Open', icon: Circle, statuses: ['open'] },
   { key: 'in_progress', label: 'In progress', icon: Play, statuses: ['in_progress'] },
   { key: 'blocked', label: 'Blocked / stalled', icon: AlertCircle, statuses: ['blocked', 'stalled'] },
+  { key: 'pending_review', label: 'Submitted to HR', icon: Clock3, statuses: ['pending_review'] },
   { key: 'done', label: 'Done', icon: CheckCircle2, statuses: ['done'] },
 ]
 
@@ -45,7 +46,7 @@ export default function ITPage() {
     setError(''); mutation.mutate({ id: ticket.ticket_id, action })
   }
   const ageDays = (ticket: Ticket) => Math.max(0, Math.floor((Date.now() - new Date(ticket.created_at).getTime()) / 86_400_000))
-  const statusTitle: Record<TicketStatus, string> = { open: 'Open', in_progress: 'In progress', blocked: 'Blocked', stalled: 'Stalled', done: 'Done' }
+  const statusTitle: Record<TicketStatus, string> = { open: 'Open', in_progress: 'In progress', blocked: 'Blocked', stalled: 'Stalled', pending_review: 'Waiting for HR review', done: 'Done' }
 
   return <div className="portal-page">
     <div className="page-heading-row"><div><span className="eyebrow">TEAM OPERATIONS</span><h1>Work queue</h1><p>Complete the hands-on work. OnboardFlow AI keeps the plan and Day 1 status in sync.</p></div><div className="queue-view-toggle" role="group" aria-label="Ticket view"><button aria-pressed={layout === 'board'} className={layout === 'board' ? 'selected' : ''} onClick={() => setLayout('board')}><LayoutGrid size={15} />Board</button><button aria-pressed={layout === 'list'} className={layout === 'list' ? 'selected' : ''} onClick={() => setLayout('list')}><List size={15} />List</button></div></div>
@@ -62,10 +63,12 @@ export default function ITPage() {
 }
 
 function TicketCard({ ticket, onOpen, onAction, ageDays, busy }: { ticket: Ticket; onOpen: () => void; onAction: (action: 'start' | 'complete' | 'block' | 'stall') => void; ageDays: number; busy: boolean }) {
-  return <article className={`ticket-card ${ticket.status === 'stalled' ? 'stalled' : ''}`}><button className="ticket-card-main" onClick={onOpen}><div className="ticket-card-top"><span className="ticket-id">{ticket.ticket_id}</span><span className={`ticket-status ${ticket.status}`}><i />{ticket.status.replace('_', ' ')}</span></div><h3>{ticket.title}</h3><div className="ticket-card-meta"><span>{ticket.team}</span><span><Clock3 size={12} />{ageDays}d / {ticket.estimate_days}d SLA</span></div></button><TicketActions ticket={ticket} onAction={onAction} busy={busy} /></article>
+  const label = ticket.status === 'pending_review' ? 'Waiting for HR review' : ticket.status.replace('_', ' ')
+  return <article className={`ticket-card ${ticket.status === 'stalled' ? 'stalled' : ''}`}><button className="ticket-card-main" onClick={onOpen}><div className="ticket-card-top"><span className="ticket-id">{ticket.ticket_id}</span><span className={`ticket-status ${ticket.status}`}><i />{label}</span></div><h3>{ticket.title}</h3><div className="ticket-card-meta"><span>{ticket.team}</span><span><Clock3 size={12} />{ageDays}d / {ticket.estimate_days}d SLA</span></div></button><TicketActions ticket={ticket} onAction={onAction} busy={busy} /></article>
 }
 
 function TicketActions({ ticket, onAction, busy }: { ticket: Ticket; onAction: (action: 'start' | 'complete' | 'block' | 'stall') => void; busy: boolean }) {
   if (ticket.status === 'done') return <span className="ticket-done-note"><Check size={14} />Completed</span>
+  if (ticket.status === 'pending_review') return <span className="ticket-done-note"><Clock3 size={14} />Submitted to HR</span>
   return <div className="ticket-actions">{ticket.status !== 'in_progress' && <button aria-label={`Start ${ticket.title}`} disabled={busy} onClick={() => onAction('start')}><Play size={13} />Start</button>}<button className="complete-ticket" disabled={busy} onClick={() => onAction('complete')}><Check size={13} />Complete</button>{ticket.status === 'stalled' ? <button disabled={busy} onClick={() => onAction('block')}><ShieldAlert size={13} />Blocked</button> : <button disabled={busy} onClick={() => onAction('block')}><AlertCircle size={13} />Block</button>}{ticket.status !== 'stalled' && <button disabled={busy} onClick={() => onAction('stall')}><Plus size={13} />Flag stalled</button>}</div>
 }

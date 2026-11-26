@@ -18,7 +18,7 @@ function formatDate(value: string | null) {
 }
 
 function mailtoHref(message: Pick<EmployeeMailActionResult, 'recipient' | 'subject' | 'body'>) {
-  return `mailto:${encodeURIComponent(message.recipient)}?subject=${encodeURIComponent(message.subject)}&body=${encodeURIComponent(message.body)}`
+  return `mailto:${message.recipient}?subject=${encodeURIComponent(message.subject)}&body=${encodeURIComponent(message.body)}`
 }
 
 export default function EmployeeCommunicationsPage() {

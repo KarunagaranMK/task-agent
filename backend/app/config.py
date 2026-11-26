@@ -8,6 +8,12 @@ class Settings(BaseSettings):
     SIM_MODE: bool = True
     GEMINI_MODEL: str = "gemini-2.5-flash"
     GEMINI_API_KEY: Optional[str] = None
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM: Optional[str] = None
+    SMTP_STARTTLS: bool = True
     ITSM_OFFLINE: bool = False
     DEMO_MODE: bool = True
     JWT_SECRET: str = "local-dev-only-change-this-secret"

@@ -258,6 +258,10 @@ class MailOutbox(SQLModel, table=True):
     recipient: str
     subject: str
     body: str
+    hire_id: Optional[int] = Field(default=None, foreign_key="hires.id", index=True)
+    kind: Optional[str] = Field(default=None, index=True)
+    dedupe_key: Optional[str] = Field(default=None, unique=True, index=True)
+    created_by_id: Optional[int] = Field(default=None, foreign_key="users.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     sent_at: Optional[datetime] = None
 

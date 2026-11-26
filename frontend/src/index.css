@@ -773,3 +773,26 @@ kbd { height: 20px; min-width: 22px; display: inline-flex; justify-content: cent
 .monitor-status { flex:0 0 auto;padding:5px 8px;border-radius:999px;color:#854d0e;background:#fff0c2;font-size:9px;font-weight:750; }.monitor-status.approved { color:#12633e;background:#d9f8e6; }.monitor-status.rejected { color:#9b3030;background:#ffe0e0; }
 .monitor-activity-list article { display:flex;align-items:flex-start;gap:11px;padding:10px 0;border-bottom:1px solid var(--border); }.monitor-activity-list article:last-child { border-bottom:0; }.monitor-activity-list article>div { display:grid;gap:4px;min-width:0; }.monitor-activity-list strong { color:var(--ink);font-size:10px;text-transform:capitalize; }.monitor-activity-list p { margin:0;color:var(--ink);font-size:10px;line-height:1.5; }.monitor-activity-list small { color:var(--muted);font-size:9px; }
 @media(max-width:640px) { .alternative-review-grid { grid-template-columns:1fr; }.monitor-alternative-list article { flex-direction:column; }.monitor-department-head { align-items:flex-start;flex-direction:column; }.monitor-live { display:none; } }
+
+.communication-policy { display:flex;align-items:flex-start;gap:12px;margin-bottom:18px;padding:16px;color:var(--muted); }
+.communication-policy>svg { flex:0 0 auto;margin-top:2px;color:var(--accent); }
+.communication-policy p { margin:0;font-size:12px;line-height:1.65; }.communication-policy strong { color:var(--ink); }
+.communication-stats { margin-bottom:18px; }
+.employee-communication-list { display:grid;gap:14px; }
+.employee-communication-card { display:grid;gap:16px;padding:20px; }
+.employee-communication-head { display:flex;justify-content:space-between;align-items:flex-start;gap:16px; }
+.employee-communication-head h2 { margin:5px 0 3px;color:var(--ink);font-size:18px; }
+.employee-communication-head p { margin:0;color:var(--muted);font-size:12px; }
+.communication-status { display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;padding:6px 9px;border-radius:999px;font-size:11px;font-weight:700; }
+.communication-status.is-ready { color:#12633e;background:#d9f8e6; }.communication-status.in-progress { color:#475569;background:#edf1f5; }.communication-status.needs-action { color:#8a4b08;background:#fff0c2; }
+.communication-progress { display:grid;gap:7px; }.communication-progress>div { display:flex;justify-content:space-between;color:var(--muted);font-size:11px; }.communication-progress strong { color:var(--ink); }
+.communication-progress .readiness-track { display:block;overflow:hidden;height:7px;border-radius:99px;background:var(--border); }.communication-progress .readiness-track i { display:block;height:100%;border-radius:inherit;background:var(--accent); }
+.communication-recipient { display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px; }.communication-recipient svg { color:var(--accent); }.communication-recipient a { margin-left:auto;color:var(--accent);font-weight:650;text-decoration:none; }
+.communication-action-panel { display:flex;justify-content:space-between;align-items:center;gap:18px;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--canvas); }
+.communication-action-panel>div:first-child strong { color:var(--ink);font-size:12px; }.communication-action-panel p { margin:4px 0 0;color:var(--muted);font-size:11px;line-height:1.5; }
+.communication-action-panel>.button-primary,.delay-notice-form>.button-primary { flex:0 0 auto; }
+.delay-action-panel { align-items:flex-start;flex-direction:column; }.delay-notice-form { display:grid;width:100%;grid-template-columns:minmax(170px,.75fr) minmax(220px,1.5fr) auto;align-items:end;gap:12px; }
+.delay-notice-form label { display:grid;gap:6px;color:var(--muted);font-size:11px;font-weight:650; }.delay-notice-form input,.delay-notice-form textarea { width:100%;min-height:38px;padding:9px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--ink);font:inherit;font-size:12px; }.delay-notice-form textarea { resize:vertical; }
+.communication-waiting { margin:0;color:var(--muted);font-size:11px; }
+.communication-history { border-top:1px solid var(--border);padding-top:12px;color:var(--muted);font-size:11px; }.communication-history summary { cursor:pointer;font-weight:650;color:var(--ink); }.communication-history>div { display:grid;gap:8px;margin-top:10px; }.communication-history article { display:flex;justify-content:space-between;gap:12px;padding:9px 10px;border-radius:7px;background:var(--canvas); }.communication-history article strong { color:var(--ink);font-size:11px; }.communication-history article span { flex:0 0 auto; }
+@media(max-width:760px) { .employee-communication-head { align-items:flex-start;flex-direction:column; }.communication-action-panel { align-items:stretch;flex-direction:column; }.delay-notice-form { grid-template-columns:1fr; }.communication-history article { align-items:flex-start;flex-direction:column; }.communication-recipient { align-items:flex-start;flex-wrap:wrap; }.communication-recipient a { margin-left:0; } }

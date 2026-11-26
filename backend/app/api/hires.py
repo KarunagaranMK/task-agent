@@ -7,12 +7,13 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from sqlmodel import Session, func, select
 
 from app.auth import require_roles
-from app.db.database import get_session
+from app.db.database import commit_now, get_session
 from app.domain.models import (
     ApprovalState,
     AuditEvent,
     Hire,
     HireStatus,
+    MailOutbox,
     OutboxItem,
     Task,
     TaskStatus,
@@ -28,10 +29,12 @@ from app.services.orchestrator import (
     create_hire_with_plan,
     dispatch_task,
     get_current_day,
+    notify,
     replace_hire_plan_before_work_starts,
     run_cpm_for_hire,
     update_hire_status,
 )
+from app.services.email_delivery import deliver_outbox_message
 
 router = APIRouter(prefix="/hires", tags=["hires"])
 
@@ -99,6 +102,11 @@ class PlanPreviewRequest(BaseModel):
 class WhatIfRequest(BaseModel):
     task_key: str
     delay_days: int = Field(ge=0, le=10)
+
+
+class DelayNoticeRequest(BaseModel):
+    revised_joining_date: date
+    reason: str = Field(min_length=8, max_length=600)
 
 
 class RiskExplanation(BaseModel):
@@ -273,6 +281,186 @@ def archive_hire(hire_id: UUID, session: Session = Depends(get_session), user=De
         session.add(hire)
         audit(session, hire.id, f"Archived employee record for {hire.name}", "info", f"user:{user.id}")
     return {"status": "archived", "hire_id": hire.public_id}
+
+
+@router.get("/employee-communications")
+def list_employee_communications(
+    session: Session = Depends(get_session), _user=Depends(require_roles("HR"))
+):
+    current_day = get_current_day(session)
+    today = load_clock(session, current_day).today()
+    hires = session.exec(select(Hire).where(Hire.archived.is_(False)).order_by(Hire.start_date, Hire.name)).all()
+    messages = session.exec(
+        select(MailOutbox)
+        .where(MailOutbox.kind.in_(["joining_confirmation", "joining_delay"]))
+        .order_by(MailOutbox.created_at.desc())
+    ).all()
+    messages_by_hire: dict[int, list[MailOutbox]] = {}
+    for message in messages:
+        if message.hire_id is not None:
+            messages_by_hire.setdefault(message.hire_id, []).append(message)
+
+    result = []
+    for hire in hires:
+        readiness = compute_readiness(session, hire)
+        hire_messages = messages_by_hire.get(hire.id, [])
+        confirmation_key = f"hire:{hire.public_id}:confirmation:{hire.start_date}"
+        confirmation = next((item for item in hire_messages if item.dedupe_key == confirmation_key), None)
+        delay_due = bool(
+            hire.start_date
+            and hire.start_date <= today
+            and readiness < 100
+            and hire.status not in (HireStatus.paused, HireStatus.cancelled)
+        )
+        result.append({
+            "hire_id": hire.public_id,
+            "name": hire.name,
+            "role": hire.role,
+            "department": hire.department,
+            "work_email": hire.work_email,
+            "joining_date": hire.start_date.isoformat() if hire.start_date else None,
+            "readiness": readiness,
+            "confirmation_available": readiness >= 100 and confirmation is None and bool(hire.work_email),
+            "confirmation_status": "sent" if confirmation and confirmation.sent_at else "queued" if confirmation else None,
+            "delay_required": delay_due,
+            "messages": [{
+                "id": item.public_id,
+                "kind": item.kind,
+                "recipient": item.recipient,
+                "subject": item.subject,
+                "body": item.body,
+                "status": "sent" if item.sent_at else "queued",
+                "created_at": item.created_at.isoformat(),
+            } for item in hire_messages],
+        })
+    return result
+
+
+@router.post("/{hire_id}/employee-communications/confirmation")
+def queue_joining_confirmation(
+    hire_id: UUID,
+    session: Session = Depends(get_session),
+    user=Depends(require_roles("HR")),
+):
+    hire = _hire_by_public_id(hire_id, session)
+    if hire is None or hire.archived:
+        raise HTTPException(404, "Active employee onboarding record not found")
+    if not hire.work_email:
+        raise HTTPException(422, "Add the employee's work email before sending a confirmation")
+    if compute_readiness(session, hire) < 100:
+        raise HTTPException(409, "Joining confirmation is available after all onboarding tasks are accepted")
+
+    joining_date = hire.start_date
+    if joining_date is None:
+        raise HTTPException(409, "Set a joining date before sending a confirmation")
+    dedupe_key = f"hire:{hire.public_id}:confirmation:{joining_date}"
+    if session.exec(select(MailOutbox).where(MailOutbox.dedupe_key == dedupe_key)).first():
+        raise HTTPException(409, "A joining confirmation is already in the mail outbox for this date")
+    body = (
+        f"Hello {hire.name},\n\n"
+        f"Your onboarding is complete and your joining date is confirmed for {joining_date:%d %B %Y}. "
+        "We look forward to welcoming you.\n\nRegards,\nHuman Resources"
+    )
+    message = MailOutbox(
+        recipient=hire.work_email,
+        subject=f"Joining date confirmed · {joining_date:%d %B %Y}",
+        body=body,
+        hire_id=hire.id,
+        kind="joining_confirmation",
+        dedupe_key=dedupe_key,
+        created_by_id=user.id,
+    )
+    session.add(message)
+    audit(session, hire.id, f"HR queued a joining confirmation for {hire.name} ({joining_date})", "info", f"user:{user.id}")
+    commit_now(session)
+    delivered = deliver_outbox_message(session, message)
+    return {"status": "sent" if delivered else "queued", "message_id": message.public_id, "recipient": message.recipient}
+
+
+@router.post("/{hire_id}/employee-communications/delay")
+def queue_joining_delay_notice(
+    hire_id: UUID,
+    data: DelayNoticeRequest,
+    session: Session = Depends(get_session),
+    user=Depends(require_roles("HR")),
+):
+    hire = _hire_by_public_id(hire_id, session)
+    if hire is None or hire.archived:
+        raise HTTPException(404, "Active employee onboarding record not found")
+    if not hire.work_email:
+        raise HTTPException(422, "Add the employee's work email before sending a delay notice")
+    readiness = compute_readiness(session, hire)
+    current_day = get_current_day(session)
+    clock = load_clock(session, current_day)
+    today = clock.today()
+    if readiness >= 100:
+        raise HTTPException(409, "This employee is ready; send a joining confirmation instead")
+    if hire.start_date is None or hire.start_date > today:
+        raise HTTPException(409, "A delay notice is available after the planned joining date is reached")
+    if not clock.calendar.is_business_day(data.revised_joining_date):
+        raise HTTPException(422, "The revised joining date must be a business day")
+    days_until_start = clock.calendar.business_days_between(today, data.revised_joining_date)
+    if days_until_start < 1:
+        raise HTTPException(422, "Choose a revised joining date after today")
+
+    prior_date = hire.start_date
+    dedupe_key = f"hire:{hire.public_id}:delay:{prior_date}:{data.revised_joining_date}"
+    if session.exec(select(MailOutbox).where(MailOutbox.dedupe_key == dedupe_key)).first():
+        raise HTTPException(409, "A delay notice for this revised date is already in the mail outbox")
+
+    hire.start_date = data.revised_joining_date
+    hire.start_day = current_day + days_until_start
+    _tasks, min_slack = run_cpm_for_hire(session, hire)
+    update_hire_status(session, hire, min_slack, readiness)
+    body = (
+        f"Hello {hire.name},\n\n"
+        f"Your onboarding is still in progress, so HR has revised your joining date from "
+        f"{prior_date:%d %B %Y} to {data.revised_joining_date:%d %B %Y}. "
+        f"Reason: {data.reason.strip()}\n\n"
+        "Please wait for a further confirmation from HR before making joining arrangements.\n\n"
+        "Regards,\nHuman Resources"
+    )
+    message = MailOutbox(
+        recipient=hire.work_email,
+        subject=f"Update to your joining date · {data.revised_joining_date:%d %B %Y}",
+        body=body,
+        hire_id=hire.id,
+        kind="joining_delay",
+        dedupe_key=dedupe_key,
+        created_by_id=user.id,
+    )
+    session.add(hire)
+    session.add(message)
+    audit(
+        session,
+        hire.id,
+        f"HR revised {hire.name}'s joining date from {prior_date} to {data.revised_joining_date} and queued a delay notice",
+        "warning",
+        f"user:{user.id}",
+    )
+    commit_now(session)
+    delivered = deliver_outbox_message(session, message)
+    return {"status": "sent" if delivered else "queued", "message_id": message.public_id, "recipient": message.recipient}
+
+
+@router.post("/employee-communications/{message_id}/retry")
+def retry_employee_email(
+    message_id: UUID,
+    session: Session = Depends(get_session),
+    _user=Depends(require_roles("HR")),
+):
+    message = session.exec(
+        select(MailOutbox).where(
+            MailOutbox.public_id == str(message_id),
+            MailOutbox.kind.in_(["joining_confirmation", "joining_delay"]),
+        )
+    ).first()
+    if message is None:
+        raise HTTPException(404, "Employee email not found")
+    if message.sent_at is not None:
+        raise HTTPException(409, "This employee email has already been sent")
+    delivered = deliver_outbox_message(session, message)
+    return {"status": "sent" if delivered else "queued", "message_id": message.public_id}
 
 
 @router.get("/{hire_id}", response_model=HireOut)

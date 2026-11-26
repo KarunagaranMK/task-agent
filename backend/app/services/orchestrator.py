@@ -427,6 +427,9 @@ def _monitor_tick_body(session: Session) -> None:
             hire = session.get(Hire, ticket.hire_id) if ticket.hire_id else None
             notify(session, "HR", f"{ticket.team} submitted “{ticket.title}” for {hire.name if hire else 'the new hire'}; review the completion.", ticket.hire_id, task.id)
 
+    from app.services.clock import load_clock
+
+    organization_today = load_clock(session, current_day).today()
     hires = session.exec(select(Hire)).all()
     for hire in hires:
         if hire.status in (HireStatus.paused, HireStatus.cancelled):
@@ -464,7 +467,35 @@ def _monitor_tick_body(session: Session) -> None:
 
         # Update readiness + status
         readiness = compute_readiness(session, hire)
+        was_ready = hire.status == HireStatus.ready
         update_hire_status(session, hire, min_slack, readiness)
+        if not hire.archived and readiness >= 100 and not was_ready:
+            notify(
+                session,
+                "HR",
+                f"{hire.name} is fully ready for Day 1. Review and send the joining confirmation email.",
+                hire.id,
+            )
+        elif (
+            not hire.archived
+            and hire.status not in (HireStatus.paused, HireStatus.cancelled)
+            and hire.start_date
+            and hire.start_date <= organization_today
+            and readiness < 100
+        ):
+            message = (
+                f"{hire.name} has not reached full readiness by the joining date "
+                f"({hire.start_date.isoformat()}). Review the plan, set a revised date, and send a delay notice."
+            )
+            existing_alert = session.exec(
+                select(Notification).where(
+                    Notification.for_role == "HR",
+                    Notification.hire_id == hire.id,
+                    Notification.message == message,
+                )
+            ).first()
+            if existing_alert is None:
+                notify(session, "HR", message, hire.id)
 
     session.commit()
 

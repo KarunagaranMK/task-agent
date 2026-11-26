@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { createContext, lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity, ArrowUpRight, Bell, BookOpen, Check, ChevronDown, Command, Compass, LogOut, PlugZap,
-  Gauge, HelpCircle, LayoutDashboard, Menu, Moon, PanelLeftClose, Search,
+  Gauge, HelpCircle, LayoutDashboard, Mail, Menu, Moon, PanelLeftClose, Search,
   Sun, Workflow, X,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -23,6 +23,7 @@ const AgentControlPage = lazy(() => import('./pages/AgentControlPage'))
 const IntegrationsPage = lazy(() => import('./pages/IntegrationsPage'))
 const HRReviewPage = lazy(() => import('./pages/HRReviewPage'))
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
+const EmployeeCommunicationsPage = lazy(() => import('./pages/EmployeeCommunicationsPage'))
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: true } } })
 
@@ -35,6 +36,7 @@ const navigation: Array<{ label: string; to: string; icon: LucideIcon; group: st
   { label: 'Overview', to: '/', icon: LayoutDashboard, group: 'Workspace', roles: ['ADMIN', 'HR'] },
   { label: 'HR tasks', to: '/hr-tasks', icon: Workflow, group: 'Workspace', roles: ['HR'] },
   { label: 'HR review', to: '/reviews', icon: Check, group: 'Workspace', roles: ['HR'] },
+  { label: 'Employee communications', to: '/employee-communications', icon: Mail, group: 'Workspace', roles: ['HR'] },
   { label: 'IT tasks', to: '/it', icon: Workflow, group: 'Operations', roles: ['IT_STAFF'] },
   { label: 'Facilities tasks', to: '/facilities', icon: Workflow, group: 'Operations', roles: ['IT_STAFF'] },
   { label: 'Insights', to: '/insights', icon: Activity, group: 'Operations', roles: ['HR'] },
@@ -49,6 +51,7 @@ const routes: Array<{ label: string; to: string; description: string; roles: str
   { label: 'Overview dashboard', to: '/', description: 'Hire portfolio and readiness', roles: ['ADMIN', 'HR'] },
   { label: 'HR tasks', to: '/hr-tasks', description: 'Complete and propose alternatives for HR onboarding work', roles: ['HR'] },
   { label: 'HR work review', to: '/reviews', description: 'Review department completions and alternative requests', roles: ['HR'] },
+  { label: 'Employee communications', to: '/employee-communications', description: 'Manage joining confirmation and delay emails', roles: ['HR'] },
   { label: 'IT tasks', to: '/it', description: 'Complete IT work and submit alternative requests', roles: ['IT_STAFF'] },
   { label: 'Facilities tasks', to: '/facilities', description: 'Complete Facilities work and submit alternative requests', roles: ['IT_STAFF'] },
   { label: 'Insights and experiment', to: '/insights', description: 'Readiness metrics and policy comparison', roles: ['HR'] },
@@ -82,7 +85,7 @@ function AppFrame() {
   const openNotification = async (item: Notification) => {
     if (!item.read) { await markNotificationRead(item.id); void queryClient.invalidateQueries({ queryKey: ['notifications'] }) }
     setNotificationsOpen(false)
-    if (item.for_role === 'HR' && role === 'HR') navigate('/reviews')
+    if (item.for_role === 'HR' && role === 'HR') navigate(item.message.toLowerCase().includes('joining') ? '/employee-communications' : '/reviews')
     else if (item.hire_id && canViewHires) navigate(`/hire/${item.hire_id}`)
     else if (role === 'IT_STAFF') navigate(user.team === 'Facilities' ? '/facilities' : '/it')
   }
@@ -189,6 +192,7 @@ function AppFrame() {
             {role === 'HR' && <Route path="/" element={<HRPage />} />}
             {role === 'HR' && <Route path="/hr-tasks" element={<ITPage department="HR" />} />}
             {role === 'HR' && <Route path="/reviews" element={<HRReviewPage />} />}
+            {role === 'HR' && <Route path="/employee-communications" element={<EmployeeCommunicationsPage />} />}
             {role === 'HR' && <Route path="/hire/:id" element={<HireDetail />} />}
             {role === 'IT_STAFF' && <Route path="/it" element={<ITPage department="IT" />} />}
             {role === 'IT_STAFF' && <Route path="/facilities" element={<ITPage department="Facilities" />} />}

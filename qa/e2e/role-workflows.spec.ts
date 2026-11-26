@@ -36,6 +36,10 @@ test('HR can preview and create a role-specific onboarding plan', async ({ page 
   await signIn(page, 'HR')
   await page.getByRole('button', { name: 'Create hire' }).click()
   await page.getByLabel('Full name').fill('QA Example')
+  await page.locator('.wizard-additional-details summary').click()
+  await page.getByLabel('Work email').fill('qa.example@demo.local')
+  await page.getByLabel('Work location').fill('Remote - India')
+  await page.getByLabel('Employment type').fill('Full-time')
   const joiningDate = await page.getByLabel('Joining date').inputValue()
   await page.getByRole('button', { name: 'Continue' }).click()
   await expect(page.getByRole('heading', { name: 'Plan preview' })).toBeVisible()
@@ -47,9 +51,16 @@ test('HR can preview and create a role-specific onboarding plan', async ({ page 
   const createResponse = page.waitForResponse(response => response.url().includes('/hires') && response.request().method() === 'POST')
   await page.getByRole('button', { name: /Create onboarding plan/ }).click()
   const createdHire = await createResponse
-  expect((await createdHire.json()).start_date).toBe(joiningDate)
+  expect(await createdHire.json()).toMatchObject({
+    start_date: joiningDate,
+    work_email: 'qa.example@demo.local',
+    work_location: 'Remote - India',
+    employment_type: 'Full-time',
+  })
   await expect(page.getByRole('status')).toContainText('QA Example')
   await page.getByRole('link', { name: 'Open QA Example' }).click()
+  await expect(page.getByRole('heading', { name: 'Employee preparation details' })).toBeVisible()
+  await expect(page.getByText('qa.example@demo.local')).toBeVisible()
   await page.getByRole('button', { name: 'Edit details' }).click()
   const editDialog = page.getByRole('dialog', { name: 'Edit QA Example' })
   await editDialog.getByLabel('Department').fill('Operations')
@@ -218,6 +229,9 @@ test('Priya demo recovers from a stalled laptop and ITSM outage through her new-
   const resetResponse = page.waitForResponse(response => response.url().includes('/reset'))
   await page.getByRole('button', { name: /Reset Demo/ }).click()
   expect((await resetResponse).ok()).toBeTruthy()
+  const initialMonitor = page.waitForResponse(response => response.url().includes('/monitor/tick'))
+  await page.getByRole('button', { name: 'Run Monitor' }).click()
+  expect((await initialMonitor).ok()).toBeTruthy()
   await page.locator('.demo-drawer-head').getByRole('button', { name: 'Close demo controls' }).click()
 
   // Manager decision unblocks role-protected work; HR runs the deterministic monitor.
@@ -233,9 +247,9 @@ test('Priya demo recovers from a stalled laptop and ITSM outage through her new-
   await page.getByRole('button', { name: 'Sign out' }).click()
   await signIn(page, 'HR')
   await page.getByRole('button', { name: 'Open demo controls' }).click()
-  const initialMonitor = page.waitForResponse(response => response.url().includes('/monitor/tick'))
+  const approvalMonitor = page.waitForResponse(response => response.url().includes('/monitor/tick'))
   await page.getByRole('button', { name: 'Run Monitor' }).click()
-  expect((await initialMonitor).ok()).toBeTruthy()
+  expect((await approvalMonitor).ok()).toBeTruthy()
   await page.locator('.demo-drawer-head').getByRole('button', { name: 'Close demo controls' }).click()
 
   // IT flags the critical laptop; the monitor advances two business days and applies its loaner fallback.
@@ -328,7 +342,7 @@ test('primary role pages have no serious or critical axe findings', async ({ pag
     if (path === '/hire/:id') {
       await page.getByRole('button', { name: 'Graph' }).click()
       await expect(page.getByRole('heading', { name: 'How the work connects' })).toBeVisible()
-      await page.locator('.graph-node.is-critical').first().click()
+      await page.locator('.task-flow-node.is-critical').first().click()
       await expect(page.getByRole('dialog', { name: 'Task details' })).toBeVisible()
       await page.getByRole('button', { name: 'Close task details' }).click()
       await page.getByRole('button', { name: 'Schedule', exact: true }).click()

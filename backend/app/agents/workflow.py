@@ -104,7 +104,7 @@ def _planner(state: WorkflowState, runtime: Runtime[WorkflowContext]) -> dict[st
     started = datetime.utcnow()
     from app.services.orchestrator import _plan_spec_for_role_direct
 
-    plan = _plan_spec_for_role_direct(runtime.context["session"], state["role"] or "default", state.get("hire_id") or 0)
+    plan = _plan_spec_for_role_direct(runtime.context["session"], state["role"] or "default", state.get("hire_id"))
     _record(state, runtime, "plan_generator", f"Validated {len(plan.tasks)} tasks for role {state.get('role') or 'default'}.", started)
     return {"plan": [task.model_dump(mode="json") for task in plan.tasks]}
 
@@ -257,7 +257,7 @@ def get_workflow_graph():
         return _graph
 
 
-def run_plan_workflow(session: Session, role: str, hire_id: int) -> list[dict[str, Any]]:
+def run_plan_workflow(session: Session, role: str, hire_id: int | None) -> list[dict[str, Any]]:
     thread_id = f"plan-{hire_id}-{uuid4()}"
     result = get_workflow_graph().invoke(
         {"operation": "plan", "thread_id": thread_id, "hire_id": hire_id, "role": role},

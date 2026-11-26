@@ -1,4 +1,9 @@
-def test_plan_preview_runs_through_supervisor_and_persists_agent_history(client):
+from sqlmodel import select
+
+from app.domain.models import AgentExecution, Hire, OutboxItem, SimState, Task
+
+
+def test_plan_preview_runs_through_supervisor_and_persists_agent_history(client, session):
     preview = client.post("/hires/plan-preview", json={"role": "Software Engineer"})
     assert preview.status_code == 200
     assert preview.json()["tasks"]
@@ -8,6 +13,9 @@ def test_plan_preview_runs_through_supervisor_and_persists_agent_history(client)
     plan_agent = next(item for item in agents.json() if item["name"] == "plan_generator")
     assert plan_agent["execution_count"] == 1
     assert plan_agent["status"] == "idle"
+    plan_executions = session.exec(select(AgentExecution).where(AgentExecution.operation == "plan")).all()
+    assert plan_executions
+    assert all(item.hire_id is None for item in plan_executions)
 
     activity = client.get("/agents/activity")
     assert activity.status_code == 200
@@ -51,13 +59,6 @@ def test_integration_health_uses_mcp_and_reports_scheduler_state(client):
     assert all(item["mock"] for item in data["integrations"][:2])
     assert data["scheduler"]["enabled"] is False
     assert data["outbox"]["pending"] == 0
-from sqlmodel import select
-
-from app.domain.models import Hire, OutboxItem, SimState, Task
-
-
-
-
 def test_integration_outbox_lists_and_retries_selected_item(client, session):
     hire_response = client.post("/hires", json={
         "name": "Outbox Test", "role": "Data Analyst", "department": "Analytics", "start_day": 8,

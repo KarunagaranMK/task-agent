@@ -5,6 +5,8 @@ __pycache__/
 *.db-shm
 *.db-wal
 *.checkpoints.sqlite
+*.sqlite-shm
+*.sqlite-wal
 backend/qa_e2e_mcp*/
 backend/.coverage*
 qa/test-results/

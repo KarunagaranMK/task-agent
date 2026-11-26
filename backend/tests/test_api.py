@@ -357,12 +357,20 @@ def test_experiment_orchestrator_wins(client):
     assert data["orchestrator_readiness_pct"] > data["static_checklist_readiness_pct"]
 
 
-def test_reset(client):
+def test_reset(client, session):
+    from app.domain.models import AgentExecution, Hire
+
+    preview = client.post("/hires/plan-preview", json={"role": "Data Analyst"})
+    assert preview.status_code == 200
     client.post("/hires", json={"name": "X", "role": "default", "department": "X", "start_day": 5})
     r = client.post("/reset")
     assert r.status_code == 200
     hires = client.get("/hires").json()
     assert len(hires) == 3
+    live_hire_ids = set(session.exec(select(Hire.id)).all())
+    executions = session.exec(select(AgentExecution)).all()
+    assert executions
+    assert all(item.hire_id in live_hire_ids for item in executions)
     priya = next(hire for hire in hires if hire["name"] == "Priya Sharma")
     assert priya["start_day"] == 8
 

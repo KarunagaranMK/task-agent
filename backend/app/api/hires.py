@@ -5,7 +5,6 @@ from app.domain.models import Hire, Task, TaskStatus, HireStatus, AuditEvent, Us
 from app.services.orchestrator import audit, compute_readiness, create_hire_with_plan, get_current_day, replace_hire_plan_before_work_starts, run_cpm_for_hire, update_hire_status
 from app.auth import require_roles
 from app.services.cpm import CPMTask, compute_cpm, compute_what_if, get_remaining_days
-from app.services.planner import try_llm_plan
 from app.mcp_clients.tools import cancel_ticket as mcp_cancel_ticket, update_ticket_status as mcp_update_ticket_status
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from typing import Optional, List, Literal
@@ -132,7 +131,7 @@ class HireOut(BaseModel):
 @router.post("/plan-preview")
 def plan_preview(data: PlanPreviewRequest, session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "HR"))):
     from app.services.orchestrator import plan_spec_for_role
-    plan = plan_spec_for_role(session, data.role, hire_id=0)
+    plan = plan_spec_for_role(session, data.role, hire_id=None)
     return {"role": data.role, "tasks": [task.model_dump() for task in plan.tasks]}
 
 

@@ -1,100 +1,81 @@
-# Demo Script — Priya Sharma, Data Analyst
+# OnboardFlow AI: sample walkthrough
 
-**Setup time:** one command | **Demo time:** ~10 minutes
+This walkthrough demonstrates a hire from HR intake through team work, approval, risk recovery, and Day-1 readiness. It uses the local mock HRIS and ITSM services; no Gemini key or real enterprise account is needed.
 
----
+## Start and sign in
 
-## Prerequisites
+From the project root, start the local demo:
 
 ```powershell
 python run.py
 ```
 
-Open **http://localhost:5173**. On the sign-in page, choose a role chip (Admin, HR, Manager, IT, Facilities, or New hire) and sign in with `OnboardIQ-Demo!`. The seeded Priya Sharma plan is the shared starting scenario. Admin and HR can open **Demo controls** in the lower-right corner. Use `python run.py --reset` only when you intend to restore the demo scenario.
+Open `http://localhost:5173`. On the sign-in page, select a demo role chip; the chip fills its email and password. All demo roles use `OnboardIQ-Demo!`:
 
----
+- Admin: `admin@demo.local`
+- HR: `hr@demo.local`
+- Manager: `manager@demo.local`
+- IT: `it@demo.local`
+- Facilities: `facilities@demo.local`
+- New hire: `newhire@demo.local`
 
-## Step-by-Step Demo
+The HR and new-hire views start with the seeded **Priya Sharma** onboarding plan. Choose **Project guide** from the sign-in screen if you want a short explanation of the architecture before the walkthrough.
 
-### 🟢 Step 1 — Show the Hire List (HR Page)
-- Open **Overview** in the HR workspace
-- Three hires are already seeded: **Priya Sharma** (Data Analyst, joining on the eighth organization business day from seed time), Alex Chen (SWE, Day 10), Maria Garcia (Marketing, Day 6). HR and the new-hire portal show the persisted calendar date; the demo clock still labels its simulation-day index.
-- Point out the **readiness bars** — all at ~10% (only root tasks dispatched so far)
-- Click **Priya Sharma** to open her detail
+## Sample 1: create and review a new hire
 
-### 🔵 Step 2 — Inspect the Task Plan & Critical Path
-- Show the **task list** — 10 tasks across IT, HR, Facilities
-- Tasks highlighted in **red with ★ CRITICAL** are on the critical path
-- Explain: *"High-RAM laptop provisioning takes 5 days and is the longest path to Day 1"*
-- Point to **slack values**: laptop has 0 slack, HR contracts have positive slack
-- Two tasks show `awaiting_approval` — Power BI License and Data Warehouse Access
+1. Sign in as **HR** and open **Overview**.
+2. Select **Create hire** and enter:
+   - Name: `Anika Rao`
+   - Role: `Data Analyst`
+   - Department: `Analytics`
+   - Manager: `Alex Morgan`
+   - Joining date: leave the suggested business day, or choose a future business day.
+3. Open **Additional employee information** if you want to add optional work email, work location, employment type, equipment, software, or notes.
+4. Select **Continue** to preview the role-specific tasks. Review the task owners and dependencies, then continue to the confirmation step.
+5. Select **Create onboarding plan**. The hire appears in the portfolio. Open the hire to see readiness, the task list, schedule, dependency graph, what-if simulator, and activity timeline.
 
-### 🟡 Step 3 — Manager Approves Sensitive Access
-- Sign in as Manager, then open **Approvals**
-- Show **Pending Approvals**: "Power BI License & Access" and "Data Warehouse Access" for Priya
-- Click **✓ Approve** for both
-- Navigate back to Priya's detail → click **Run Monitor** in Demo Panel
-- Both tasks now show `dispatched` with ticket IDs
+The preview is a template-backed plan. Gemini can suggest task text when configured, but the validated plan and workflow rules remain usable without a model key.
 
-### 🔴 Step 4 — IT Stalls the Laptop Ticket (Simulate Delay)
-- Sign in as IT or Facilities, then open **Team queue**
-- Find ticket for "Provision Laptop (High RAM)" for Priya → click **⚠ Stall**
-- In Demo Panel: click **Advance Day** (day 1) → then **Advance Day** again (day 2)
-- This simulates 2 idle days on the critical path
-- Click **Run Monitor** (or Advance Day again which runs monitor automatically)
+## Sample 2: see cross-team work and approval
 
-### 🚨 Step 5 — Observe Self-Healing: Escalation + Fallback
-- Sign in as HR, open **Overview**, then select Priya's row to see her **Hire detail**
-- **Audit timeline** shows (in red):
-  > `🔴 ESCALATION: 'Provision Laptop' for Priya Sharma is stalled on the critical path. Slack=0.0d.`
-  > `🟡 RESCHEDULED: 'Provision Laptop' → fallback 'Issue Loaner Laptop' (1d)`
-- The task title has changed to **"Issue Loaner Laptop"** with 1-day duration
-- **Manager page** shows escalation notification
-- Hire status: **at_risk** (if deadline pressure) → will recover after laptop completes
-- Click **🤖 Why is this at risk?** → plain English explanation
+1. Open Anika's **Tasks** tab as HR and note the team owners and dependencies.
+2. Sign out, select **Manager**, and open **Approvals**. Approve the sensitive access request for Anika.
+3. Sign out, select **IT**, and open **Team queue**. Open an assigned ticket and use the available work actions to progress it.
+4. Return to HR and open the hire's **Activity** tab. The approval and task events are recorded there; the overview updates readiness as work is completed.
 
-### 💥 Step 6 — ITSM Outage → Outbox → Zero Duplicates
-- In Demo Panel: click **⚡ Toggle ITSM Offline** (button turns red "🔴 ITSM OFFLINE")
-- While offline, create another hire from HR's **New hire** wizard and run the monitor. Its dispatch attempts go to the **outbox**
-- Check metrics: `outbox_pending > 0`
-- Toggle ITSM back **online**
-- Click **Run Monitor** → outbox drains, tickets created
-- Advance Day again → Run Monitor → no duplicate tickets ever (key assertion in tests)
+**What the system does:** CPM orders dependent work and calculates slack against the joining date. The LangGraph supervisor routes planning and monitoring nodes. Managers and team members make the approvals and work decisions; the app records them and updates the plan.
 
-### ✅ Step 7 — Day-1 Ready
-- In IT Console: **Complete** all remaining open tickets for Priya
-- Click **Run Monitor**
-- Priya's status flips to **🎉 ready** with 100% readiness
+## Sample 3: demonstrate the delay recovery
 
-### 📊 Step 8 — Insights & Experiment
-- Navigate to **Insights** tab
-- KPI cards: Day-1 Readiness %, Escalations, Stalls Rescued
-- Click **▶ Run Experiment** (200 hires, 20% stall prob, seed 42)
-- Bar chart appears: **Static Checklist ~65%** vs **Orchestrator ~87%**
-- "+22% improvement" card lights up green
-- Quote: *"This is a deterministic simulation — the methodology is documented. Real numbers come from production."*
+Use the seeded **Priya Sharma** plan for a repeatable critical-path example.
 
----
+1. Sign in as **Manager** and approve Priya's pending access requests.
+2. Sign in as **IT**, find Priya's **Provision Laptop (High RAM)** ticket, and select **Flag stalled**.
+3. Sign in as **HR**. Open **Demo controls** and advance the simulation by two business days, then run the monitor.
+4. Open Priya's hire detail. Review **Next actions**, **Activity**, and **Graph**. The monitor identifies the stalled critical task, records an escalation, and proposes the configured **Issue Loaner Laptop** fallback.
+5. Sign in as Manager to review any pending approval. After approval, sign in as IT to process the loaner ticket. Run the monitor again to recalculate schedule and readiness.
 
-## Demo Reset
+The fallback is a policy-driven demo rule. The model does not approve access or choose whether a human approval should be granted.
 
-```bash
-curl -X POST http://localhost:8000/reset
-python seed.py    # re-seeds fresh Priya scenario
-```
+## Sample 4: show the outbox retry
 
-Or click **🗑 Reset Demo** in Demo Panel, then re-run seed.py.
+1. As HR, open **Demo controls** and switch **ITSM Offline** on.
+2. Create a hire or run the monitor while offline so a ticket request is queued.
+3. Open **Integrations** and inspect the pending outbox item.
+4. Switch ITSM back online and run the monitor. The outbox retries the request using its idempotency key; the pending count should return to zero without duplicate tickets.
 
----
+## Finish at Day-1 readiness
 
-## Talking Points
+1. In Admin **Settings**, enable **Demo auto-worker** and save.
+2. As HR, open **Demo controls** and advance business days, running the monitor as needed.
+3. Follow the remaining tasks in IT and Facilities queues. When all mandatory tasks are complete, Priya's hire shows **Ready** and **100% readiness**; the new-hire portal shows the completion state.
+4. Open **Insights** to review operational metrics or run the reproducible readiness experiment. Its results are illustrative simulation data, not production measurements.
 
-| Slide | Point |
-|-------|-------|
-| Problem | "New hire stalls silently — nobody sees the critical path" |
-| U1 CPM | "We recompute the critical path after every day advance with live remaining durations" |
-| U2 Self-Healing | "2 idle days on the critical path → escalate + swap to loaner automatically" |
-| U3 Vendor-Neutral | "Swap mock MCP for real ServiceNow MCP — zero agent code changes" |
-| U4 Reliability | "One ticket per task, guaranteed. The outbox survived the simulated outage" |
-| U5 Governance | "Every agent action is in the audit log. Manager approved before IT provisioned" |
-| U6 Evidence | "22 percentage points better in the simulation. Real numbers need production data — we're honest about that" |
+## Reset the walkthrough
+
+- For a fresh local database, stop the app and run `python run.py --reset`.
+- In the running demo, an Admin can select **Reset Demo** in Demo controls. This restores the seeded hires and mock integration state. Then select **Run Monitor** to create the initial task tickets and approval requests.
+
+## How to explain the project in 30 seconds
+
+> “OnboardFlow AI gives HR, managers, IT, and Facilities one shared onboarding plan. A validated role template builds the tasks; CPM calculates dependencies and Day-1 risk; a LangGraph supervisor routes planning and monitoring; and MCP connects the app to local mock HRIS and ITSM services. People approve sensitive access and complete work. The app records progress, retries integration requests safely, and keeps readiness visible. Gemini is optional and only assists with suggestions or wording.”

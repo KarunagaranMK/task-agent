@@ -3,6 +3,7 @@ from sqlmodel import Session, select, delete
 from app.db.database import get_session
 from app.domain.models import (
     SimState, Hire, Task, Ticket, TicketComment, OutboxItem, AuditEvent, Notification, ExperimentRun, SecurityAudit,
+    AgentExecution,
 )
 from app.services.orchestrator import advance_day, monitor_tick, get_or_create_sim_state
 from app.services.experiment import run_experiment
@@ -189,12 +190,12 @@ def mark_all_read(session: Session = Depends(get_session), user=Depends(get_curr
 @router.post("/reset")
 def reset_all(session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN"))):
     """Reset all data for a clean demo."""
-    for model in (AuditEvent, Notification, OutboxItem, TicketComment, Ticket, Task, Hire, SimState, ExperimentRun):
+    for model in (AgentExecution, AuditEvent, Notification, OutboxItem, TicketComment, Ticket, Task, Hire, SimState, ExperimentRun):
         session.exec(delete(model))
     session.commit()
     reset_mcp_services()
     if settings.DEMO_MODE:
-        from app.services.orchestrator import create_hire_with_plan, monitor_tick
+        from app.services.orchestrator import create_hire_with_plan
         from app.domain.models import User
         manager = session.exec(select(User).where(User.email == "manager@demo.local")).first()
         new_hire = session.exec(select(User).where(User.email == "newhire@demo.local")).first()
@@ -206,6 +207,5 @@ def reset_all(session: Session = Depends(get_session), _user=Depends(require_rol
             session.commit()
         create_hire_with_plan(session, "Alex Chen", "Software Engineer", "Engineering", 10, manager_id)
         create_hire_with_plan(session, "Maria Garcia", "default", "Marketing", 6, manager_id)
-        monitor_tick(session)
         return {"message": "Demo reset to Priya scenario", "hire_id": priya.public_id}
     return {"message": "Simulation data reset"}

@@ -12,7 +12,7 @@ OnboardFlow AI gives the teams involved in a new hire's first day one shared pla
 
 The application uses a **supervised agent workflow**, not an unconstrained autonomous agent. LangGraph routes tasks, persists checkpoints in SQLite, and pauses a workflow at the manager approval gate. Normal workflow decisions use explicit application rules. Optional Gemini calls help draft text or suggest tasks; they do not approve access or decide schedules.
 
-For the interactive walkthrough, open **Project guide** from the sign-in screen or go to `/guide`. It covers the workflow, architecture, model boundary, and a four-step demo.
+For the interactive walkthrough, open **Project guide** from the sign-in screen or go to `/guide`. For the full role-by-role sample, see [`docs/DEMO.md`](docs/DEMO.md).
 
 ---
 
@@ -69,18 +69,12 @@ No API key is required; unavailable LLM features use deterministic template text
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                   React Frontend (Vite + TS)                     │
+│            React + TypeScript frontend (Vite)                    │
 │ HR · Manager · IT/Facilities · New Hire · Admin · Insights       │
-│      Responsive role portals · audit · guided demo controls      │
+│ Responsive portals · React Flow · charts · live updates          │
 └───────────────────────────┬──────────────────────────────────────┘
-                            │  REST / JSON
-┌───────────────────────────▼──────────────────────────────────────┐
-│                   React + TypeScript UI                         │
-│ Dashboard · Hire plan · approvals · agent center · integrations │
-│ React Flow dependency canvas · roles · notifications · insights │
-└───────────────────────────┬─────────────────────────────────────┘
                             │ REST / JSON + SSE
-┌───────────────────────────▼─────────────────────────────────────┐
+┌───────────────────────────▼──────────────────────────────────────┐
 │                    FastAPI + SQLModel                            │
 │ Auth/RBAC · hire/task APIs · CPM · audit · outbox · notifications │
 │        LangGraph supervisor + SQLite checkpointer                │
@@ -160,7 +154,7 @@ This is a local-first demonstration. The ITSM and HRIS services are mocks, outbo
 
 ## 🎬 Demo Scenario
 
-See [`docs/DEMO.md`](docs/DEMO.md) for the step-by-step Priya Sharma demo.
+See [`docs/DEMO.md`](docs/DEMO.md) for the complete sample: create a hire, review its plan, move work between roles, demonstrate approval and recovery, and finish at Day-1 readiness.
 
 ---
 

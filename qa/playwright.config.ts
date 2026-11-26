@@ -27,6 +27,7 @@ export default defineConfig({
     timeout: 180_000,
     env: {
       DATABASE_URL: `sqlite:///./qa_e2e_${qaRunId}.db`,
+      LANGGRAPH_CHECKPOINT_DB: resolve(process.cwd(), '..', 'backend', `qa_e2e_${qaRunId}.checkpoints.sqlite`),
       ONBOARDIQ_MCP_DB_DIR: resolve(process.cwd(), '..', 'backend', `qa_e2e_mcp_${qaRunId}`),
       DEMO_MODE: 'true',
     },

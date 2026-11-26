@@ -527,7 +527,7 @@ def monitor_tick(session: Session) -> bool:
         _release_monitor_lease(session, owner_id)
 
 
-def _plan_spec_for_role_direct(session: Session, role: str, hire_id: int) -> PlanSpec:
+def _plan_spec_for_role_direct(session: Session, role: str, hire_id: int | None) -> PlanSpec:
     """Load the active role template or generate a validated template fallback."""
     import json
     from app.config import settings
@@ -541,10 +541,10 @@ def _plan_spec_for_role_direct(session: Session, role: str, hire_id: int) -> Pla
     ).first()
     if saved_template:
         return PlanSpec.model_validate({"tasks": json.loads(saved_template.tasks_json)})
-    return try_llm_plan(role, hire_id, settings.GEMINI_API_KEY)
+    return try_llm_plan(role, hire_id or 0, settings.GEMINI_API_KEY)
 
 
-def plan_spec_for_role(session: Session, role: str, hire_id: int) -> PlanSpec:
+def plan_spec_for_role(session: Session, role: str, hire_id: int | None) -> PlanSpec:
     """Plan through the supervisor graph; deterministic validation remains authoritative."""
     from app.agents.workflow import run_plan_workflow
     return PlanSpec.model_validate({"tasks": run_plan_workflow(session, role, hire_id)})

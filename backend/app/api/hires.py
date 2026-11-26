@@ -374,7 +374,13 @@ def queue_joining_confirmation(
     audit(session, hire.id, f"HR queued a joining confirmation for {hire.name} ({joining_date})", "info", f"user:{user.id}")
     commit_now(session)
     delivered = deliver_outbox_message(session, message)
-    return {"status": "sent" if delivered else "queued", "message_id": message.public_id, "recipient": message.recipient}
+    return {
+        "status": "sent" if delivered else "queued",
+        "message_id": message.public_id,
+        "recipient": message.recipient,
+        "subject": message.subject,
+        "body": message.body,
+    }
 
 
 @router.post("/{hire_id}/employee-communications/delay")
@@ -440,7 +446,13 @@ def queue_joining_delay_notice(
     )
     commit_now(session)
     delivered = deliver_outbox_message(session, message)
-    return {"status": "sent" if delivered else "queued", "message_id": message.public_id, "recipient": message.recipient}
+    return {
+        "status": "sent" if delivered else "queued",
+        "message_id": message.public_id,
+        "recipient": message.recipient,
+        "subject": message.subject,
+        "body": message.body,
+    }
 
 
 @router.post("/employee-communications/{message_id}/retry")
@@ -461,6 +473,30 @@ def retry_employee_email(
         raise HTTPException(409, "This employee email has already been sent")
     delivered = deliver_outbox_message(session, message)
     return {"status": "sent" if delivered else "queued", "message_id": message.public_id}
+
+
+@router.post("/employee-communications/{message_id}/mark-sent")
+def mark_employee_email_sent(
+    message_id: UUID,
+    session: Session = Depends(get_session),
+    user=Depends(require_roles("HR")),
+):
+    message = session.exec(
+        select(MailOutbox).where(
+            MailOutbox.public_id == str(message_id),
+            MailOutbox.kind.in_(["joining_confirmation", "joining_delay"]),
+        )
+    ).first()
+    if message is None:
+        raise HTTPException(404, "Employee email not found")
+    if message.sent_at is not None:
+        raise HTTPException(409, "This employee email has already been marked as sent")
+    message.sent_at = datetime.utcnow()
+    session.add(message)
+    if message.hire_id is not None:
+        audit(session, message.hire_id, f"HR marked employee email '{message.subject}' as sent", "info", f"user:{user.id}")
+    commit_now(session)
+    return {"status": "sent", "message_id": message.public_id}
 
 
 @router.get("/{hire_id}", response_model=HireOut)

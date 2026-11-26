@@ -97,10 +97,12 @@ export interface EmployeeCommunication {
   hire_id: string; name: string; role: string; department: string; work_email: string | null; joining_date: string | null; readiness: number
   confirmation_available: boolean; confirmation_status: 'queued' | 'sent' | null; delay_required: boolean; messages: EmployeeMailRecord[]
 }
+export interface EmployeeMailActionResult { status: 'queued' | 'sent'; message_id: string; recipient: string; subject: string; body: string }
 export const getEmployeeCommunications = () => api.get<EmployeeCommunication[]>('/hires/employee-communications').then(r => r.data)
-export const queueJoiningConfirmation = (hireId: string) => api.post(`/hires/${hireId}/employee-communications/confirmation`).then(r => r.data)
-export const queueJoiningDelay = (hireId: string, data: { revised_joining_date: string; reason: string }) => api.post(`/hires/${hireId}/employee-communications/delay`, data).then(r => r.data)
+export const queueJoiningConfirmation = (hireId: string) => api.post<EmployeeMailActionResult>(`/hires/${hireId}/employee-communications/confirmation`).then(r => r.data)
+export const queueJoiningDelay = (hireId: string, data: { revised_joining_date: string; reason: string }) => api.post<EmployeeMailActionResult>(`/hires/${hireId}/employee-communications/delay`, data).then(r => r.data)
 export const retryEmployeeEmail = (messageId: string) => api.post(`/hires/employee-communications/${messageId}/retry`).then(r => r.data)
+export const markEmployeeEmailSent = (messageId: string) => api.post(`/hires/employee-communications/${messageId}/mark-sent`).then(r => r.data)
 export interface HRReview { task_id: string; ticket_id: string; hire_id: string; hire_name: string; task_title: string; team: string; status: 'pending_review' | 'alternative_pending' | 'done'; suggested_title: string | null; verification_notes: Array<{ author: string; body: string; created_at: string }>; updated_at: string }
 export const getHRReviews = () => api.get<HRReview[]>('/tasks/hr-review').then(r => r.data)
 export const decideHRReview = (taskId: string, decision: 'accept' | 'alternative') => api.post(`/tasks/${taskId}/review`, { decision }).then(r => r.data)

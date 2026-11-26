@@ -57,8 +57,12 @@ def _role_filter(session: Session, user: StreamPrincipal, after_id: int) -> tupl
     cursor = after_id
     for item in notifications:
         cursor = max(cursor, item.id or cursor)
-        if user.role in {"ADMIN", "HR"}:
-            visible.append(item)
+        if user.role == "ADMIN":
+            if item.for_role == "ADMIN":
+                visible.append(item)
+        elif user.role == "HR":
+            if item.for_role == "HR":
+                visible.append(item)
         elif user.role == "IT_STAFF":
             team_name = "Facilities" if (user.team or "").lower() == "facilities" else "IT"
             if item.for_role == team_name:

@@ -154,7 +154,7 @@ def experiment_history(limit: int = Query(default=20, ge=1, le=100),
 
 
 @router.post("/admin/clock")
-def set_demo_clock(day: int = Query(ge=0, le=365), user=Depends(require_roles("ADMIN")), session: Session = Depends(get_session)):
+def set_demo_clock(day: int = Query(ge=0, le=365), user=Depends(require_roles("HR")), session: Session = Depends(get_session)):
     from app.domain.models import SimState
     state = session.exec(select(SimState)).first()
     if state is None:

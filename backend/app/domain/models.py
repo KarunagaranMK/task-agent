@@ -183,6 +183,28 @@ class TicketComment(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class AlternativeRequest(SQLModel, table=True):
+    """Department-proposed fallback work awaiting a human HR decision."""
+    __tablename__ = "alternative_requests"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    public_id: str = Field(default_factory=lambda: str(uuid4()), unique=True, index=True)
+    ticket_id: int = Field(foreign_key="tickets.id", index=True)
+    task_id: int = Field(foreign_key="tasks.id", index=True)
+    hire_id: int = Field(foreign_key="hires.id", index=True)
+    department: str = Field(index=True)
+    original_title: str
+    issue: str
+    suggested_title: str
+    suggested_days: int
+    requested_by_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    source: str = "department"  # department or progress_monitor
+    status: str = Field(default="pending", index=True)  # pending, approved, rejected
+    decision_by_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    decision_note: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class SimState(SQLModel, table=True):
     __tablename__ = "sim_state"
     id: Optional[int] = Field(default=None, primary_key=True)

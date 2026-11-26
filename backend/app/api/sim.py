@@ -21,21 +21,21 @@ router = APIRouter(tags=["sim"])
 
 
 @router.post("/sim/advance")
-def sim_advance(session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "HR"))):
+def sim_advance(session: Session = Depends(get_session), _user=Depends(require_roles("HR"))):
     day = advance_day(session)
     monitor_tick(session)
     return {"current_day": day, "message": f"Advanced to day {day} and ran monitor"}
 
 
 @router.post("/monitor/tick")
-def manual_tick(session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "HR"))):
+def manual_tick(session: Session = Depends(get_session), _user=Depends(require_roles("HR"))):
     monitor_tick(session)
     state = get_or_create_sim_state(session)
     return {"message": "Monitor tick complete", "current_day": state.current_day}
 
 
 @router.post("/chaos/itsm")
-def toggle_itsm(offline: bool, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR"))):
+def toggle_itsm(offline: bool, session: Session = Depends(get_session), user=Depends(require_roles("HR"))):
     state = get_or_create_sim_state(session)
     previous = state.itsm_offline
     state.itsm_offline = offline
@@ -55,7 +55,7 @@ class ExperimentRequest(BaseModel):
 
 
 @router.post("/experiments/run")
-def run_exp(req: ExperimentRequest, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR"))):
+def run_exp(req: ExperimentRequest, session: Session = Depends(get_session), user=Depends(require_roles("HR"))):
     result = run_experiment(req.n_hires, req.stall_probability, req.seed)
     session.add(ExperimentRun(parameters_json=json.dumps(req.model_dump()), result_json=json.dumps(result)))
     session.add(AuditEvent(day=get_or_create_sim_state(session).current_day, hire_id=0,
@@ -113,7 +113,11 @@ def get_metrics(session: Session = Depends(get_session), _user=Depends(require_r
 
 def _notifications_for_user(session: Session, user) -> list[Notification]:
     query = select(Notification)
-    if user.role == "IT_STAFF":
+    if user.role == "ADMIN":
+        query = query.where(Notification.for_role == "ADMIN")
+    elif user.role == "HR":
+        query = query.where(Notification.for_role == "HR")
+    elif user.role == "IT_STAFF":
         team_name = "Facilities" if (user.team or "").lower() == "facilities" else "IT"
         query = query.where(Notification.for_role == team_name)
     notifications = session.exec(query.order_by(Notification.created_at.desc())).all()
@@ -150,7 +154,7 @@ def mark_read(nid: UUID, session: Session = Depends(get_session), user=Depends(g
     if n is None:
         raise HTTPException(404, "Notification not found")
     permitted = n.for_role.lower() in {own_role.lower(), user.role.lower()}
-    if user.role not in {"ADMIN", "HR"} and not permitted:
+    if not permitted:
         raise HTTPException(403, "Notification belongs to another role")
     n.read = True
     session.add(n)
@@ -169,7 +173,7 @@ def mark_all_read(session: Session = Depends(get_session), user=Depends(get_curr
 
 
 @router.post("/reset")
-def reset_all(session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN"))):
+def reset_all(session: Session = Depends(get_session), _user=Depends(require_roles("HR"))):
     """Reset all data for a clean demo."""
     for model in (AgentExecution, AuditEvent, Notification, OutboxItem, TicketComment, Ticket, Task, Hire, SimState, ExperimentRun):
         session.exec(delete(model))

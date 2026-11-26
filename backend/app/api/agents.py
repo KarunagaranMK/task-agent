@@ -83,7 +83,7 @@ def agent_activity(
 
 
 @router.post("/agents/monitor/run")
-def run_agent_monitor(session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "HR"))):
+def run_agent_monitor(session: Session = Depends(get_session), _user=Depends(require_roles("HR"))):
     from app.services.orchestrator import monitor_tick
     completed = monitor_tick(session)
     latest = session.exec(select(AgentExecution).where(AgentExecution.operation == "monitor")
@@ -130,7 +130,7 @@ def list_outbox(session: Session = Depends(get_session), _user=Depends(require_r
 
 
 @router.post("/integrations/outbox/{item_id}/retry")
-def retry_outbox(item_id: int, session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN"))):
+def retry_outbox(item_id: int, session: Session = Depends(get_session), _user=Depends(require_roles("HR"))):
     item = session.get(OutboxItem, item_id)
     if not item:
         raise HTTPException(404, "Outbox item not found")
@@ -143,7 +143,7 @@ def retry_outbox(item_id: int, session: Session = Depends(get_session), _user=De
 
 
 @router.post("/integrations/test")
-def test_integrations(_user=Depends(require_roles("ADMIN"))):
+def test_integrations(_user=Depends(require_roles("HR"))):
     itsm = _check_result("ITSM MCP", get_ticket_status("ONBOARDFLOW-HEALTH-CHECK"))
     hris = _check_result("HRIS MCP", get_new_hire(-1))
     return {"results": [itsm, hris]}

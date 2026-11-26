@@ -4,7 +4,7 @@ import { createContext, lazy, Suspense, useContext, useEffect, useMemo, useRef, 
 import {
   Activity, ArrowUpRight, Bell, BookOpen, Bot, Check, ChevronDown, Command, Compass, LogOut, PlugZap,
   Gauge, HelpCircle, LayoutDashboard, Menu, Moon, PanelLeftClose, Search,
-  ShieldCheck, Sparkles, Sun, Workflow, X,
+  Sparkles, Sun, Workflow, X,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { clearAccessToken, getHires, getMe, getNotifications, logout, markAllNotificationsRead, markNotificationRead, refreshAccessToken, type AuthUser, type Hire, type Notification } from './api/client'
@@ -33,33 +33,31 @@ const useAuth = () => useContext(AuthContext)
 
 const navigation: Array<{ label: string; to: string; icon: LucideIcon; group: string; roles: string[]; badge?: string }> = [
   { label: 'Overview', to: '/', icon: LayoutDashboard, group: 'Workspace', roles: ['ADMIN', 'HR'] },
-  { label: 'HR review', to: '/reviews', icon: Check, group: 'Workspace', roles: ['ADMIN', 'HR'] },
-  { label: 'IT tasks', to: '/it', icon: Workflow, group: 'Operations', roles: ['ADMIN', 'IT_STAFF'] },
-  { label: 'Facilities tasks', to: '/facilities', icon: Workflow, group: 'Operations', roles: ['ADMIN', 'IT_STAFF'] },
-  { label: 'Insights', to: '/insights', icon: Activity, group: 'Operations', roles: ['ADMIN', 'HR'] },
-  { label: 'Agent center', to: '/agents', icon: Bot, group: 'Operations', roles: ['ADMIN', 'HR'] },
-  { label: 'Integrations', to: '/integrations', icon: PlugZap, group: 'Operations', roles: ['ADMIN', 'HR'] },
+  { label: 'HR tasks', to: '/hr-tasks', icon: Workflow, group: 'Workspace', roles: ['HR'] },
+  { label: 'HR review', to: '/reviews', icon: Check, group: 'Workspace', roles: ['HR'] },
+  { label: 'IT tasks', to: '/it', icon: Workflow, group: 'Operations', roles: ['IT_STAFF'] },
+  { label: 'Facilities tasks', to: '/facilities', icon: Workflow, group: 'Operations', roles: ['IT_STAFF'] },
+  { label: 'Insights', to: '/insights', icon: Activity, group: 'Operations', roles: ['HR'] },
+  { label: 'Agent center', to: '/agents', icon: Bot, group: 'Operations', roles: ['HR'] },
+  { label: 'Integrations', to: '/integrations', icon: PlugZap, group: 'Operations', roles: ['HR'] },
   { label: 'Profile & preferences', to: '/profile', icon: Gauge, group: 'Workspace', roles: ['ADMIN', 'HR', 'IT_STAFF'] },
   { label: 'Project guide', to: '/guide', icon: BookOpen, group: 'Help', roles: ['ADMIN', 'HR', 'IT_STAFF'] },
-  { label: 'Templates', to: '/templates', icon: Workflow, group: 'Administration', roles: ['ADMIN', 'HR'] },
-  { label: 'People', to: '/users', icon: ShieldCheck, group: 'Administration', roles: ['ADMIN'] },
+  { label: 'Templates', to: '/templates', icon: Workflow, group: 'Administration', roles: ['HR'] },
   { label: 'Audit trail', to: '/audit', icon: Activity, group: 'Administration', roles: ['ADMIN', 'HR'] },
-  { label: 'Settings', to: '/settings', icon: Gauge, group: 'Administration', roles: ['ADMIN'] },
 ]
 const routes: Array<{ label: string; to: string; description: string; roles: string[] }> = [
   { label: 'Overview dashboard', to: '/', description: 'Hire portfolio and readiness', roles: ['ADMIN', 'HR'] },
-  { label: 'HR work review', to: '/reviews', description: 'Accept department work or approve agent alternatives', roles: ['ADMIN', 'HR'] },
-  { label: 'IT tasks', to: '/it', description: 'Verify and complete IT onboarding work', roles: ['ADMIN', 'IT_STAFF'] },
-  { label: 'Facilities tasks', to: '/facilities', description: 'Verify and complete Facilities onboarding work', roles: ['ADMIN', 'IT_STAFF'] },
-  { label: 'Insights and experiment', to: '/insights', description: 'Readiness metrics and policy comparison', roles: ['ADMIN', 'HR'] },
-  { label: 'Agent control center', to: '/agents', description: 'See LangGraph workflows and persisted agent activity', roles: ['ADMIN', 'HR'] },
-  { label: 'Integration health', to: '/integrations', description: 'Check MCP services, model setup, scheduler, and retries', roles: ['ADMIN', 'HR'] },
+  { label: 'HR tasks', to: '/hr-tasks', description: 'Complete and propose alternatives for HR onboarding work', roles: ['HR'] },
+  { label: 'HR work review', to: '/reviews', description: 'Review department completions and alternative requests', roles: ['HR'] },
+  { label: 'IT tasks', to: '/it', description: 'Complete IT work and submit alternative requests', roles: ['IT_STAFF'] },
+  { label: 'Facilities tasks', to: '/facilities', description: 'Complete Facilities work and submit alternative requests', roles: ['IT_STAFF'] },
+  { label: 'Insights and experiment', to: '/insights', description: 'Readiness metrics and policy comparison', roles: ['HR'] },
+  { label: 'Agent control center', to: '/agents', description: 'See LangGraph workflows and persisted agent activity', roles: ['HR'] },
+  { label: 'Integration health', to: '/integrations', description: 'Check MCP services, model setup, scheduler, and retries', roles: ['HR'] },
   { label: 'Profile and preferences', to: '/profile', description: 'Update your account and notification settings', roles: ['ADMIN', 'HR', 'IT_STAFF'] },
   { label: 'Project guide', to: '/guide', description: 'Understand the workflow, technology, and demo', roles: ['ADMIN', 'HR', 'IT_STAFF'] },
-  { label: 'Role templates', to: '/templates', description: 'Edit and publish task plans', roles: ['ADMIN', 'HR'] },
-  { label: 'People and access', to: '/users', description: 'Invite users and manage roles', roles: ['ADMIN'] },
+  { label: 'Role templates', to: '/templates', description: 'Edit and publish task plans', roles: ['HR'] },
   { label: 'Audit trail', to: '/audit', description: 'Review activity and access events', roles: ['ADMIN', 'HR'] },
-  { label: 'Workspace settings', to: '/settings', description: 'Configure monitor guardrails', roles: ['ADMIN'] },
 ]
 
 function AppFrame() {
@@ -76,7 +74,7 @@ function AppFrame() {
   const [query, setQuery] = useState('')
   const location = useLocation()
   const navigate = useNavigate()
-  const canViewHires = ['ADMIN', 'HR'].includes(role)
+  const canViewHires = role === 'HR'
   const { data: hires = [] } = useQuery<Hire[]>({ queryKey: ['hires'], queryFn: getHires, staleTime: 30_000, enabled: canViewHires })
   const { data: notifications = [] } = useQuery<Notification[]>({ queryKey: ['notifications', role], queryFn: () => getNotifications(), refetchInterval: connectionState === 'live' ? false : 15_000 })
   const unreadNotifications = notifications.filter(item => !item.read)
@@ -84,7 +82,7 @@ function AppFrame() {
   const openNotification = async (item: Notification) => {
     if (!item.read) { await markNotificationRead(item.id); void queryClient.invalidateQueries({ queryKey: ['notifications'] }) }
     setNotificationsOpen(false)
-    if (item.for_role === 'HR' && ['HR', 'ADMIN'].includes(role)) navigate('/reviews')
+    if (item.for_role === 'HR' && role === 'HR') navigate('/reviews')
     else if (item.hire_id && canViewHires) navigate(`/hire/${item.hire_id}`)
     else if (role === 'IT_STAFF') navigate(user.team === 'Facilities' ? '/facilities' : '/it')
   }
@@ -114,7 +112,10 @@ function AppFrame() {
         const now = Date.now()
         if (shortcutPrefixAt.current && now - shortcutPrefixAt.current < 1000) {
           shortcutPrefixAt.current = 0
-          const destination = ({ h: '/', a: '/reviews', t: user.team === 'Facilities' ? '/facilities' : '/it' } as Record<string, string>)[event.key.toLowerCase()]
+          const shortcuts: Record<string, string> = { h: '/' }
+          if (role === 'HR') { shortcuts.a = '/reviews'; shortcuts.t = '/hr-tasks' }
+          else if (role === 'IT_STAFF') shortcuts.t = user.team === 'Facilities' ? '/facilities' : '/it'
+          const destination = shortcuts[event.key.toLowerCase()]
           if (destination && visibleRoutes.some(item => item.to === destination)) navigate(destination)
         } else if (event.key.toLowerCase() === 'g') shortcutPrefixAt.current = now
       }
@@ -191,20 +192,18 @@ function AppFrame() {
           <Suspense fallback={<div className="page-skeleton" role="status" aria-label="Loading page"><span /></div>}><Routes>
             {role === 'ADMIN' && <Route path="/" element={<AdminDashboard />} />}
             {role === 'HR' && <Route path="/" element={<HRPage />} />}
-            {['ADMIN', 'HR'].includes(role) && <Route path="/reviews" element={<HRReviewPage />} />}
-            {['ADMIN', 'HR'].includes(role) && <Route path="/hire/:id" element={<HireDetail />} />}
-            {['ADMIN', 'IT_STAFF'].includes(role) && <Route path="/it" element={<ITPage department="IT" />} />}
-            {['ADMIN', 'IT_STAFF'].includes(role) && <Route path="/facilities" element={<ITPage department="Facilities" />} />}
-            {['ADMIN', 'HR'].includes(role) && <Route path="/insights" element={<InsightsPage />} />}
+            {role === 'HR' && <Route path="/hr-tasks" element={<ITPage department="HR" />} />}
+            {role === 'HR' && <Route path="/reviews" element={<HRReviewPage />} />}
+            {role === 'HR' && <Route path="/hire/:id" element={<HireDetail />} />}
+            {role === 'IT_STAFF' && <Route path="/it" element={<ITPage department="IT" />} />}
+            {role === 'IT_STAFF' && <Route path="/facilities" element={<ITPage department="Facilities" />} />}
+            {role === 'HR' && <Route path="/insights" element={<InsightsPage />} />}
             {['ADMIN', 'HR'].includes(role) && <Route path="/agents" element={<AgentControlPage />} />}
-            {['ADMIN', 'HR'].includes(role) && <Route path="/integrations" element={<IntegrationsPage role={role} />} />}
+            {role === 'HR' && <Route path="/integrations" element={<IntegrationsPage role={role} />} />}
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/guide" element={<GuidePage embedded />} />
-            {['ADMIN', 'HR'].includes(role) && <Route path="/templates" element={<AdminPage />} />}
-            {role === 'ADMIN' && <Route path="/users" element={<AdminPage />} />}
+            {role === 'HR' && <Route path="/templates" element={<AdminPage />} />}
             {['ADMIN', 'HR'].includes(role) && <Route path="/audit" element={<AdminPage />} />}
-            {role === 'ADMIN' && <Route path="/settings" element={<AdminPage />} />}
-            {role === 'ADMIN' && <Route path="/app/dev/mail" element={<AdminPage />} />}
             <Route path="*" element={<div className="empty-state"><Compass size={30} /><h1>That page is not here yet</h1><p>Choose a workspace page from the navigation.</p><button className="button-primary" onClick={() => go(role === 'IT_STAFF' ? (user.team === 'Facilities' ? '/facilities' : '/it') : '/')}>Back to overview</button></div>} />
           </Routes></Suspense>
         </main>

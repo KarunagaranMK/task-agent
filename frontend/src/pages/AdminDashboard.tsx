@@ -1,36 +1,52 @@
 import { useQuery } from '@tanstack/react-query'
-import { Activity, ArrowRight, CheckCircle2, Clock3, Users } from 'lucide-react'
-import { Link } from 'react-router-dom'
-import { getHireTasks, getHires, getHRReviews, type Hire, type Task } from '../api/client'
+import { Activity, AlertTriangle, CheckCircle2, Clock3, Users } from 'lucide-react'
+import { getAlternativeRequests, getAudit, getHireTasks, getHires, getHRReviews, type AlternativeRequest, type AuditRecord, type Hire, type Task } from '../api/client'
 
 type EmployeeProgress = { hire: Hire; tasks: Task[] }
 const prettyStatus = (status: string) => status.replace(/_/g, ' ').replace(/^\w/, letter => letter.toUpperCase())
 
 export default function AdminDashboard() {
-  const hires = useQuery({ queryKey: ['hires'], queryFn: getHires, refetchInterval: 20_000 })
-  const reviews = useQuery({ queryKey: ['hr-reviews'], queryFn: getHRReviews, refetchInterval: 20_000 })
+  const hires = useQuery({ queryKey: ['hires'], queryFn: getHires, refetchInterval: 15_000 })
+  const reviews = useQuery({ queryKey: ['hr-reviews'], queryFn: getHRReviews, refetchInterval: 15_000 })
+  const alternatives = useQuery({ queryKey: ['alternative-requests'], queryFn: getAlternativeRequests, refetchInterval: 15_000 })
+  const audit = useQuery({ queryKey: ['audit', 'monitoring'], queryFn: () => getAudit(''), refetchInterval: 15_000 })
   const progress = useQuery<EmployeeProgress[]>({
     queryKey: ['admin-employee-progress', hires.data?.map(hire => hire.id)],
     queryFn: async () => Promise.all((hires.data ?? []).map(async hire => ({ hire, tasks: await getHireTasks(hire.id) }))),
-    enabled: Boolean(hires.data), refetchInterval: 20_000,
+    enabled: Boolean(hires.data), refetchInterval: 15_000,
   })
   const employees = progress.data ?? []
   const totalTasks = employees.reduce((count, item) => count + item.tasks.length, 0)
   const completedTasks = employees.reduce((count, item) => count + item.tasks.filter(task => task.status === 'done').length, 0)
-  const waiting = (reviews.data ?? []).filter(item => item.status !== 'done').length
+  const completionReviews = (reviews.data ?? []).filter(item => item.status === 'pending_review').length
+  const requests: AlternativeRequest[] = alternatives.data ?? []
+  const pendingAlternatives = requests.filter(item => item.status === 'pending').length
+  const recentActivity: AuditRecord[] = [...(audit.data ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 10)
   const departments = [...new Set(employees.map(item => item.hire.department))].sort().map(department => {
     const people = employees.filter(item => item.hire.department === department)
     const average = people.length ? Math.round(people.reduce((sum, item) => sum + Number(item.hire.readiness), 0) / people.length) : 0
-    return { department, people: people.length, average }
+    const tasks = people.flatMap(item => item.tasks)
+    const done = tasks.filter(task => task.status === 'done').length
+    return { department, people: people.length, average, tasks: tasks.length, done }
   })
 
-  if (hires.isLoading || progress.isLoading) return <div className="portal-page"><div className="page-skeleton" role="status" aria-label="Loading workforce progress"><span /></div></div>
+  if (hires.isLoading || progress.isLoading) return <div className="portal-page"><div className="page-skeleton" role="status" aria-label="Loading workforce monitoring"><span /></div></div>
   if (hires.isError || progress.isError) return <div className="portal-page"><div className="empty-state"><Activity size={26} /><h1>Workforce data is unavailable</h1><p>Check the service connection and reload this page.</p></div></div>
 
-  return <div className="portal-page">
-    <div className="page-heading-row"><div><span className="eyebrow">ADMIN OVERVIEW</span><h1>Workforce progress</h1><p>Registered employees, onboarding progress, and team workload in one view.</p></div><Link className="button-secondary" to="/users">Manage access <ArrowRight size={15} /></Link></div>
-    <div className="metric-grid"><article className="metric-card metric-navy"><div className="metric-card-top"><span>Registered employees</span><i><Users size={17} /></i></div><strong>{employees.length}</strong><small>Active onboarding records</small></article><article className="metric-card metric-green"><div className="metric-card-top"><span>Work completed</span><i><CheckCircle2 size={17} /></i></div><strong>{totalTasks ? Math.round(completedTasks / totalTasks * 100) : 0}%</strong><small>{completedTasks} of {totalTasks} tracked tasks</small></article><article className="metric-card metric-amber"><div className="metric-card-top"><span>Waiting for HR review</span><i><Clock3 size={17} /></i></div><strong>{waiting}</strong><small>IT and Facilities handoffs</small></article><article className="metric-card metric-teal"><div className="metric-card-top"><span>Ready for Day 1</span><i><Activity size={17} /></i></div><strong>{employees.filter(item => item.hire.status === 'ready').length}</strong><small>Employees with plans complete</small></article></div>
-    <section className="content-card"><div className="section-heading"><div><h2>Progress by department</h2><p>Average onboarding readiness for each employee’s department.</p></div><span className="subtle-count">{departments.length} departments</span></div>{departments.length ? <div style={{ display: 'grid', gap: 16 }}>{departments.map(item => <div key={item.department} style={{ display: 'grid', gridTemplateColumns: 'minmax(100px, 160px) 1fr 52px', alignItems: 'center', gap: 14 }}><div><strong>{item.department}</strong><small style={{ display: 'block', color: 'var(--muted)' }}>{item.people} {item.people === 1 ? 'employee' : 'employees'}</small></div><div className="readiness-track" role="progressbar" aria-label={`${item.department} readiness`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={item.average}><i style={{ width: `${item.average}%` }} /></div><strong>{item.average}%</strong></div>)}</div> : <p>No employee records yet.</p>}</section>
-    <section className="content-card"><div className="section-heading"><div><h2>Employee work tracker</h2><p>Open a profile to inspect its plan, blockers, and timeline.</p></div><span className="subtle-count">{employees.length} people</span></div>{employees.length ? <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Employee</th><th>Department</th><th>Joining</th><th>Work progress</th><th>Readiness</th></tr></thead><tbody>{employees.map(({ hire, tasks }) => { const done = tasks.filter(task => task.status === 'done').length; const percent = tasks.length ? Math.round(done / tasks.length * 100) : 0; return <tr key={hire.id}><td><Link to={`/hire/${hire.id}`}><strong>{hire.name}</strong></Link><small>{hire.role}</small></td><td>{hire.department}</td><td>{hire.start_date ?? `Day ${hire.start_day}`}</td><td>{done}/{tasks.length} tasks · {prettyStatus(hire.status)}</td><td><div className="readiness-track"><i style={{ width: `${Number(hire.readiness)}%` }} /></div><small>{Number(hire.readiness)}%</small></td></tr> })}</tbody></table></div> : <div className="empty-state compact"><Users size={22} /><h3>No employees registered yet</h3><p>HR can add an employee from the HR workspace.</p></div>}</section>
+  return <div className="portal-page admin-monitor-dashboard">
+    <div className="page-heading-row"><div><span className="eyebrow">READ-ONLY SYSTEM MONITOR</span><h1>Onboarding operations</h1><p>Overall progress, department workload, HR decision status, alternatives, and system activity.</p></div><span className="monitor-live"><i />Refreshes automatically</span></div>
+    <div className="metric-grid">
+      <Metric label="Registered employees" value={employees.length} detail="Active onboarding records" icon={Users} tone="navy" />
+      <Metric label="Work completed" value={`${totalTasks ? Math.round(completedTasks / totalTasks * 100) : 0}%`} detail={`${completedTasks} of ${totalTasks} tracked tasks`} icon={CheckCircle2} tone="green" />
+      <Metric label="Waiting for HR" value={completionReviews + pendingAlternatives} detail={`${completionReviews} completions · ${pendingAlternatives} alternatives`} icon={Clock3} tone="amber" />
+      <Metric label="At risk" value={employees.filter(item => item.hire.status === 'at_risk').length} detail={`${employees.filter(item => item.hire.status === 'ready').length} ready for Day 1`} icon={AlertTriangle} tone="teal" />
+    </div>
+    <section className="content-card"><div className="section-heading"><div><h2>Department activity</h2><p>Task progress and average employee readiness by department.</p></div><span className="subtle-count">{departments.length} departments</span></div>{departments.length ? <div className="monitor-department-list">{departments.map(item => <article key={item.department}><div className="monitor-department-head"><div><strong>{item.department}</strong><small>{item.people} {item.people === 1 ? 'employee' : 'employees'} · {item.done}/{item.tasks} tasks accepted</small></div><strong>{item.average}% readiness</strong></div><div className="readiness-track" role="progressbar" aria-label={`${item.department} average readiness`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={item.average}><i style={{ width: `${item.average}%` }} /></div></article>)}</div> : <p className="comment-empty">No department activity yet.</p>}</section>
+    <section className="content-card"><div className="section-heading"><div><h2>Alternative requests</h2><p>Monitor the recommendation and its HR decision. Admin has no approval actions.</p></div><span className="subtle-count">{requests.length} total</span></div>{alternatives.isError ? <p className="form-error">Alternative status is currently unavailable.</p> : requests.length ? <div className="monitor-alternative-list">{requests.slice(0, 8).map(item => <article key={item.id}><div><span className="eyebrow">{item.department.toUpperCase()} · {item.ticket_id}</span><strong>{item.employee_name} <small>{item.employee_id}</small></strong><p>{item.suggested_title}</p><small>Blocker: {item.issue}</small></div><span className={`monitor-status ${item.status}`}>{prettyStatus(item.status)}</span></article>)}</div> : <p className="comment-empty">No alternative requests have been recorded.</p>}</section>
+    <section className="content-card"><div className="section-heading"><div><h2>Recent system activity</h2><p>Audited employee, department, alternative, escalation, and HR decision events.</p></div><span className="subtle-count">{recentActivity.length} recent</span></div>{audit.isError ? <p className="form-error">The activity feed is currently unavailable.</p> : recentActivity.length ? <div className="monitor-activity-list">{recentActivity.map(item => <article key={item.id}><span className={`audit-source ${item.source === 'security' ? 'security' : 'flow'}`}>{item.source === 'security' ? 'SEC' : 'FLOW'}</span><div><strong>{item.kind.replace(/_/g, ' ')}</strong><p>{item.detail || item.target}</p><small>{item.actor} · {new Date(item.created_at).toLocaleString()}</small></div></article>)}</div> : <p className="comment-empty">System activity will appear here as work progresses.</p>}</section>
   </div>
+}
+
+function Metric({ label, value, detail, icon: Icon, tone }: { label: string; value: number | string; detail: string; icon: typeof Users; tone: string }) {
+  return <article className={`metric-card metric-${tone}`}><div className="metric-card-top"><span>{label}</span><i><Icon size={17} /></i></div><strong>{value}</strong><small>{detail}</small></article>
 }

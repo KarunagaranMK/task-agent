@@ -95,7 +95,12 @@ export const explainRisk = (id: string) => api.get(`/hires/${id}/explain`).then(
 export interface HRReview { task_id: string; ticket_id: string; hire_id: string; hire_name: string; task_title: string; team: string; status: 'pending_review' | 'alternative_pending' | 'done'; suggested_title: string | null; verification_notes: Array<{ author: string; body: string; created_at: string }>; updated_at: string }
 export const getHRReviews = () => api.get<HRReview[]>('/tasks/hr-review').then(r => r.data)
 export const decideHRReview = (taskId: string, decision: 'accept' | 'alternative') => api.post(`/tasks/${taskId}/review`, { decision }).then(r => r.data)
-export const getTickets = () => api.get('/tickets').then(r => r.data)
+export interface AlternativeRequest { id: string; ticket_id: string; hire_id: string; employee_name: string; employee_id: string; task_title: string; department: string; issue: string; suggested_title: string; suggested_days: number; source: string; status: 'pending' | 'approved' | 'rejected'; requested_by: string; decision_by: string | null; decision_note: string | null; created_at: string; updated_at: string }
+export const getAlternativeRequests = () => api.get<AlternativeRequest[]>('/alternative-requests').then(r => r.data)
+export const decideAlternativeRequest = (id: string, decision: 'approve' | 'reject', note = '') => api.post(`/alternative-requests/${id}/decision`, { decision, note }).then(r => r.data)
+export const suggestAlternative = (ticketId: string, issue: string) => api.post<{ ticket_id: string; employee_name: string; employee_id: string; issue: string; suggested_title: string; suggested_days: number }>(`/tickets/${ticketId}/alternative-suggestion`, { issue }).then(r => r.data)
+export const submitAlternative = (ticketId: string, proposal: { issue: string; suggested_title: string; suggested_days: number }) => api.post(`/tickets/${ticketId}/alternatives`, proposal).then(r => r.data)
+export const getTickets = () => api.get<Ticket[]>('/tickets').then(r => r.data)
 export const startTicket = (id: string) => api.post(`/tickets/${id}/start`).then(r => r.data)
 export const completeTicket = (id: string, verificationNote: string) => api.post(`/tickets/${id}/complete`, { body: verificationNote }).then(r => r.data)
 export const blockTicket = (id: string) => api.post(`/tickets/${id}/block`).then(r => r.data)
@@ -150,7 +155,9 @@ export const retryOutboxItem = (id: number) => api.post<{ status: string; retry_
 export interface ExperimentParams { n_hires: number; stall_probability: number; seed: number }
 export interface Ticket {
   id: string; ticket_id: string; title: string; team: string;
-  status: string; hire_id: string | null; task_id: string | null; estimate_days: number; created_at: string
+  status: string; hire_id: string | null; employee_name: string; employee_id: string; task_id: string | null;
+  alternative: { id: string; issue: string; suggested_title: string; suggested_days: number; status: string; decision_note: string | null } | null;
+  estimate_days: number; created_at: string
 }
 export interface AuditEvent { id: string; day: number; level: string; message: string; actor: string; created_at: string }
 export interface Notification { id: string; for_role: string; message: string; hire_id: string | null; task_id: string | null; read: boolean; created_at: string }

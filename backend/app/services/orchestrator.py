@@ -8,11 +8,12 @@ from datetime import date, datetime, timedelta
 import uuid
 from sqlmodel import Session, select
 from app.domain.models import (
-    Hire, Task, TaskStatus, HireStatus, OutboxItem, AuditEvent, AppSetting,
+    AlternativeRequest, Hire, Task, TaskStatus, HireStatus, OutboxItem, AuditEvent, AppSetting,
     Notification, Ticket, SimState, ApprovalState, TaskFlag, SchedulerLease,
 )
 from app.services.cpm import CPMTask, compute_cpm, get_remaining_days, is_stalled
 from app.services.llm import draft_escalation_message
+from app.services.alternatives import create_alternative_request, pending_alternative, suggestion_for_task
 from app.services.planner import PlanSpec
 import logging
 from app.mcp_clients.tools import (
@@ -20,7 +21,6 @@ from app.mcp_clients.tools import (
     set_itsm_offline,
     update_onboarding_status as mcp_update_onboarding_status,
     upsert_new_hire as mcp_upsert_new_hire,
-    update_ticket_details as mcp_update_ticket_details,
     update_ticket_status as mcp_update_ticket_status,
 )
 
@@ -238,7 +238,7 @@ def run_cpm_for_hire(
 
     open_statuses = [
         TaskStatus.pending, TaskStatus.queued,
-        TaskStatus.dispatched, TaskStatus.awaiting_approval,
+        TaskStatus.dispatched, TaskStatus.awaiting_approval, TaskStatus.blocked,
     ]
     open_tasks = session.exec(
         select(Task).where(Task.hire_id == hire.id, Task.status.in_(open_statuses))
@@ -315,44 +315,41 @@ def handle_stalls(
                    f"Action needed: '{task.title}' for {hire.name} is stalled.",
                    hire.id, task.id)
 
-        # Reschedule with fallback if available
-        if task.fallback_title and task.flag != TaskFlag.rescheduled:
-            old_title = task.title
-            fallback_title = task.fallback_title
-            fallback_days = task.fallback_days or 1
-            if task.ticket_id:
-                result = mcp_update_ticket_details(task.ticket_id, fallback_title, fallback_days)
-                if result.get("error"):
-                    logger.warning("Fallback update for ticket %s deferred: %s", task.ticket_id, result.get("error"))
+        # A blocker recommendation never changes the task by itself. It pauses the
+        # ticket and sends the suggestion to HR for an explicit decision.
+        if task.ticket_id:
+            ticket = session.exec(select(Ticket).where(Ticket.ticket_id == task.ticket_id)).first()
+            if ticket and pending_alternative(session, ticket.id) is None:
+                issue = f"The progress monitor detected that '{task.title}' is stalled on the critical path."
+                suggestion = suggestion_for_task(task, hire, issue)
+                paused = mcp_update_ticket_status(ticket.ticket_id, "blocked")
+                if paused.get("error"):
+                    logger.warning("Alternative request for ticket %s deferred: %s", ticket.ticket_id, paused.get("error"))
                     continue
-                reopened = mcp_update_ticket_status(task.ticket_id, "open")
-                if reopened.get("error"):
-                    logger.warning("Fallback reopen for ticket %s deferred: %s", task.ticket_id, reopened.get("error"))
-                    continue
-                ticket = session.exec(select(Ticket).where(Ticket.ticket_id == task.ticket_id)).first()
-                if ticket:
-                    ticket.title = fallback_title
-                    ticket.estimate_days = fallback_days
-                    ticket.status = "open"
-                    ticket.updated_at = datetime.utcnow()
-                    session.add(ticket)
-            else:
-                queued = session.exec(select(OutboxItem).where(OutboxItem.task_id == task.id)).first()
-                if queued:
-                    queued.title = fallback_title
-                    queued.estimate_days = fallback_days
-                    session.add(queued)
-            task.flag = TaskFlag.rescheduled
-            task.title = fallback_title
-            task.duration_days = fallback_days
-            task.fallback_title = None
-            task.fallback_days = None
-            task.last_activity_day = current_day
-            session.add(task)
-            audit(session, hire.id,
-                  f"RESCHEDULED: '{old_title}' → fallback '{task.title}' ({task.duration_days}d)",
-                  "warning", "progress_monitor")
-    # The enclosing monitor cycle commits reschedule and notification records together.
+                ticket.status = "alternative_pending"
+                ticket.updated_at = datetime.utcnow()
+                task.status = TaskStatus.blocked
+                task.last_activity_day = current_day
+                request = create_alternative_request(
+                    session,
+                    ticket=ticket,
+                    task=task,
+                    hire=hire,
+                    issue=issue,
+                    suggested_title=str(suggestion["title"]),
+                    suggested_days=int(suggestion["duration_days"]),
+                    requested_by_id=None,
+                    source="progress_monitor",
+                )
+                session.add(ticket)
+                session.add(task)
+                session.add(request)
+                audit(session, hire.id,
+                      f"Progress monitor proposed '{request.suggested_title}' for {hire.name}; HR approval is required",
+                      "warning", "agent:alternative_planner")
+                notify(session, "HR", f"A stalled {ticket.team} task for {hire.name} has an alternative ready for review.", hire.id, task.id)
+                notify(session, ticket.team, f"An alternative for {hire.name} was sent to HR for review: {request.suggested_title}.", hire.id, task.id)
+    # Suggestions are stored and auditable; a human HR decision applies them.
 
 
 # ---------------------------------------------------------------------------

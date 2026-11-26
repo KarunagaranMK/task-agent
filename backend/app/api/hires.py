@@ -124,7 +124,7 @@ class HireOut(BaseModel):
 
 
 @router.post("/plan-preview")
-def plan_preview(data: PlanPreviewRequest, session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "HR"))):
+def plan_preview(data: PlanPreviewRequest, session: Session = Depends(get_session), _user=Depends(require_roles("HR"))):
     from app.services.orchestrator import plan_spec_for_role
     plan = plan_spec_for_role(session, data.role, hire_id=None)
     return {"role": data.role, "tasks": [task.model_dump() for task in plan.tasks]}
@@ -160,7 +160,7 @@ def _hire_by_public_id(public_id: UUID, session: Session) -> Hire | None:
 
 
 @router.post("", response_model=HireOut)
-def create_hire(data: HireCreate, session: Session = Depends(get_session), _user=Depends(require_roles("ADMIN", "HR"))):
+def create_hire(data: HireCreate, session: Session = Depends(get_session), _user=Depends(require_roles("HR"))):
     if data.start_date is not None:
         current_day = get_current_day(session)
         clock = load_clock(session, current_day)
@@ -196,7 +196,7 @@ def list_hires(
     sort_by: Literal["created_at", "name", "start_date", "readiness", "status"] = "created_at",
     sort_order: Literal["asc", "desc"] = "desc",
     session: Session = Depends(get_session),
-    user=Depends(require_roles("ADMIN", "HR")),
+    user=Depends(require_roles("HR")),
 ):
     filters = []
     if not include_archived:
@@ -232,7 +232,7 @@ def list_hires(
 
 
 @router.post("/{hire_id}/archive")
-def archive_hire(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR"))):
+def archive_hire(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("HR"))):
     hire = _hire_by_public_id(hire_id, session)
     if not hire:
         raise HTTPException(404, "Hire not found")
@@ -384,7 +384,7 @@ def _get_editable_hire(hire_id: UUID, session: Session) -> Hire:
 
 
 @router.post("/{hire_id}/pause")
-def pause_hire(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR"))):
+def pause_hire(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("HR"))):
     hire = _get_editable_hire(hire_id, session)
     internal_hire_id = hire.id
     if hire.status == HireStatus.cancelled:
@@ -424,7 +424,7 @@ def pause_hire(hire_id: UUID, session: Session = Depends(get_session), user=Depe
 
 
 @router.post("/{hire_id}/resume")
-def resume_hire(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR"))):
+def resume_hire(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("HR"))):
     hire = _get_editable_hire(hire_id, session)
     internal_hire_id = hire.id
     if hire.status != HireStatus.paused:
@@ -461,7 +461,7 @@ def resume_hire(hire_id: UUID, session: Session = Depends(get_session), user=Dep
 
 
 @router.post("/{hire_id}/cancel")
-def cancel_hire(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("ADMIN", "HR"))):
+def cancel_hire(hire_id: UUID, session: Session = Depends(get_session), user=Depends(require_roles("HR"))):
     hire = _get_editable_hire(hire_id, session)
     internal_hire_id = hire.id
     if hire.status == HireStatus.ready:

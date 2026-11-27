@@ -6,7 +6,7 @@ from pathlib import Path
 from sqlmodel import Session, create_engine, SQLModel, select
 from sqlmodel.pool import StaticPool
 from app.domain.models import (
-    Task, TaskStatus, Ticket, OutboxItem, SimState, ApprovalState,
+    AlternativeRequest, Task, TaskStatus, Ticket, OutboxItem, SimState, ApprovalState,
     AuditEvent, Notification,
 )
 from app.services.orchestrator import (
@@ -204,7 +204,7 @@ def test_monitor_lease_allows_only_one_active_owner(session):
     assert _acquire_monitor_lease(session, "worker-b")
 
 
-def test_stalled_critical_laptop_uses_loaner_without_duplicate_ticket(session):
+def test_stalled_critical_laptop_requests_loaner_hr_approval_without_duplicate_ticket(session):
     hire = create_hire_with_plan(session, "Priya", "Data Analyst", "Analytics", 2)
     laptop = session.exec(select(Task).where(Task.hire_id == hire.id, Task.key == "it:laptop")).one()
     laptop.duration_days = 6
@@ -223,11 +223,17 @@ def test_stalled_critical_laptop_uses_loaner_without_duplicate_ticket(session):
     monitor_tick(session)
     session.refresh(laptop)
     ticket = session.exec(select(Ticket).where(Ticket.ticket_id == original_ticket_id)).one()
-    assert laptop.flag == "rescheduled"
-    assert laptop.title == "Issue Loaner Laptop"
+    assert laptop.flag == "escalated"
+    assert laptop.status == TaskStatus.blocked
+    assert laptop.title == "Provision Laptop (High RAM)"
     assert laptop.ticket_id == original_ticket_id
-    assert ticket.title == "Issue Loaner Laptop"
-    assert ticket.status == "open"
+    assert ticket.title == "Provision Laptop (High RAM)"
+    assert ticket.status == "alternative_pending"
+    alternative = session.exec(
+        select(AlternativeRequest).where(AlternativeRequest.task_id == laptop.id)
+    ).one()
+    assert alternative.status == "pending"
+    assert alternative.suggested_title == "Issue Loaner Laptop"
     escalations = session.exec(select(AuditEvent).where(AuditEvent.hire_id == hire.id, AuditEvent.level == "critical", AuditEvent.message.contains("Provision Laptop"))).all()
     assert len(escalations) == 1
     assert len(session.exec(select(Notification).where(Notification.hire_id == hire.id)).all()) >= 2
@@ -241,6 +247,9 @@ def test_stalled_critical_laptop_uses_loaner_without_duplicate_ticket(session):
         )
     ).all()
     assert len(laptop_escalations) == 1
+    assert len(session.exec(
+        select(AlternativeRequest).where(AlternativeRequest.task_id == laptop.id)
+    ).all()) == 1
 
 
 def test_queued_ticket_recovers_after_backend_process_restart(tmp_path, monkeypatch):

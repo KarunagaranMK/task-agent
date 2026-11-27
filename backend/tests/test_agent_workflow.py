@@ -34,21 +34,14 @@ def test_monitor_supervisor_invokes_team_and_hris_workers(client):
     assert {"supervisor", "progress_monitor", "it_provisioner", "facilities_coordinator", "hris_coordinator"} <= names
 
 
-def test_sensitive_access_pauses_and_resumes_langgraph_on_manager_decision(client):
+def test_new_hire_plan_does_not_create_manager_approval_stage(client):
     hire = client.post("/hires", json={
         "name": "Jordan Lee", "role": "Data Analyst", "department": "Analytics", "start_day": 8,
     })
     assert hire.status_code == 200
-    client.post("/monitor/tick")
-    activity = client.get("/agents/activity", params={"page_size": 100}).json()["items"]
-    pauses = [item for item in activity if item["agent"] == "approval_gate" and item["status"] == "interrupted"]
-    assert pauses
-
     tasks = client.get(f"/hires/{hire.json()['id']}/tasks").json()
-    approval = next(task for task in tasks if task["status"] == "awaiting_approval")
-    response = client.post(f"/tasks/{approval['id']}/approve")
-    assert response.status_code == 200
-    assert response.json()["workflow_resumed"] is True
+    assert tasks
+    assert all(task["status"] != "awaiting_approval" for task in tasks)
 
 
 def test_integration_health_uses_mcp_and_reports_scheduler_state(client):

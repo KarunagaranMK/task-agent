@@ -41,20 +41,20 @@ def test_published_role_template_is_used_for_future_hires(client, session):
     assert [task["key"] for task in tasks] == ["custom:welcome"]
 
 
-def test_settings_are_admin_only_and_persisted(client, session, monkeypatch):
-    response = client.put("/settings", json={"stall_after_days": 3, "near_critical_margin": 2,
+def test_settings_are_admin_only_and_persisted(admin_client, session, monkeypatch):
+    response = admin_client.put("/settings", json={"stall_after_days": 3, "near_critical_margin": 2,
         "monitor_interval_minutes": 10, "auto_worker_enabled": True, "timezone": "UTC", "holidays": ["2026-12-25"]})
     assert response.status_code == 200
-    assert client.get("/settings").json()["timezone"] == "UTC"
-    assert json.loads(client.get("/settings").json()["holidays"]) == ["2026-12-25"]
+    assert admin_client.get("/settings").json()["timezone"] == "UTC"
+    assert json.loads(admin_client.get("/settings").json()["holidays"]) == ["2026-12-25"]
     assert session.get(AppSetting, "auto_worker_enabled").value == "true"
-    invalid_zone = client.put("/settings", json={"stall_after_days": 3, "near_critical_margin": 2,
+    invalid_zone = admin_client.put("/settings", json={"stall_after_days": 3, "near_critical_margin": 2,
         "monitor_interval_minutes": 10, "auto_worker_enabled": True, "timezone": "Not/AZone", "holidays": []})
     assert invalid_zone.status_code == 422
 
-    client.app.dependency_overrides[get_current_user] = lambda: User(
+    admin_client.app.dependency_overrides[get_current_user] = lambda: User(
         id=8, email="hr@example.local", name="HR", role="HR", password_hash="unused")
-    forbidden = client.put("/settings", json={"stall_after_days": 3, "near_critical_margin": 2,
+    forbidden = admin_client.put("/settings", json={"stall_after_days": 3, "near_critical_margin": 2,
         "monitor_interval_minutes": 10, "auto_worker_enabled": False, "timezone": "UTC", "holidays": []})
     assert forbidden.status_code == 403
 

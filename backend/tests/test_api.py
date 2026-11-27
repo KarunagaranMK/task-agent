@@ -97,32 +97,29 @@ def test_create_hire_uses_organization_business_calendar(client, session, monkey
 
 def test_hr_can_edit_hire_details_and_recalculate_joining_date(client, session, monkeypatch):
     from datetime import date
-    from app.domain.models import AuditEvent, User
+    from app.domain.models import AuditEvent
     from app.services.clock import Clock
 
     monkeypatch.setattr(Clock, "local_today", lambda _self: date(2026, 11, 24))
-    manager = User(email="manager-edit@example.local", name="Edit Manager", role="MANAGER", password_hash="unused")
-    session.add(manager)
-    session.commit()
-    session.refresh(manager)
     hire = client.post("/hires", json={"name": "Edit Me", "role": "Analyst", "department": "Data", "start_day": 8}).json()
 
+    locked_role = client.patch(f"/hires/{hire['id']}", json={"role": "Software Engineer"})
+    assert locked_role.status_code == 409
     updated = client.patch(f"/api/v1/hires/{hire['id']}", json={
-        "name": "Edited Name", "role": "Software Engineer", "department": "Analytics", "manager_id": manager.public_id, "start_date": "2026-12-07",
+        "name": "Edited Name", "department": "Analytics", "start_date": "2026-12-07",
     })
     assert updated.status_code == 200
     assert updated.json()["name"] == "Edited Name"
-    assert updated.json()["role"] == "Software Engineer"
+    assert updated.json()["role"] == "Analyst"
     assert updated.json()["department"] == "Analytics"
-    assert updated.json()["manager_id"] == manager.public_id
     assert updated.json()["start_date"] == "2026-12-07"
     assert updated.json()["start_day"] == 9
     from app.domain.models import Hire
     internal_hire = session.exec(select(Hire).where(Hire.public_id == hire["id"])).one()
     assert session.exec(select(AuditEvent).where(AuditEvent.hire_id == internal_hire.id, AuditEvent.actor_agent == "user:1")).first()
     tasks = client.get(f"/hires/{hire['id']}/tasks").json()
-    assert len(tasks) == 9
-    assert {task["key"] for task in tasks} >= {"it:repo_access", "it:laptop"}
+    assert len(tasks) >= 8
+    assert {task["key"] for task in tasks} >= {"it:accounts", "it:laptop", "facilities:badge"}
 
     from app.domain.models import Task, TaskStatus
     first_task = session.exec(select(Task).where(Task.hire_id == internal_hire.id)).first()
@@ -145,7 +142,7 @@ def test_plan_preview_returns_validated_role_template(client):
     assert response.status_code == 200
     tasks = response.json()["tasks"]
     assert any(task["key"] == "it:laptop" for task in tasks)
-    assert any(task["needs_approval"] for task in tasks)
+    assert all(not task["needs_approval"] for task in tasks)
 
 
 def test_what_if_returns_recomputed_path(client):
@@ -375,24 +372,36 @@ def test_reset(client, session):
     assert priya["start_day"] == 8
 
 
-def test_approve_task(client):
+def test_department_completion_requires_hr_acceptance(client, monkeypatch):
+    from app.auth import get_current_user
+    from app.domain.models import User
+    from app.main import app
+    from app.api import tasks as tasks_api
+
+    monkeypatch.setattr(tasks_api, "monitor_tick", lambda _session: True)
     r = client.post(
         "/hires",
         json={"name": "P", "role": "Data Analyst", "department": "Analytics", "start_day": 10},
     )
     hid = r.json()["id"]
-    client.post("/monitor/tick")
     tasks = client.get(f"/hires/{hid}/tasks").json()
-    approval_tasks = [t for t in tasks if t["needs_approval"]]
-    if approval_tasks:
-        t = approval_tasks[0]
-        from uuid import UUID
-        UUID(t["id"])
-        assert client.post("/tasks/1/approve").status_code == 422
-        r2 = client.post(f"/tasks/{t['id']}/approve")
-        assert r2.status_code == 200
-        assert r2.json()["status"] == "approved"
-        assert r2.json()["task_id"] == t["id"]
+    task = next(item for item in tasks if item["key"] == "it:laptop")
+    assert task["ticket_id"]
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id=2, email="it@example.local", name="IT Teammate", role="IT_STAFF", team="IT", password_hash="unused"
+    )
+    submitted = client.post(
+        f"/tickets/{task['ticket_id']}/complete",
+        json={"body": "Laptop configured and verified."},
+    )
+    assert submitted.status_code == 200, submitted.text
+    assert submitted.json()["status"] == "pending_review"
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id=1, email="hr@example.local", name="Test HR", role="HR", password_hash="unused"
+    )
+    reviewed = client.post(f"/tasks/{task['id']}/review", json={"decision": "accept"})
+    assert reviewed.status_code == 200, reviewed.text
+    assert reviewed.json()["status"] == "accepted"
 
 
 def test_notifications(client):

@@ -130,6 +130,10 @@ def _team_ticket_sync(state: WorkflowState, runtime: Runtime[WorkflowContext], t
         # must still accept the handoff before the onboarding task becomes done.
         if status == "done":
             continue
+        # The ITSM service only knows that this ticket is blocked. Preserve the
+        # more specific local state while an alternative is waiting for HR.
+        if ticket.status == "alternative_pending" and status == "blocked":
+            continue
         if ticket.status != status:
             ticket.status = status
             ticket.updated_at = datetime.utcnow()

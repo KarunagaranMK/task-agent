@@ -18,14 +18,14 @@ def test_stream_ticket_is_short_lived_and_single_use(client, session):
     ticket_response = client.post("/events/ticket")
     assert ticket_response.status_code == 200
     ticket = ticket_response.json()["ticket"]
-    session.add(Notification(for_role="Manager", message="An approval is waiting"))
+    session.add(Notification(for_role="ADMIN", message="A workflow activity was recorded"))
     session.commit()
 
     response = client.get("/events/stream", params={"ticket": ticket, "max_events": 1})
     assert response.status_code == 200
     assert "event: connected" in response.text
     assert "event: notification" in response.text
-    assert "An approval is waiting" in response.text
+    assert "A workflow activity was recorded" in response.text
 
     replay = client.get("/events/stream", params={"ticket": ticket})
     assert replay.status_code == 401
@@ -38,14 +38,16 @@ def test_stream_ticket_requires_authenticated_creation(client):
 
 def test_notifications_read_all_respects_role_filter(client, session):
     session.add_all([
-        Notification(for_role="Manager", message="Manager event"),
+        Notification(for_role="HR", message="HR event"),
         Notification(for_role="IT", message="IT event"),
     ])
     session.commit()
     response = client.post("/notifications/read-all")
     assert response.status_code == 200
-    assert response.json()["updated"] == 2
-    assert all(item.read for item in session.exec(select(Notification)).all())
+    assert response.json()["updated"] == 1
+    rows = {item.for_role: item for item in session.exec(select(Notification)).all()}
+    assert rows["HR"].read is True
+    assert rows["IT"].read is False
 
 
 def test_notification_hire_links_use_public_uuid(client, session):
@@ -60,7 +62,7 @@ def test_notification_hire_links_use_public_uuid(client, session):
     session.commit()
     session.refresh(task)
     ticket = client.post("/events/ticket").json()["ticket"]
-    session.add(Notification(for_role="HR", message="Hire update", hire_id=hire.id, task_id=task.id))
+    session.add(Notification(for_role="ADMIN", message="Hire update", hire_id=hire.id, task_id=task.id))
     session.commit()
 
     notification = next(item for item in client.get("/notifications").json() if item["message"] == "Hire update")

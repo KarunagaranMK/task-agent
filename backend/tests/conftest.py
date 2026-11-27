@@ -38,7 +38,21 @@ def client_fixture(session: Session):
 
     app.dependency_overrides[get_session] = _override
     app.dependency_overrides[get_current_user] = lambda: User(
-        id=1, email="test@example.local", name="Test Admin", role="ADMIN", password_hash="unused"
+        id=1, email="test@example.local", name="Test HR", role="HR", password_hash="unused"
+    )
+    with TestClient(app) as client:
+        yield client
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture(name="admin_client")
+def admin_client_fixture(session: Session):
+    def _override():
+        return session
+
+    app.dependency_overrides[get_session] = _override
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id=1, email="admin@example.local", name="Test Admin", role="ADMIN", password_hash="unused"
     )
     with TestClient(app) as client:
         yield client

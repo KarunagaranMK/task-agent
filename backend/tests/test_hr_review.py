@@ -1,9 +1,9 @@
 from datetime import date
 
-from app.domain.models import Hire, Task, TaskStatus, Ticket
+from app.auth import get_current_user
+from app.domain.models import Hire, Task, TaskStatus, Ticket, User
 from app.api import tasks as tasks_api
 from app.mcp_clients.tools import create_ticket as mcp_create_ticket
-from app.services import llm
 
 
 def _submitted_work(session):
@@ -22,13 +22,22 @@ def _submitted_work(session):
     return hire, task, external["ticket_id"]
 
 
+def _act_as(client, *, role, team=None):
+    client.app.dependency_overrides[get_current_user] = lambda: User(
+        id=2, email=f"{role.lower()}-review@example.local", name=f"{role} Reviewer",
+        role=role, team=team, password_hash="unused",
+    )
+
+
 def test_department_completion_waits_for_hr_acceptance(client, session, monkeypatch):
     monkeypatch.setattr(tasks_api, "monitor_tick", lambda _session: True)
     hire, task, ticket_id = _submitted_work(session)
 
+    _act_as(client, role="IT_STAFF", team="IT")
     completed = client.post(f"/tickets/{ticket_id}/complete", json={"body": "Laptop is configured and verified against the employee's role."})
     assert completed.status_code == 200
     assert completed.json()["status"] == "pending_review"
+    _act_as(client, role="HR")
     reviews = client.get("/tasks/hr-review")
     assert reviews.status_code == 200
     assert reviews.json()[0]["hire_name"] == hire.name
@@ -46,18 +55,27 @@ def test_department_completion_waits_for_hr_acceptance(client, session, monkeypa
 def test_hr_can_request_and_approve_agent_alternative(client, session, monkeypatch):
     monkeypatch.setattr(tasks_api, "monitor_tick", lambda _session: True)
     _, task, ticket_id = _submitted_work(session)
-    monkeypatch.setattr(llm, "draft_alternative_title", lambda *args: {"title": "Provision a temporary analytics account", "duration_days": 2})
+    monkeypatch.setattr(tasks_api, "suggestion_for_task", lambda *_args: {
+        "title": "Provision a temporary analytics account", "duration_days": 2,
+    })
 
+    _act_as(client, role="IT_STAFF", team="IT")
     assert client.post(f"/tickets/{ticket_id}/complete", json={"body": "Access verified with the department owner."}).status_code == 200
+    _act_as(client, role="HR")
     proposed = client.post(f"/tasks/{task.public_id}/review", json={"decision": "alternative"})
     assert proposed.status_code == 200, proposed.text
     assert proposed.json()["suggested_title"] == "Provision a temporary analytics account"
-    review = client.get("/tasks/hr-review").json()[0]
-    assert review["status"] == "alternative_pending"
-    assert review["suggested_title"] == "Provision a temporary analytics account"
+    alternative = next(
+        item for item in client.get("/alternative-requests").json()
+        if item["task_title"] == task.title and item["status"] == "pending"
+    )
 
-    accepted = client.post(f"/tasks/{task.public_id}/review", json={"decision": "accept"})
-    assert accepted.status_code == 200
+    accepted = client.post(
+        f"/alternative-requests/{alternative['id']}/decision",
+        json={"decision": "approve", "note": "Approved by HR."},
+    )
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()["status"] == "approved"
     assert session.get(Task, task.id).title == "Provision a temporary analytics account"
     assert session.get(Task, task.id).status == TaskStatus.dispatched
     assert client.get("/tasks/hr-review").json() == []

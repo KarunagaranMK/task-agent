@@ -196,18 +196,18 @@ def test_password_reset_is_generic_single_use_and_revokes_sessions(anonymous_cli
     assert session.exec(select(SecurityAudit).where(SecurityAudit.action == "password_reset")).first()
 
 
-def test_admin_can_invite_change_role_and_deactivate(client, session):
-    invited = client.post("/users/invite", json={"email": "new@example.local", "name": "New User", "role": "IT_STAFF", "team": "IT"})
+def test_admin_can_invite_change_role_and_deactivate(admin_client, session):
+    invited = admin_client.post("/users/invite", json={"email": "new@example.local", "name": "New User", "role": "IT_STAFF", "team": "IT"})
     assert invited.status_code == 201
     assert invited.json()["must_change_password"] is True
     from uuid import UUID
     UUID(invited.json()["id"])
-    mail = client.get("/dev/mail").json()
+    mail = admin_client.get("/dev/mail").json()
     assert mail and str(UUID(mail[0]["id"])) == mail[0]["id"]
-    assert client.get("/users").status_code == 200
-    assert client.patch("/users/1", json={"role": "HR"}).status_code == 422
-    assert client.patch(f"/users/{invited.json()['id']}", json={"role": "HR"}).json()["role"] == "HR"
-    assert client.delete(f"/users/{invited.json()['id']}").json()["is_active"] is False
+    assert admin_client.get("/users").status_code == 200
+    assert admin_client.patch("/users/1", json={"role": "HR"}).status_code == 422
+    assert admin_client.patch(f"/users/{invited.json()['id']}", json={"role": "HR"}).json()["role"] == "HR"
+    assert admin_client.delete(f"/users/{invited.json()['id']}").json()["is_active"] is False
 
 
 @pytest.mark.parametrize("role", ["HR", "MANAGER", "IT_STAFF", "NEW_HIRE"])
@@ -219,18 +219,18 @@ def test_user_management_is_admin_only(client, role):
     assert client.post("/users/invite", json={"email": "x@example.local", "name": "X", "role": "HR"}).status_code == 403
 
 
-def test_invitation_token_sets_password_once(client, session):
-    client.post("/users/invite", json={"email": "invite@example.local", "name": "Invite", "role": "MANAGER"})
+def test_invitation_token_sets_password_once(admin_client, session):
+    admin_client.post("/users/invite", json={"email": "invite@example.local", "name": "Invite", "role": "IT_STAFF", "team": "IT"})
     token = _mail_token(session)
     body = {"token": token, "password": "Invite-Strong-456"}
-    assert client.post("/auth/accept-invite", json=body).status_code == 200
-    assert client.post("/auth/accept-invite", json=body).status_code == 400
-    assert client.post("/auth/login", json={"email": "invite@example.local", "password": body["password"]}).status_code == 200
+    assert admin_client.post("/auth/accept-invite", json=body).status_code == 200
+    assert admin_client.post("/auth/accept-invite", json=body).status_code == 400
+    assert admin_client.post("/auth/login", json={"email": "invite@example.local", "password": body["password"]}).status_code == 200
 
 
 @pytest.mark.parametrize(
     ("role", "expected"),
-    [("ADMIN", 200), ("HR", 200), ("MANAGER", 200), ("IT_STAFF", 403), ("NEW_HIRE", 403)],
+    [("ADMIN", 200), ("HR", 200), ("MANAGER", 403), ("IT_STAFF", 403), ("NEW_HIRE", 403)],
 )
 def test_hire_list_role_matrix(client, role, expected):
     client.app.dependency_overrides[get_current_user] = lambda: User(
@@ -241,7 +241,7 @@ def test_hire_list_role_matrix(client, role, expected):
 
 @pytest.mark.parametrize(
     ("role", "expected"),
-    [("ADMIN", 200), ("IT_STAFF", 200), ("HR", 403), ("MANAGER", 403), ("NEW_HIRE", 403)],
+    [("ADMIN", 200), ("IT_STAFF", 200), ("HR", 200), ("MANAGER", 403), ("NEW_HIRE", 403)],
 )
 def test_ticket_role_matrix(client, role, expected):
     client.app.dependency_overrides[get_current_user] = lambda: User(
@@ -252,27 +252,21 @@ def test_ticket_role_matrix(client, role, expected):
 
 @pytest.mark.parametrize(
     ("role", "expected"),
-    [("ADMIN", 404), ("MANAGER", 404), ("HR", 403), ("IT_STAFF", 403), ("NEW_HIRE", 403)],
+    [("ADMIN", 403), ("MANAGER", 403), ("HR", 404), ("IT_STAFF", 403), ("NEW_HIRE", 403)],
 )
-def test_approval_role_matrix(client, role, expected):
+def test_hr_review_role_matrix(client, role, expected):
     client.app.dependency_overrides[get_current_user] = lambda: User(
         id=1, email="role@example.local", name="Role Test", role=role, team="IT", password_hash="unused"
     )
-    assert client.post("/tasks/00000000-0000-4000-8000-000000000000/approve").status_code == expected
+    response = client.post(
+        "/tasks/00000000-0000-4000-8000-000000000000/review",
+        json={"decision": "accept"},
+    )
+    assert response.status_code == expected
 
 
-def test_manager_sees_only_assigned_hires(client, session):
-    manager_one = User(email="manager-one@example.local", name="Manager One", role="MANAGER", password_hash="unused")
-    manager_two = User(email="manager-two@example.local", name="Manager Two", role="MANAGER", password_hash="unused")
-    session.add_all([manager_one, manager_two])
-    session.commit()
-    first = client.post("/hires", json={"name": "Own", "role": "default", "department": "X", "start_day": 5, "manager_id": manager_one.public_id}).json()
-    other = client.post("/hires", json={"name": "Other", "role": "default", "department": "X", "start_day": 5, "manager_id": manager_two.public_id}).json()
+def test_retired_manager_role_cannot_access_hire_data(client):
     client.app.dependency_overrides[get_current_user] = lambda: User(
         id=1, email="manager@example.local", name="Manager", role="MANAGER", password_hash="unused"
     )
-    response = client.get("/hires")
-    assert response.status_code == 200, response.text
-    assert [h["id"] for h in response.json()] == [first["id"]]
-    assert client.get(f"/hires/{first['id']}").status_code == 200
-    assert client.get(f"/hires/{other['id']}").status_code == 404
+    assert client.get("/hires").status_code == 403
